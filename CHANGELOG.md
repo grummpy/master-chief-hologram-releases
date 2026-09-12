@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.2 — 2026-09-12
+
+- Removed an accidental square preview duplicate from the release package.
+- Kept the verified 16:9 PAPM visual brief as the canonical image.
+
 ## 1.0.1 — 2026-09-12
 
 - Added Codex Desktop as the recommended working AI route using the existing ChatGPT/Codex login.

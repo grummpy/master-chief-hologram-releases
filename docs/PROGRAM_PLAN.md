@@ -1,8 +1,11 @@
 # Master Chief Hologram program plan
 
-Version: 1.0.1  
-Date: 2026-09-12  
-Owner: grummpy  
+Version: 1.0.2
+
+Date: 2026-09-12
+
+Owner: grummpy
+
 Status: implemented increment awaiting runtime acceptance
 
 ## Mission and users
@@ -32,7 +35,7 @@ GitHub Models is excluded as an AI provider because GitHub retired its playgroun
 4. Preserve local per-provider history.
 5. Repair the Desktop launcher and single-instance behavior.
 6. Run syntax, dependency, authentication, response, launch, and recovery checks.
-7. Commit and push version 1.0.1 after checks pass.
+7. Commit and push the numbered release after checks pass.
 
 ## Risks and controls
 
@@ -53,4 +56,3 @@ GitHub Models is excluded as an AI provider because GitHub retired its playgroun
 
 - OpenAI developer quickstart: https://platform.openai.com/docs/quickstart/make-your-first-api-request
 - GitHub Models retirement: https://docs.github.com/en/github-models
-

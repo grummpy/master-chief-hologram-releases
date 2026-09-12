@@ -1,6 +1,6 @@
 # Master Chief Hologram Desktop Bot
 
-Current release: **1.0.1**
+Current release: **1.0.2**
 
 **Your personal holographic AI command center.**
 

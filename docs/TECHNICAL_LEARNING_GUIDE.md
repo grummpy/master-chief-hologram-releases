@@ -1,6 +1,7 @@
 # Technical learning guide: Master Chief Hologram
 
-Version: 1.0.1  
+Version: 1.0.2
+
 Date: 2026-09-12
 
 ## What the system does
@@ -34,4 +35,3 @@ Desktop AI clients commonly separate the visible renderer from privileged creden
 ## Learning path
 
 Practice provider selection, connection-state interpretation, local-versus-remote credential boundaries, and the difference between authentication and paid inference availability. Next, learn Electron's main/renderer separation, IPC allowlists, and release signing.
-
