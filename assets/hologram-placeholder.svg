@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 300" role="img" aria-label="Master Chief hologram placeholder">
+  <defs><linearGradient id="c" x1="0" x2="1"><stop stop-color="#67e8f9" stop-opacity=".35"/><stop offset=".5" stop-color="#e0f7ff" stop-opacity=".9"/><stop offset="1" stop-color="#22d3ee" stop-opacity=".35"/></linearGradient><filter id="g"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+  <g fill="none" stroke="url(#c)" stroke-width="3" filter="url(#g)" opacity=".9"><ellipse cx="120" cy="272" rx="86" ry="10"/><path d="M64 270c14-44 23-75 27-111l13-54 32-28 35 27 14 54c3 36 13 68 27 112"/><path d="M93 104 76 77l25-30h38l25 30-17 27"/><path d="m104 48 16-18 16 18M89 123h62M84 161h72M76 208h88"/><path d="M105 80h30"/></g>
+  <g stroke="#a5f3fc" opacity=".45"><path d="M25 36h190M25 62h190M25 88h190M25 114h190M25 140h190M25 166h190M25 192h190M25 218h190M25 244h190"/></g>
+</svg>

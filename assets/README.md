@@ -6,6 +6,7 @@ Place the holographic media here:
 - `hologram-still.jpg` – fallback still
 - `mascot.png` – original solid cutout (optional)
 - `icon.png` – optional tray icon
+- `hologram-placeholder.svg` – built-in fallback used until the supplied still/video assets are added
 
 The app falls back to the still image if the video is missing.
 

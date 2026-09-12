@@ -258,7 +258,7 @@
       <video id="holoVideo" autoplay loop muted playsinline poster="assets/hologram-still.jpg">
         <source src="assets/hologram-idle.mp4" type="video/mp4" />
       </video>
-      <img id="holoImg" src="assets/hologram-still.jpg" style="display:none;" alt="Master Chief Hologram" />
+      <img id="holoImg" src="assets/hologram-placeholder.svg" style="display:none;" alt="Master Chief Hologram" />
       <div class="scanlines"></div>
     </div>
 
@@ -309,9 +309,17 @@
     const holoVideo = document.getElementById('holoVideo');
     const holoImg = document.getElementById('holoImg');
 
-    holoVideo.addEventListener('error', () => {
+    function showHologramStill() {
       holoVideo.style.display = 'none';
+      const still = path.join(__dirname, 'assets', 'hologram-still.jpg');
+      holoImg.src = fs.existsSync(still) ? 'assets/hologram-still.jpg' : 'assets/hologram-placeholder.svg';
       holoImg.style.display = 'block';
+    }
+    holoVideo.addEventListener('error', showHologramStill);
+    holoImg.addEventListener('error', () => {
+      if (!holoImg.src.endsWith('hologram-placeholder.svg')) {
+        holoImg.src = 'assets/hologram-placeholder.svg';
+      }
     });
 
     document.getElementById('closeBtn').onclick = () => window.close();
