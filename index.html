@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Master Chief Hologram</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%;
+      background: transparent;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      overflow: hidden;
+      color: #e0f7ff;
+      user-select: none;
+    }
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      background: linear-gradient(180deg, rgba(0,20,40,0.75) 0%, rgba(0,10,25,0.85) 100%);
+      border: 1px solid rgba(0, 200, 255, 0.35);
+      border-radius: 16px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 0 40px rgba(0, 180, 255, 0.25), inset 0 0 60px rgba(0, 100, 200, 0.1);
+      overflow: hidden;
+    }
+    .titlebar {
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      -webkit-app-region: drag;
+      background: rgba(0, 40, 80, 0.6);
+      border-bottom: 1px solid rgba(0, 200, 255, 0.2);
+    }
+    .titlebar .title {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      color: #7dd3fc;
+      text-shadow: 0 0 8px #0ea5e9;
+    }
+    .titlebar .controls {
+      display: flex;
+      gap: 8px;
+      -webkit-app-region: no-drag;
+    }
+    .titlebar button {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      opacity: 0.85;
+    }
+    .btn-close { background: #ff5f57; }
+    .btn-min { background: #febc2e; }
+    .btn-pin { background: #28c840; }
+    .holo-stage {
+      position: relative;
+      height: 280px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(ellipse at center, rgba(0,80,160,0.25) 0%, transparent 70%);
+      overflow: hidden;
+    }
+    .holo-stage video, .holo-stage img {
+      max-height: 95%;
+      max-width: 95%;
+      object-fit: contain;
+      filter: drop-shadow(0 0 12px rgba(0, 200, 255, 0.6));
+      pointer-events: none;
+    }
+    .scanlines {
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 180, 255, 0.03) 2px,
+        rgba(0, 180, 255, 0.03) 4px
+      );
+      pointer-events: none;
+      animation: scan 8s linear infinite;
+    }
+    @keyframes scan {
+      0% { background-position: 0 0; }
+      100% { background-position: 0 100px; }
+    }
+    .glow-ring {
+      position: absolute;
+      width: 200px; height: 200px;
+      border-radius: 50%;
+      border: 1px solid rgba(0, 200, 255, 0.15);
+      box-shadow: 0 0 40px rgba(0, 180, 255, 0.2);
+      animation: pulse 3s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 0.4; }
+      50% { transform: scale(1.08); opacity: 0.7; }
+    }
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      font-size: 12px;
+      background: rgba(0, 30, 60, 0.5);
+      border-bottom: 1px solid rgba(0, 200, 255, 0.15);
+    }
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 6px #22c55e;
+    }
+    .status-dot.busy { background: #f59e0b; box-shadow: 0 0 6px #f59e0b; animation: blink 0.8s infinite; }
+    @keyframes blink { 50% { opacity: 0.4; } }
+    select#modelSelect {
+      flex: 1;
+      background: rgba(0, 40, 80, 0.8);
+      color: #e0f7ff;
+      border: 1px solid rgba(0, 200, 255, 0.3);
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 12px;
+      outline: none;
+    }
+    .master-toggle {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: #7dd3fc;
+    }
+    .master-toggle input { accent-color: #0ea5e9; }
+    #chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(0,180,255,0.4) transparent;
+    }
+    .msg {
+      max-width: 92%;
+      padding: 8px 12px;
+      border-radius: 12px;
+      font-size: 13px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+      animation: fadeIn 0.25s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } }
+    .msg.user {
+      align-self: flex-end;
+      background: linear-gradient(135deg, #0369a1, #0ea5e9);
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+    .msg.bot {
+      align-self: flex-start;
+      background: rgba(0, 50, 90, 0.7);
+      border: 1px solid rgba(0, 200, 255, 0.25);
+      border-bottom-left-radius: 4px;
+      color: #e0f7ff;
+    }
+    .msg.system {
+      align-self: center;
+      font-size: 11px;
+      color: #7dd3fc;
+      background: transparent;
+      opacity: 0.8;
+    }
+    .msg .meta {
+      font-size: 10px;
+      opacity: 0.6;
+      margin-bottom: 2px;
+    }
+    .input-area {
+      padding: 10px 12px 14px;
+      background: rgba(0, 20, 40, 0.7);
+      border-top: 1px solid rgba(0, 200, 255, 0.2);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    #prompt {
+      width: 100%;
+      min-height: 70px;
+      max-height: 140px;
+      resize: vertical;
+      background: rgba(0, 30, 60, 0.9);
+      border: 1px solid rgba(0, 200, 255, 0.35);
+      border-radius: 10px;
+      color: #e0f7ff;
+      padding: 10px 12px;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    #prompt:focus { border-color: #0ea5e9; box-shadow: 0 0 12px rgba(14, 165, 233, 0.3); }
+    .row {
+      display: flex;
+      gap: 8px;
+    }
+    button.action {
+      flex: 1;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    #sendBtn {
+      background: linear-gradient(135deg, #0284c7, #0ea5e9);
+      color: white;
+      box-shadow: 0 0 12px rgba(14, 165, 233, 0.4);
+    }
+    #sendBtn:hover { filter: brightness(1.1); }
+    #sendBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+    #clearBtn {
+      background: rgba(0, 40, 80, 0.8);
+      color: #7dd3fc;
+      border: 1px solid rgba(0, 200, 255, 0.3);
+      flex: 0 0 auto;
+      width: 70px;
+    }
+    .hint {
+      font-size: 10px;
+      color: rgba(125, 211, 252, 0.6);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="titlebar">
+      <div class="title">MASTER CHIEF · HOLOGRAM</div>
+      <div class="controls">
+        <button class="btn-pin" title="Always on top (toggle in tray)"></button>
+        <button class="btn-min" id="minBtn" title="Minimize"></button>
+        <button class="btn-close" id="closeBtn" title="Close"></button>
+      </div>
+    </div>
+
+    <div class="holo-stage">
+      <div class="glow-ring"></div>
+      <video id="holoVideo" autoplay loop muted playsinline poster="assets/hologram-still.jpg">
+        <source src="assets/hologram-idle.mp4" type="video/mp4" />
+      </video>
+      <img id="holoImg" src="assets/hologram-still.jpg" style="display:none;" alt="Master Chief Hologram" />
+      <div class="scanlines"></div>
+    </div>
+
+    <div class="status-bar">
+      <div class="status-dot" id="statusDot"></div>
+      <select id="modelSelect">
+        <option value="grok">Grok (xAI)</option>
+        <option value="grok-bots">Grok Bots / Agents</option>
+        <option value="chatgpt">ChatGPT (GPT-4o)</option>
+        <option value="codex">Codex / o1-mini (code)</option>
+        <option value="copilot">GitHub Copilot style</option>
+        <option value="copilot-github">GitHub Models</option>
+      </select>
+      <label class="master-toggle" title="Prepend full Master Chief skill system prompt">
+        <input type="checkbox" id="masterMode" checked /> MC Mode
+      </label>
+    </div>
+
+    <div id="chat">
+      <div class="msg system">Hologram online. Select a model and issue a command, Commander.</div>
+    </div>
+
+    <div class="input-area">
+      <textarea id="prompt" placeholder="Enter prompt… (Master Chief will orchestrate if MC Mode is on)"></textarea>
+      <div class="row">
+        <button class="action" id="sendBtn">TRANSMIT</button>
+        <button class="action" id="clearBtn">Clear</button>
+      </div>
+      <div class="hint">Keys loaded from .env · Assets in /assets · Ctrl+Enter to send</div>
+    </div>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+    const OpenAI = require('openai');
+    const path = require('path');
+    const fs = require('fs');
+
+    require('dotenv').config({ path: path.join(__dirname, '.env') });
+
+    const chat = document.getElementById('chat');
+    const promptEl = document.getElementById('prompt');
+    const sendBtn = document.getElementById('sendBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const modelSelect = document.getElementById('modelSelect');
+    const masterMode = document.getElementById('masterMode');
+    const statusDot = document.getElementById('statusDot');
+    const holoVideo = document.getElementById('holoVideo');
+    const holoImg = document.getElementById('holoImg');
+
+    holoVideo.addEventListener('error', () => {
+      holoVideo.style.display = 'none';
+      holoImg.style.display = 'block';
+    });
+
+    document.getElementById('closeBtn').onclick = () => window.close();
+    document.getElementById('minBtn').onclick = () => {
+      require('electron').ipcRenderer.send('minimize');
+      window.blur();
+    };
+
+    const histories = {};
+    function getHistory(model) {
+      if (!histories[model]) histories[model] = [];
+      return histories[model];
+    }
+
+    const MASTER_CHIEF_SYSTEM = `You are Master Chief, the program-control skill for complex product, software, game, AI, family-operations, and technical-build requests.
+You turn open-ended objectives into researched, executable tasking prompts, route work to the right specialist skills (Jarvis, Leonardo, Decker, PAPM, etc.), verify results, and keep a living upgrade backlog.
+Always: 1) Context Manager first 2) PAPM research 3) Use cases before features 4) Select specialists 5) Produce one tasking prompt 6) Build foundations 7) Execute in increments 8) Maintain upgrade standby.
+Stay concise, actionable, military-clear. You are the holographic face of the bot-and-skills army for Commander grummpy.`;
+
+    function addMsg(role, text, meta = '') {
+      const div = document.createElement('div');
+      div.className = `msg ${role}`;
+      if (meta) {
+        const m = document.createElement('div');
+        m.className = 'meta';
+        m.textContent = meta;
+        div.appendChild(m);
+      }
+      div.appendChild(document.createTextNode(text));
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function setBusy(busy) {
+      statusDot.classList.toggle('busy', busy);
+      sendBtn.disabled = busy;
+    }
+
+    async function callGrok(messages) {
+      const key = process.env.XAI_API_KEY;
+      if (!key) throw new Error('XAI_API_KEY missing in .env');
+      const res = await fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${key}`
+        },
+        body: JSON.stringify({
+          model: 'grok-3',
+          messages,
+          stream: false,
+          temperature: 0.7
+        })
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(`Grok ${res.status}: ${t}`);
+      }
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content || '(empty)';
+    }
+
+    async function callOpenAI(messages, model = 'gpt-4o') {
+      const key = process.env.OPENAI_API_KEY;
+      if (!key) throw new Error('OPENAI_API_KEY missing in .env');
+      const openai = new OpenAI({ apiKey: key, dangerouslyAllowBrowser: true });
+      const completion = await openai.chat.completions.create({
+        model,
+        messages,
+        temperature: 0.7
+      });
+      return completion.choices[0].message.content;
+    }
+
+    async function callGithubModels(messages) {
+      const token = process.env.GITHUB_TOKEN;
+      if (!token) throw new Error('GITHUB_TOKEN missing for GitHub Models / Copilot style');
+      const res = await fetch('https://models.inference.ai.azure.com/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages,
+          temperature: 0.7
+        })
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(`GitHub Models ${res.status}: ${t}. Tip: use a PAT with models:read or map to OpenAI.`);
+      }
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content || '(empty)';
+    }
+
+    async function transmit() {
+      const text = promptEl.value.trim();
+      if (!text) return;
+      const model = modelSelect.value;
+      promptEl.value = '';
+      addMsg('user', text);
+
+      setBusy(true);
+      try {
+        const history = getHistory(model);
+        const messages = [];
+
+        if (masterMode.checked) {
+          messages.push({ role: 'system', content: MASTER_CHIEF_SYSTEM });
+        } else {
+          messages.push({ role: 'system', content: 'You are Master Chief, a helpful holographic AI companion for the user.' });
+        }
+
+        history.forEach(h => messages.push(h));
+        messages.push({ role: 'user', content: text });
+
+        let reply = '';
+        let used = model;
+
+        if (model === 'grok' || model === 'grok-bots') {
+          reply = await callGrok(messages);
+          used = 'Grok (xAI)';
+        } else if (model === 'chatgpt') {
+          reply = await callOpenAI(messages, 'gpt-4o');
+          used = 'ChatGPT (gpt-4o)';
+        } else if (model === 'codex') {
+          reply = await callOpenAI(messages, 'o1-mini');
+          used = 'Codex / o1-mini';
+        } else if (model === 'copilot' || model === 'copilot-github') {
+          try {
+            reply = await callGithubModels(messages);
+            used = 'GitHub Models / Copilot style';
+          } catch (e) {
+            if (process.env.OPENAI_API_KEY) {
+              reply = await callOpenAI(messages, 'gpt-4o');
+              used = 'OpenAI fallback (set GITHUB_TOKEN for native)';
+            } else throw e;
+          }
+        }
+
+        history.push({ role: 'user', content: text });
+        history.push({ role: 'assistant', content: reply });
+        if (history.length > 24) history.splice(0, history.length - 24);
+
+        addMsg('bot', reply, used);
+      } catch (err) {
+        addMsg('system', 'Error: ' + err.message);
+        console.error(err);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    sendBtn.onclick = transmit;
+    promptEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        transmit();
+      }
+    });
+    clearBtn.onclick = () => {
+      chat.innerHTML = '<div class="msg system">Chat cleared. Hologram ready.</div>';
+      Object.keys(histories).forEach(k => histories[k] = []);
+    };
+
+    (async () => {
+      const env = await ipcRenderer.invoke('get-env').catch(() => ({}));
+      let status = 'Ready';
+      if (!process.env.XAI_API_KEY && !process.env.OPENAI_API_KEY) {
+        status = 'No API keys found – add them to .env';
+        statusDot.style.background = '#ef4444';
+      }
+      addMsg('system', status + ' · Models: Grok / ChatGPT / Codex / Copilot');
+    })();
+  </script>
+</body>
+</html>
