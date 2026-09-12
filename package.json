@@ -1,0 +1,18 @@
+{
+  "name": "master-chief-hologram",
+  "version": "1.0.0",
+  "description": "Desktop holographic Master Chief AI companion – multi-model prompt runner",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --enable-logging"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "electron": "^33.0.0",
+    "openai": "^4.70.0"
+  },
+  "devDependencies": {},
+  "author": "grummpy",
+  "license": "MIT"
+}
