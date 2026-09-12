@@ -73,6 +73,14 @@
       filter: drop-shadow(0 0 12px rgba(0, 200, 255, 0.6));
       pointer-events: none;
     }
+    #holoImg {
+      animation: holoFloat 5s ease-in-out infinite;
+      transform-origin: 50% 85%;
+    }
+    @keyframes holoFloat {
+      0%, 100% { transform: translateY(3px) scale(0.98); opacity: 0.88; }
+      50% { transform: translateY(-5px) scale(1); opacity: 1; }
+    }
     .scanlines {
       position: absolute;
       inset: 0;
@@ -273,10 +281,10 @@
 
     <div class="holo-stage">
       <div class="glow-ring"></div>
-      <video id="holoVideo" autoplay loop muted playsinline poster="assets/hologram-still.jpg">
+      <video id="holoVideo" autoplay loop muted playsinline poster="assets/master-chief-hologram-v1.png">
         <source src="assets/hologram-idle.mp4" type="video/mp4" />
       </video>
-      <img id="holoImg" src="assets/hologram-placeholder.svg" style="display:none;" alt="Master Chief Hologram" />
+      <img id="holoImg" src="assets/master-chief-hologram-v1.png" style="display:none;" alt="Master Chief AI hologram standing ready for orders" />
       <div class="scanlines"></div>
     </div>
 
@@ -328,7 +336,7 @@
 
     function showHologramStill() {
       holoVideo.style.display = 'none';
-      holoImg.src = 'assets/hologram-placeholder.svg';
+      holoImg.src = 'assets/master-chief-hologram-v1.png';
       holoImg.style.display = 'block';
     }
     holoVideo.addEventListener('error', showHologramStill);
@@ -371,6 +379,7 @@
     }
 
     function renderHealth(status) {
+      if (!status.assets?.hasIdleVideo) showHologramStill();
       providerHealth.innerHTML = '';
       for (const key of ['codex', 'openai', 'grok', 'github']) {
         const item = status[key];

@@ -1,6 +1,6 @@
 # Technical learning guide: Master Chief Hologram
 
-Version: 1.0.2
+Version: 1.0.3
 
 Date: 2026-09-12
 

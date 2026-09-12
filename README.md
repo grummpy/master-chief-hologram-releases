@@ -1,6 +1,6 @@
 # Master Chief Hologram Desktop Bot
 
-Current release: **1.0.2**
+Current release: **1.0.3**
 
 **Your personal holographic AI command center.**
 
@@ -22,7 +22,7 @@ He displays the original chibi navy Master Chief mascot as a glowing cyan hologr
 - **Idle holographic video (6s loopable)**: [View](https://grok.com/imagine/post/ad3392da-ab48-4ba5-ba34-88952bb7377c?source=agent)
 - **Original solid mascot (transparent)**: [View](https://grok.com/imagine/post/23655507-73ca-4af7-883b-01941dd9ad5c?source=agent)
 
-Download the video/image and place them in `assets/` (or the app will use a built-in placeholder).
+The repository includes the production hologram still at `assets/master-chief-hologram-v1.png`. The app animates it automatically and retains the SVG recovery placeholder.
 
 ## Quick Start (Electron desktop app)
 
@@ -83,6 +83,8 @@ GitHub Models is not offered as an AI route because GitHub retired the service o
 - [System flow and UML](docs/SYSTEM_FLOW.md)
 - [Technical learning guide](docs/TECHNICAL_LEARNING_GUIDE.md)
 - [Visual brief](docs/visual-brief.jpg)
+- [Art provenance](docs/ART_PROVENANCE.md)
+- [Verified runtime appearance](docs/runtime-v1.0.3.png)
 
 ---
 

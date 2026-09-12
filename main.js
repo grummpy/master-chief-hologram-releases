@@ -60,6 +60,7 @@ async function checkJson(url, headers = {}) {
 async function providerStatus() {
   const status = {
     version: APP_VERSION,
+    assets: { hasIdleVideo: fs.existsSync(path.join(__dirname, 'assets', 'hologram-idle.mp4')) },
     codex: { state: 'unavailable', label: 'Codex unavailable' },
     openai: { state: 'missing', label: 'OpenAI key missing' },
     grok: { state: 'missing', label: 'Grok key missing' },

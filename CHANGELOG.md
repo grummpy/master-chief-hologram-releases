@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.3 — 2026-09-12
+
+- Added original full-body Master Chief AI hologram artwork to the repository and application.
+- Added subtle idle float and pulse animation for the static hologram.
+- Added asset provenance, generation prompt, runtime role, and acceptance checks.
+- Preserved the SVG fallback for missing or damaged artwork.
+
 ## 1.0.2 — 2026-09-12
 
 - Removed an accidental square preview duplicate from the release package.
