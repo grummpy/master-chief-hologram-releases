@@ -28,6 +28,7 @@ const { MICROPHONE_SETTINGS_URL, isGranted, recoveryMessage } = require('./micro
 const { voiceSelfTest } = require('./voice-diagnostics');
 const { discoverModels, buildVoiceSetup } = require('./voice-installation');
 const { loadLocalAiManifest, primaryInstalledModel } = require('./local-ai-manifest');
+const { createLocalAiAudit } = require('./local-ai-audit');
 const localAiManifest = loadLocalAiManifest(path.join(__dirname, 'local-ai-manifest.json'));
 
 let mainWindow;
@@ -42,6 +43,7 @@ function loadToolApprovals() { if (toolApprovals) return toolApprovals; try { to
 function saveToolApprovals() { fs.mkdirSync(path.dirname(approvalFile()), { recursive: true }); fs.writeFileSync(approvalFile(), JSON.stringify(loadToolApprovals(), null, 2), { mode: 0o600 }); }
 const ragIndex = createRagIndex(path.join(app.getPath('userData'), 'local-index.json'));
 const localTools = createLocalToolExecutor({ appVersion: APP_VERSION, projectDir: __dirname, execFile: execFileAsync });
+const localAiAudit = createLocalAiAudit(path.join(app.getPath('userData'), 'local-ai-audit.jsonl'));
 function toolAuditFile() { return path.join(app.getPath('userData'), 'tool-audit.jsonl'); }
 function microphoneStatus() { return process.platform === 'darwin' ? systemPreferences.getMediaAccessStatus('microphone') : 'granted'; }
 async function requestMicrophoneAccess() {
@@ -418,19 +420,24 @@ async function callHuggingFace({ messages, masterMode, model: requestedModel }) 
 
 async function routeChat(payload) {
   payload = validateChatPayload(payload);
+  const startedAt = Date.now();
   try {
-    if (payload.provider === 'codex') return await callCodex(payload);
-    if (payload.provider === 'openai') return await callOpenAI(payload);
-    if (payload.stream && payload.provider === 'grok') return await streamCompatible({ url: 'https://api.x.ai/v1/chat/completions', key: (process.env.XAI_API_KEY || '').trim(), model: 'grok-3', messages: payload.messages, systemPrompt: payload.masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy.' : 'You are a clear, helpful desktop AI assistant.', label: 'Grok · xAI', provider: 'Grok' });
-    if (payload.stream && payload.provider === 'huggingface') { const base = (process.env.HF_BASE_URL || '').replace(/\/$/, ''); const key = (process.env.HF_API_KEY || '').trim(); if (!base || !key) throw new Error('HF_BASE_URL and HF_API_KEY are missing from .env.'); const model = payload.model || process.env.HF_MODEL || 'HuggingFaceH4/zephyr-7b-beta'; return await streamCompatible({ url: `${base}/chat/completions`, key, model, messages: payload.messages, systemPrompt: payload.masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy.' : 'You are a clear, helpful desktop AI assistant.', label: `Hugging Face · ${model}`, provider: 'Hugging Face' }); }
-    if (payload.stream && payload.provider === 'ollama') { const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, ''); const model = payload.model || process.env.OLLAMA_MODEL || 'llama3.2'; return await streamCompatible({ url: `${base}/v1/chat/completions`, key: 'ollama', model, messages: payload.messages, systemPrompt: payload.masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy.' : 'You are a clear, helpful desktop AI assistant.', label: `Ollama · ${model}`, provider: 'Ollama' }); }
-    if (payload.provider === 'grok') return await callGrok(payload);
-    if (payload.provider === 'ollama') return await callOllama(payload);
-    if (payload.provider === 'huggingface') return await callHuggingFace(payload);
+    let result;
+    if (payload.provider === 'codex') result = await callCodex(payload);
+    else if (payload.provider === 'openai') result = await callOpenAI(payload);
+    else if (payload.stream && payload.provider === 'grok') result = await streamCompatible({ url: 'https://api.x.ai/v1/chat/completions', key: (process.env.XAI_API_KEY || '').trim(), model: 'grok-3', messages: payload.messages, systemPrompt: payload.masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy.' : 'You are a clear, helpful desktop AI assistant.', label: 'Grok · xAI', provider: 'Grok' });
+    else if (payload.stream && payload.provider === 'huggingface') { const base = (process.env.HF_BASE_URL || '').replace(/\/$/, ''); const key = (process.env.HF_API_KEY || '').trim(); if (!base || !key) throw new Error('HF_BASE_URL and HF_API_KEY are missing from .env.'); const model = payload.model || process.env.HF_MODEL || 'HuggingFaceH4/zephyr-7b-beta'; result = await streamCompatible({ url: `${base}/chat/completions`, key, model, messages: payload.messages, systemPrompt: payload.masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy.' : 'You are a clear, helpful desktop AI assistant.', label: `Hugging Face · ${model}`, provider: 'Hugging Face' }); }
+    else if (payload.stream && payload.provider === 'ollama') { const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, ''); const model = payload.model || process.env.OLLAMA_MODEL || 'llama3.2'; result = await streamCompatible({ url: `${base}/v1/chat/completions`, key: 'ollama', model, messages: payload.messages, systemPrompt: payload.masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy.' : 'You are a clear, helpful desktop AI assistant.', label: `Ollama · ${model}`, provider: 'Ollama' }); }
+    else if (payload.provider === 'grok') result = await callGrok(payload);
+    else if (payload.provider === 'ollama') result = await callOllama(payload);
+    else if (payload.provider === 'huggingface') result = await callHuggingFace(payload);
+    if (!result) throw new Error('Unknown provider selected.');
+    if (payload.provider === 'ollama') localAiAudit.record({ model: payload.model || process.env.OLLAMA_MODEL || 'default', outcome: 'success', latencyMs: Date.now() - startedAt });
+    return result;
   } catch (error) {
+    if (payload.provider === 'ollama') localAiAudit.record({ model: payload.model || process.env.OLLAMA_MODEL || 'default', outcome: 'error', latencyMs: Date.now() - startedAt, errorCode: error.name || 'request_failed' });
     throw new Error(safeProviderError(error.message));
   }
-  throw new Error('Unknown provider selected.');
 }
 
 const gotLock = app.requestSingleInstanceLock();

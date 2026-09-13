@@ -1,6 +1,6 @@
 # Master Chief Hologram — Graphics and 3D PAPM Plan
 
-Version 1.1 · 2026-09-13 · Owner: Master Chief program · Status: G0 implemented; owner approval pending
+Version 1.2 · 2026-09-13 · Owner: Master Chief program · Status: G0 implemented; G1 export audit prepared; owner approval pending
 
 ## Mission and decision authority
 
@@ -112,6 +112,8 @@ Critical path: G0 → G1/G2 → G3 → G6. G4/G5 are parallel option work and ca
 > Execute G0 only. Do not alter application code, packaged artwork, icon files, or untracked owner assets. Create a concise versioned visual style brief and an asset-intake/provenance schema under `docs/`. Reconcile the existing original-avatar record with an explicit original-IP/trademark exclusion list, define the seven required state semantics and non-color accessibility cues, specify target icon-size review criteria, and create an approval checklist that can drive the existing deterministic visual gate. Link the new artifacts from this plan, validate Markdown links, preserve secrets, run no asset-changing generation, and commit only the new documentation.
 
 G0 deliverables: [VISUAL_STYLE_BRIEF.md](VISUAL_STYLE_BRIEF.md), [ASSET_INTAKE_SCHEMA.md](ASSET_INTAKE_SCHEMA.md), and the updated [ART_PROVENANCE.md](ART_PROVENANCE.md). No runtime artwork or user-owned untracked asset was changed.
+
+G1 preparation: [ICON_REVIEW_SHEET.md](ICON_REVIEW_SHEET.md) and `npm test` verify the tracked icon export set. The human Finder-size review and any change to artwork remain pending owner approval.
 
 ## Acceptance and sustainment
 

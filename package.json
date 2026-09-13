@@ -42,6 +42,7 @@
       "local-routing.js",
       "local-ai-manifest.js",
       "local-ai-manifest.json",
+      "local-ai-audit.js",
       "artifact-links.js",
       "build-info.json",
       "main.js",

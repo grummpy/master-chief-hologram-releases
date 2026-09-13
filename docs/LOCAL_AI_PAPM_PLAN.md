@@ -1,6 +1,6 @@
 # Master Chief Hologram — Local-AI-First PAPM Plan
 
-Version 1.1 · 2026-09-13 · Status: L0 implemented; measurement increments pending · Decision authority: owner
+Version 1.2 · 2026-09-13 · Status: L0 and L2 runtime evidence implemented; measurement increments pending · Decision authority: owner
 
 ## Mission
 
@@ -166,6 +166,10 @@ These routes are planned work, not claims that a specialist has completed implem
 > Implement L0 only. Preserve untracked owner assets and secrets. Add a versioned local provider/model manifest and a local-routing contract that defaults eligible lightweight tasks to a healthy installed local runtime, without changing external credentials, downloading models, or enabling a cloud fallback. Define an approved Desktop workspace-root/artifact-link contract without writing artifacts yet. Add deterministic tests for route selection, cloud opt-in, model-health failure, and workspace path rejection. Update implementation status and this plan’s decision record, run relevant checks, and commit the focused increment.
 
 L0 implementation: [local-ai-manifest.json](../local-ai-manifest.json) records Ollama as the localhost-only primary runtime and `qwen2.5:0.5b` as an owner-installed micro-local development model. [local-ai-manifest.js](../local-ai-manifest.js) validates the manifest and selects a local default only when that model is installed. The UI exposes the local-first state and stops rather than silently escalating to cloud. License review remains required before redistribution or bundling.
+
+L2 evidence implementation: [local-ai-audit.js](../local-ai-audit.js) records only local runtime, model, outcome, latency, and a fixed failure code under application support. It never records prompts, attachment text, provider credentials, or error bodies.
+
+L6 foundation: [LOCAL_AI_EVALUATION.md](LOCAL_AI_EVALUATION.md) defines synthetic local-only acceptance cases and records the observed limitation of the current micro-local model. No model is promoted beyond its measured tier, and cloud escalation remains explicit.
 
 ## Standby backlog
 
