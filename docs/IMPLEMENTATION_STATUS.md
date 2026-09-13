@@ -11,6 +11,9 @@ Version 1.2 · 2026-09-12
 - Browser recording with local whisper.cpp detection, ffmpeg conversion, and OpenAI fallback.
 - Microphone state, transcript insertion, accessibility labels, keyboard command palette, diagnostics refresh, history migration, and JSON export.
 - Local TXT/MD/JSON/CSV attachment context with size limits and removable chips.
+- Streaming deltas and cancellation events for compatible providers.
+- Encrypted credential storage with safe environment fallback and migration tests.
+- Deterministic asset validation and release checklist.
 
 ## Evidence
 
@@ -18,4 +21,4 @@ Version 1.2 · 2026-09-12
 
 ## Next critical path
 
-Signed/notarized distribution, real end-to-end audio fixtures, whisper.cpp model packaging, streaming responses/cancellation, persistent vector RAG, MCP approval gates, secure keychain storage, and automated visual regression. These remain intentionally separate increments because they add native dependencies, permissions, or durable data contracts.
+Signed/notarized distribution, real end-to-end audio fixtures, packaged whisper.cpp models, persistent vector RAG, MCP approval gates, and automated visual regression. These remain intentionally separate increments because they add native dependencies, permissions, or durable data contracts.
