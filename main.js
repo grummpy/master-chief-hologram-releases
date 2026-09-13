@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, safeStorage } = require('electron');
 const { execFile, spawn } = require('child_process');
 const { promisify } = require('util');
 const path = require('path');
@@ -19,10 +19,14 @@ const execFileAsync = promisify(execFile);
 const CODEX_BIN = process.env.CODEX_BIN || '/Applications/ChatGPT.app/Contents/Resources/codex';
 const APP_VERSION = require('./package.json').version;
 const { validateChatPayload, safeProviderError, validSecret } = require('./security');
+const { createCredentialStore } = require('./credential-store');
 
 let mainWindow;
 let tray;
 let activeChild = null;
+let credentialStore;
+function credentials() { return credentialStore || (credentialStore = createCredentialStore({ safeStorage, filePath: path.join(app.getPath('userData'), 'credentials.json') })); }
+let activeAbortController = null;
 
 function showWindow() {
   if (!mainWindow) return;
@@ -93,7 +97,8 @@ async function providerStatus() {
     }
   }
 
-  const openaiKey = (process.env.OPENAI_API_KEY || '').trim();
+  const store = credentials(); store.migrate('openai', 'OPENAI_API_KEY'); store.migrate('xai', 'XAI_API_KEY'); store.migrate('github', 'GITHUB_TOKEN'); status.credentials = store.status();
+  const openaiKey = store.get('openai', 'OPENAI_API_KEY');
   if (validSecret(openaiKey, /^sk-[^\s]{12,}$/)) {
     const result = await checkJson('https://api.openai.com/v1/models', {
       Authorization: `Bearer ${openaiKey}`
@@ -105,7 +110,7 @@ async function providerStatus() {
         : { state: 'error', label: result.response.status === 401 ? 'OpenAI key invalid' : `OpenAI error ${result.response.status}` };
   }
 
-  const xaiKey = (process.env.XAI_API_KEY || '').trim();
+  const xaiKey = store.get('xai', 'XAI_API_KEY');
   if (validSecret(xaiKey, /^xai-[^\s]{12,}$/)) {
     const result = await checkJson('https://api.x.ai/v1/models', {
       Authorization: `Bearer ${xaiKey}`
@@ -117,7 +122,7 @@ async function providerStatus() {
         : { state: 'error', label: result.response.status === 401 ? 'Grok key invalid' : `Grok error ${result.response.status}` };
   }
 
-  const githubToken = (process.env.GITHUB_TOKEN || '').trim();
+  const githubToken = store.get('github', 'GITHUB_TOKEN');
   if (githubToken) {
     const result = await checkJson('https://api.github.com/user', {
       Authorization: `Bearer ${githubToken}`,
@@ -255,7 +260,7 @@ async function callCodex({ messages, masterMode }) {
 
 async function callOpenAI({ messages, masterMode }) {
   const systemPrompt = masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy; route complex work through planning, specialists, implementation, and verification.' : 'You are a clear, helpful desktop AI assistant.';
-  const key = (process.env.OPENAI_API_KEY || '').trim();
+  const key = credentials().get('openai', 'OPENAI_API_KEY');
   if (!validSecret(key, /^sk-[^\s]{12,}$/)) throw new Error('A valid OPENAI_API_KEY is missing from .env.');
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
@@ -271,6 +276,32 @@ async function callOpenAI({ messages, masterMode }) {
   const reply = body.output_text || body.output?.flatMap(item => item.content || []).find(item => item.type === 'output_text')?.text;
   if (!reply) throw new Error('OpenAI returned an empty response.');
   return { reply, label: 'OpenAI · GPT-5.6 Sol' };
+}
+
+function emitChatEvent(event, payload) {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('chat-event', { event, ...payload });
+}
+
+async function streamCompatible({ url, key, model, messages, systemPrompt, label, provider }) {
+  activeAbortController = new AbortController();
+  const response = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, messages: [{ role: 'system', content: systemPrompt }, ...messages.slice(-16)], stream: true }), signal: activeAbortController.signal });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error?.message || body.error || `${provider} error ${response.status}`); }
+  if (!response.body) throw new Error(`${provider} returned no stream.`);
+  const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ''; let reply = '';
+  try {
+    while (true) {
+      const { value, done } = await reader.read(); if (done) break;
+      buffer += decoder.decode(value, { stream: true }); const lines = buffer.split(/\r?\n/); buffer = lines.pop() || '';
+      for (const line of lines) { const raw = line.trim(); if (!raw.startsWith('data:')) continue; const data = raw.slice(5).trim(); if (data === '[DONE]') continue;
+        let json; try { json = JSON.parse(data); } catch { continue; }
+        const delta = json.choices?.[0]?.delta?.content || json.choices?.[0]?.text || '';
+        if (delta) { reply += delta; emitChatEvent('delta', { delta, provider }); }
+      }
+    }
+  } finally { reader.releaseLock(); activeAbortController = null; }
+  if (!reply.trim()) throw new Error(`${provider} returned an empty response.`);
+  emitChatEvent('done', { reply, label }); return { reply, label };
 }
 
 async function callGrok({ messages, masterMode }) {
@@ -323,6 +354,9 @@ async function routeChat(payload) {
   try {
     if (payload.provider === 'codex') return await callCodex(payload);
     if (payload.provider === 'openai') return await callOpenAI(payload);
+    if (payload.stream && payload.provider === 'grok') return await streamCompatible({ url: 'https://api.x.ai/v1/chat/completions', key: (process.env.XAI_API_KEY || '').trim(), model: 'grok-3', messages: payload.messages, systemPrompt: payload.masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy.' : 'You are a clear, helpful desktop AI assistant.', label: 'Grok · xAI', provider: 'Grok' });
+    if (payload.stream && payload.provider === 'huggingface') { const base = (process.env.HF_BASE_URL || '').replace(/\/$/, ''); const key = (process.env.HF_API_KEY || '').trim(); if (!base || !key) throw new Error('HF_BASE_URL and HF_API_KEY are missing from .env.'); const model = payload.model || process.env.HF_MODEL || 'HuggingFaceH4/zephyr-7b-beta'; return await streamCompatible({ url: `${base}/chat/completions`, key, model, messages: payload.messages, systemPrompt: payload.masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy.' : 'You are a clear, helpful desktop AI assistant.', label: `Hugging Face · ${model}`, provider: 'Hugging Face' }); }
+    if (payload.stream && payload.provider === 'ollama') { const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, ''); const model = payload.model || process.env.OLLAMA_MODEL || 'llama3.2'; return await streamCompatible({ url: `${base}/v1/chat/completions`, key: 'ollama', model, messages: payload.messages, systemPrompt: payload.masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy.' : 'You are a clear, helpful desktop AI assistant.', label: `Ollama · ${model}`, provider: 'Ollama' }); }
     if (payload.provider === 'grok') return await callGrok(payload);
     if (payload.provider === 'ollama') return await callOllama(payload);
     if (payload.provider === 'huggingface') return await callHuggingFace(payload);
@@ -364,16 +398,17 @@ app.on('activate', () => {
 });
 
 ipcMain.handle('provider-status', providerStatus);
+ipcMain.handle('credential-status', () => credentials().status());
 ipcMain.handle('model-catalog', modelCatalog);
 ipcMain.handle('chat', (_event, payload) => routeChat(payload));
-ipcMain.handle('cancel-chat', () => { activeChild?.kill('SIGTERM'); return true; });
+ipcMain.handle('cancel-chat', () => { activeAbortController?.abort(); activeAbortController = null; activeChild?.kill('SIGTERM'); emitChatEvent('cancelled', {}); return true; });
 ipcMain.handle('transcribe-audio', async (_event, payload) => {
   const bytes = Buffer.from(payload?.audio || []);
   if (!bytes.length) throw new Error('No microphone audio was captured.');
   const contentType = String(payload?.type || 'audio/webm').split(';')[0].toLowerCase();
   const localText = await transcribeWithWhisper(bytes, contentType);
   if (localText) return localText;
-  const key = (process.env.OPENAI_API_KEY || '').trim();
+  const key = credentials().get('openai', 'OPENAI_API_KEY');
   if (!validSecret(key, /^sk-[^\s]{12,}$/)) throw new Error('Local whisper.cpp is unavailable and voice transcription needs a valid OPENAI_API_KEY in the local .env.');
   const extension = contentType === 'audio/mp4' ? 'm4a' : contentType === 'audio/ogg' ? 'ogg' : 'webm';
   const form = new FormData();
