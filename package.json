@@ -26,6 +26,9 @@
     "asar": true,
     "files": [
       "security.js",
+      "credential-store.js",
+      "tool-registry.js",
+      "rag-index.js",
       "rag-index.js",
       "main.js",
       "preload.js",
