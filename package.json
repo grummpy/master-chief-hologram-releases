@@ -37,6 +37,7 @@
       "voice-diagnostics.js",
       "voice-installation.js",
       "voice-setup-ui.js",
+      "microphone-access.js",
       "autocomplete.js",
       "artifact-links.js",
       "build-info.json",
@@ -49,6 +50,9 @@
       "assets/**/*"
     ],
     "mac": {
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Master Chief Hologram transcribes a command only after you press MIC."
+      },
       "category": "public.app-category.productivity",
       "target": [
         "dir"

@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('masterChief', {
   getModelCatalog: () => ipcRenderer.invoke('model-catalog'),
   voiceSelfTest: () => ipcRenderer.invoke('voice-self-test'),
   voiceSetup: () => ipcRenderer.invoke('voice-setup'),
+  requestMicrophoneAccess: () => ipcRenderer.invoke('request-microphone-access'),
+  openMicrophoneSettings: () => ipcRenderer.invoke('open-microphone-settings'),
   getToolApprovals: () => ipcRenderer.invoke('tool-approvals'),
   setToolApproval: (id, approved) => ipcRenderer.invoke('set-tool-approval', { id, approved }),
   executeLocalTool: id => ipcRenderer.invoke('execute-local-tool', { id }),

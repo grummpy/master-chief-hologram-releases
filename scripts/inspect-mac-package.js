@@ -12,7 +12,7 @@ const appBundle = process.argv[2] || path.join(root, 'dist', 'mac-arm64', `${pac
 const contents = path.join(appBundle, 'Contents');
 const plist = path.join(contents, 'Info.plist');
 const asar = path.join(contents, 'Resources', 'app.asar');
-const requiredFiles = ['main.js', 'preload.js', 'renderer.js', 'autocomplete.js', 'artifact-links.js', 'security.js', 'credential-store.js', 'tool-registry.js', 'rag-index.js', 'build-info.json', 'assets/icon.png'];
+const requiredFiles = ['main.js', 'preload.js', 'renderer.js', 'autocomplete.js', 'artifact-links.js', 'microphone-access.js', 'security.js', 'credential-store.js', 'tool-registry.js', 'rag-index.js', 'build-info.json', 'assets/icon.png'];
 function command(command, args) { return execFileSync(command, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); }
 function fail(message) { throw new Error(`package inspection failed: ${message}`); }
 if (!fs.existsSync(appBundle)) fail(`missing app bundle: ${appBundle}`);
@@ -20,6 +20,8 @@ if (!fs.existsSync(plist)) fail('Contents/Info.plist is missing');
 if (!fs.existsSync(asar)) fail('Contents/Resources/app.asar is missing');
 const plistVersion = command('plutil', ['-extract', 'CFBundleShortVersionString', 'raw', plist]).trim();
 if (plistVersion !== packageJson.version) fail(`Info.plist version ${plistVersion} does not match package version ${packageJson.version}`);
+const microphoneUsage = command('plutil', ['-extract', 'NSMicrophoneUsageDescription', 'raw', plist]).trim();
+if (!microphoneUsage) fail('Info.plist is missing NSMicrophoneUsageDescription');
 const asarLib = require('@electron/asar');
 const archived = asarLib.listPackage(asar).map(value => value.replace(/^\//, ''));
 for (const file of requiredFiles) if (!archived.includes(file)) fail(`app.asar is missing ${file}`);

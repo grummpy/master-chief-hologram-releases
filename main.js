@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, safeStorage, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, safeStorage, shell, systemPreferences } = require('electron');
 const { execFile, spawn } = require('child_process');
 const { promisify } = require('util');
 const path = require('path');
@@ -24,6 +24,7 @@ const { getToolRegistry, normalizeApprovals, setToolApproval, isToolApproved } =
 const { createLocalToolExecutor } = require('./local-tool-executor');
 const { createRagIndex } = require('./rag-index');
 const { safeArtifactPath } = require('./artifact-links');
+const { MICROPHONE_SETTINGS_URL, isGranted, recoveryMessage } = require('./microphone-access');
 const { voiceSelfTest } = require('./voice-diagnostics');
 const { discoverModels, buildVoiceSetup } = require('./voice-installation');
 
@@ -40,6 +41,12 @@ function saveToolApprovals() { fs.mkdirSync(path.dirname(approvalFile()), { recu
 const ragIndex = createRagIndex(path.join(app.getPath('userData'), 'local-index.json'));
 const localTools = createLocalToolExecutor({ appVersion: APP_VERSION, projectDir: __dirname, execFile: execFileAsync });
 function toolAuditFile() { return path.join(app.getPath('userData'), 'tool-audit.jsonl'); }
+function microphoneStatus() { return process.platform === 'darwin' ? systemPreferences.getMediaAccessStatus('microphone') : 'granted'; }
+async function requestMicrophoneAccess() {
+  let status = microphoneStatus();
+  if (status === 'not-determined' && process.platform === 'darwin') { await systemPreferences.askForMediaAccess('microphone'); status = microphoneStatus(); }
+  return { status, granted: isGranted(status), recovery: recoveryMessage(status) };
+}
 function auditToolEvent({ id, outcome, detail }) {
   // Keep this operational record small and secret-free: no prompts, files, command
   // arguments, provider credentials, or tool output are written here.
@@ -431,6 +438,7 @@ if (!gotLock) {
     mainWindow.webContents.session.setPermissionRequestHandler((_webContents, permission, callback) => {
       callback(permission === 'media' || permission === 'audioCapture');
     });
+    mainWindow.webContents.session.setPermissionCheckHandler((_webContents, permission) => permission === 'media' || permission === 'audioCapture');
     const image = nativeImage.createFromPath(path.join(__dirname, 'assets', 'icon.png'));
     const trayIcon = image.isEmpty() ? nativeImage.createEmpty() : image.resize({ width: 16, height: 16 });
     tray = new Tray(trayIcon);
@@ -461,6 +469,8 @@ ipcMain.handle('voice-self-test', async () => voiceSelfTest(await localWhisperCo
   expectedTranscript: 'Master Chief, run diagnostics.'
 }));
 ipcMain.handle('voice-setup', async () => buildVoiceSetup(await localWhisperConfig()));
+ipcMain.handle('request-microphone-access', requestMicrophoneAccess);
+ipcMain.handle('open-microphone-settings', async () => shell.openExternal(MICROPHONE_SETTINGS_URL));
 ipcMain.handle('tool-registry', () => getToolRegistry());
 ipcMain.handle('tool-approvals', () => ({ approvals: { ...loadToolApprovals() }, registry: getToolRegistry() }));
 ipcMain.handle('set-tool-approval', (_event, payload) => { toolApprovals = setToolApproval(loadToolApprovals(), String(payload?.id || ''), payload?.approved); saveToolApprovals(); return { approvals: { ...toolApprovals } }; });

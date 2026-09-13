@@ -1,6 +1,6 @@
 # Master Chief Army — Skills and Training Plan
 
-Version 1.0 · 2026-09-13 · PAPM + Training Officer baseline · Status: proposed
+Version 1.1 · 2026-09-13 · PAPM + Training Officer baseline · Status: W1 material implemented; physical exercise pending
 
 ## Mission and decision authority
 
@@ -106,6 +106,17 @@ Review after each exercise; consolidate the measured gaps monthly into the Maste
 
 > Execute W1, Voice Acceptance Lab, as the first training increment. Do not modify application code, install skills, change credentials, or package a voice model. Create a learner-facing redacted test-matrix template and recovery runbook based only on the current UI and the boundaries in `VOICE_VERIFICATION.md`. Cover permission allow/deny, unavailable microphone, silence, normal speech, stop, retry, local whisper readiness, and cloud fallback as distinct cases. Include expected UI state, evidence to capture, recovery action, and escalation criteria. Link every procedure to an existing repository artifact, mark real-device results as unverified until performed, check links and Markdown structure, and commit only the training artifact.
 
+Completed training material: [VOICE_ACCEPTANCE_LAB.md](VOICE_ACCEPTANCE_LAB.md). It is ready for an operator-run physical exercise; it does not claim a live result.
+
+## Executed foundations
+
+- W1: [VOICE_ACCEPTANCE_LAB.md](VOICE_ACCEPTANCE_LAB.md) provides the redacted physical-test matrix and recovery runbook.
+- W2: [DESKTOP_RELEASE_DRILL.md](DESKTOP_RELEASE_DRILL.md) provides the known-good-bundle recovery rehearsal.
+- W4: [ARTIFACT_REGISTRY.md](ARTIFACT_REGISTRY.md) defines the Desktop repository-tree and app link contract.
+- W6: the shipped local compose autocomplete and its deterministic test satisfy the initial no-network interaction contract.
+
+Physical voice outcomes, a simulated failure in a disposable checkout, and first-time operator exercises remain evidence collection tasks rather than completed claims.
+
 ## Standby backlog
 
 1. Pilot the Voice Acceptance Lab with a first-time operator and revise ambiguity found in the runbook.
@@ -115,4 +126,3 @@ Review after each exercise; consolidate the measured gaps monthly into the Maste
 5. Create the 2D/3D hologram asset brief and provenance checklist.
 6. Baseline compose input latency before selecting an autocomplete implementation.
 7. Add an evidence-review exercise to all Master Chief specialist handoffs.
-
