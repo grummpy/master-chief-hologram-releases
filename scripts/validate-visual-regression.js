@@ -24,6 +24,7 @@ for (const token of ['id="app"', 'id="holoStage"', 'id="holoImg"', 'id="threeSce
 for (const token of ['#app[data-theme=day]', '.holo-stage', '.holo-stage img', '#threeScene', '.three-active', 'object-fit:cover', '.holo-status', '.scanlines', '.autocomplete-list', '@media(prefers-reduced-motion:reduce)', 'button:focus-visible']) if (!css.includes(token)) fail(`styles.css is missing ${token}`);
 for (const name of ['night_idle.jpg', 'night_listening.jpg', 'night_thinking.jpg', 'night_speaking.jpg', 'night_success.jpg', 'night_alert.jpg', 'night_wave.jpg', 'day_idle.jpg', 'day_ready.jpg', 'day_thinking.jpg', 'day_wave.jpg', 'day_success.jpg']) if (!renderer.includes(name)) fail(`renderer state map no longer references ${name}`);
 for (const token of ['masterChiefThreeD?.setState', 'masterChiefThreeD?.setEnabled', 'mcVisualMode']) if (!renderer.includes(token)) fail(`renderer.js is missing ${token}`);
-const scene = read('three-scene.js');
+const scene = read('three-scene.js'); const bundledScene = read('three-scene.bundle.js');
 for (const token of ['THREE.WebGLRenderer', 'buildChair', 'buildCompanion', 'setEnabled', 'command-officer-reference-v1.png']) if (!scene.includes(token)) fail(`three-scene.js is missing ${token}`);
+for (const token of ['WebGLRenderer', 'buildChair', 'buildCompanion']) if (!bundledScene.includes(token)) fail(`three-scene.bundle.js is missing ${token}`);
 console.log(`visual regression validation passed (${manifest.assets.length} approved assets; day/night state contract intact)`);
