@@ -6,7 +6,8 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --enable-logging",
-    "dist:mac": "electron-builder --mac dir"
+    "dist:mac": "electron-builder --mac dir",
+    "launch:mac": "zsh scripts/launch-mac.sh"
   },
   "dependencies": {
     "dotenv": "^16.4.5"
