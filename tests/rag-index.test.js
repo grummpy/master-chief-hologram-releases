@@ -1,0 +1,9 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const test = require('node:test');
+const { createRagIndex, SCHEMA_VERSION } = require('../rag-index');
+function temporaryIndex() { const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'master-chief-rag-')); return { directory, file: path.join(directory, 'index.json') }; }
+test('retrieves concept-related text locally when wording differs', () => { const temp = temporaryIndex(); try { const index = createRagIndex(temp.file); index.indexDocument('voice.md', 'Speech transcription captures a recording and returns dictated text.'); index.indexDocument('models.md', 'The inference provider selects an LLM model.'); const results = index.search('microphone input', { limit: 2 }); assert.equal(results[0].name, 'voice.md'); assert.ok(results[0].semanticScore > 0); assert.equal(results[0].lexicalScore, 0); assert.equal(index.stats().retrieval, 'local-feature-vector+lexical'); } finally { fs.rmSync(temp.directory, { recursive: true, force: true }); } });
+test('upgrades a legacy lexical index without losing its content', () => { const temp = temporaryIndex(); try { fs.writeFileSync(temp.file, JSON.stringify({ schemaVersion: 1, documents: [{ id: 'legacy', name: 'legacy.md' }], chunks: [{ id: 'legacy:0', documentId: 'legacy', name: 'legacy.md', content: 'Audio speech transcription support.' }] })); const index = createRagIndex(temp.file); assert.equal(index.stats().schemaVersion, SCHEMA_VERSION); assert.equal(index.search('microphone')[0].name, 'legacy.md'); const persisted = JSON.parse(fs.readFileSync(temp.file, 'utf8')); assert.ok(persisted.chunks[0].vector?.magnitude > 0); } finally { fs.rmSync(temp.directory, { recursive: true, force: true }); } });

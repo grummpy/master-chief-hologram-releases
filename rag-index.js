@@ -1,14 +1,65 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const SCHEMA_VERSION = 1, CHUNK_SIZE = 1200, OVERLAP = 160, MAX_RESULTS = 5, MAX_CONTEXT_CHARS = 7000;
-function createRagIndex(filePath) {
-  let state = { schemaVersion: SCHEMA_VERSION, documents: [], chunks: [] };
-  try { const p = JSON.parse(fs.readFileSync(filePath, 'utf8')); if (Array.isArray(p.documents)) state = { schemaVersion: SCHEMA_VERSION, documents: p.documents, chunks: p.chunks || [] }; } catch (_) {}
-  const save = () => { fs.mkdirSync(path.dirname(filePath), { recursive: true }); const t = `${filePath}.tmp`; fs.writeFileSync(t, JSON.stringify(state), { mode: 0o600 }); fs.renameSync(t, filePath); };
-  function indexDocument(name, text) { const clean = String(text || '').slice(0, 200000); if (!clean.trim()) throw new Error('Document is empty.'); const id = crypto.createHash('sha256').update(`${name}\0${clean}`).digest('hex'); state.documents = state.documents.filter(d => d.id !== id && d.name !== name); state.chunks = state.chunks.filter(c => c.documentId !== id && c.name !== name); state.documents.push({ id, name: String(name).slice(0, 200), bytes: Buffer.byteLength(clean), indexedAt: new Date().toISOString() }); for (let start = 0, n = 0; start < clean.length; start += CHUNK_SIZE - OVERLAP, n++) { state.chunks.push({ id: `${id}:${n}`, documentId: id, name: String(name).slice(0, 200), content: clean.slice(start, start + CHUNK_SIZE) }); if (start + CHUNK_SIZE >= clean.length) break; } save(); return { id, chunks: state.chunks.filter(c => c.documentId === id).length }; }
-  function search(query, options = {}) { const terms = [...new Set(String(query || '').toLowerCase().match(/[a-z0-9]{2,}/g) || [])]; const limit = Math.min(Number(options.limit) || MAX_RESULTS, MAX_RESULTS); return state.chunks.map(c => ({ ...c, score: terms.reduce((s, t) => s + (c.content.toLowerCase().split(t).length - 1), 0) })).filter(c => c.score > 0).sort((a, b) => b.score - a.score).slice(0, limit).map(({ id, name, content, score }) => ({ id, name, content, score })); }
-  function context(query) { let used = 0; return search(query).map(x => `--- ${x.name} ---\n${x.content}`).filter(part => { if (used + part.length > MAX_CONTEXT_CHARS) return false; used += part.length; return true; }).join('\n\n'); }
-  return { indexDocument, search, context, stats: () => ({ schemaVersion: state.schemaVersion, documents: state.documents.length, chunks: state.chunks.length }) };
+
+// This is intentionally a local, dependency-free retrieval layer. The vector
+// is a signed feature-hash projection, augmented with a small concept map. It
+// is not an embedding model and never sends document text to a provider.
+const SCHEMA_VERSION = 2;
+const CHUNK_SIZE = 1200, OVERLAP = 160, MAX_RESULTS = 5, MAX_CONTEXT_CHARS = 7000, VECTOR_SIZE = 384;
+const CONCEPTS = {
+  audio: ['microphone', 'mic', 'recording', 'speech', 'transcription', 'voice'],
+  microphone: ['audio', 'mic', 'recording', 'speech', 'voice'],
+  transcription: ['transcribe', 'speech', 'audio', 'dictation', 'voice'],
+  model: ['llm', 'ai', 'inference', 'provider'], llm: ['model', 'ai', 'inference', 'provider'],
+  update: ['upgrade', 'release', 'version', 'deploy'], security: ['privacy', 'credential', 'permission', 'secret'],
+  search: ['retrieve', 'retrieval', 'find', 'query'], document: ['file', 'attachment', 'text', 'markdown'],
+};
+function tokens(text) { return String(text || '').toLowerCase().match(/[a-z0-9]{2,}/g) || []; }
+function hash(value) { let result = 2166136261; for (let i = 0; i < value.length; i++) result = Math.imul(result ^ value.charCodeAt(i), 16777619); return result >>> 0; }
+function vectorize(text) {
+  const values = Object.create(null);
+  for (const term of tokens(text)) {
+    // Two expansion hops make pairs such as microphone <-> audio converge even
+    // when a document uses an adjacent concept such as transcription.
+    const related = new Set([term, ...(CONCEPTS[term] || [])]);
+    for (const word of [...related]) for (const adjacent of CONCEPTS[word] || []) related.add(adjacent);
+    for (const feature of [term, ...[...related].map(word => `semantic:${word}`)]) {
+    const hashed = hash(feature), index = hashed % VECTOR_SIZE;
+    values[index] = (values[index] || 0) + (feature === term ? 1 : 0.45) * (hashed & 1 ? 1 : -1);
+  }
+  }
+  let magnitude = 0; for (const value of Object.values(values)) magnitude += value * value;
+  return { values, magnitude: Math.sqrt(magnitude) };
 }
-module.exports = { createRagIndex, SCHEMA_VERSION };
+function cosine(left, right) {
+  if (!left?.magnitude || !right?.magnitude) return 0;
+  let dot = 0; for (const [index, value] of Object.entries(left.values || {})) dot += value * (right.values?.[index] || 0);
+  return Math.max(0, dot / (left.magnitude * right.magnitude));
+}
+function createRagIndex(filePath, { vectorizer = vectorize } = {}) {
+  let state = { schemaVersion: SCHEMA_VERSION, documents: [], chunks: [] };
+  try { const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8')); if (Array.isArray(parsed.documents) && Array.isArray(parsed.chunks)) state = { ...state, ...parsed }; } catch (_) {}
+  const save = () => { fs.mkdirSync(path.dirname(filePath), { recursive: true, mode: 0o700 }); const temporary = `${filePath}.tmp`; fs.writeFileSync(temporary, JSON.stringify(state), { mode: 0o600 }); fs.renameSync(temporary, filePath); };
+  let migrated = state.schemaVersion !== SCHEMA_VERSION;
+  for (const chunk of state.chunks) if (!chunk.vector) { chunk.vector = vectorizer(chunk.content); migrated = true; }
+  state.schemaVersion = SCHEMA_VERSION;
+  if (migrated) save();
+  function indexDocument(name, text) {
+    const clean = String(text || '').slice(0, 200000); if (!clean.trim()) throw new Error('Document is empty.');
+    const safeName = String(name || 'untitled').slice(0, 200); const id = crypto.createHash('sha256').update(`${safeName}\0${clean}`).digest('hex');
+    state.documents = state.documents.filter(document => document.id !== id && document.name !== safeName); state.chunks = state.chunks.filter(chunk => chunk.documentId !== id && chunk.name !== safeName);
+    state.documents.push({ id, name: safeName, bytes: Buffer.byteLength(clean), indexedAt: new Date().toISOString() });
+    for (let start = 0, number = 0; start < clean.length; start += CHUNK_SIZE - OVERLAP, number++) { const content = clean.slice(start, start + CHUNK_SIZE); state.chunks.push({ id: `${id}:${number}`, documentId: id, name: safeName, content, vector: vectorizer(content) }); if (start + CHUNK_SIZE >= clean.length) break; }
+    save(); return { id, chunks: state.chunks.filter(chunk => chunk.documentId === id).length };
+  }
+  function search(query, options = {}) {
+    const queryTerms = [...new Set(tokens(query))], queryVector = vectorizer(query), limit = Math.min(Math.max(Number(options.limit) || MAX_RESULTS, 1), MAX_RESULTS);
+    return state.chunks.map(chunk => { const content = chunk.content.toLowerCase(); const lexicalScore = queryTerms.reduce((score, term) => score + (content.split(term).length - 1), 0); const semanticScore = cosine(queryVector, chunk.vector); return { ...chunk, score: lexicalScore ? lexicalScore + semanticScore : semanticScore, lexicalScore, semanticScore }; })
+      .filter(chunk => chunk.score > 0).sort((left, right) => right.score - left.score || right.semanticScore - left.semanticScore).slice(0, limit)
+      .map(({ id, name, content, score, lexicalScore, semanticScore }) => ({ id, name, content, score: Number(score.toFixed(4)), lexicalScore, semanticScore: Number(semanticScore.toFixed(4)) }));
+  }
+  function context(query) { let used = 0; return search(query).map(result => `--- ${result.name} ---\n${result.content}`).filter(part => { if (used + part.length > MAX_CONTEXT_CHARS) return false; used += part.length; return true; }).join('\n\n'); }
+  return { indexDocument, search, context, stats: () => ({ schemaVersion: state.schemaVersion, documents: state.documents.length, chunks: state.chunks.length, retrieval: 'local-feature-vector+lexical' }) };
+}
+module.exports = { createRagIndex, vectorize, cosine, SCHEMA_VERSION };

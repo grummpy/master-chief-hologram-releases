@@ -14,7 +14,7 @@ Version 1.3 · 2026-09-12
 - Streaming deltas and cancellation events for compatible providers.
 - Encrypted credential storage with safe environment fallback and migration tests.
 - Deterministic asset validation and release checklist.
-- Persistent local RAG index with chunked lexical retrieval and attachment provenance.
+- Persistent local RAG index with chunked lexical retrieval, local feature-vector similarity, schema migration, and attachment provenance. Document text remains on-device.
 - Local voice readiness diagnostics for whisper.cpp, model files, and ffmpeg.
 - Deterministic voice fixture contract and an in-app self-test that never records audio or calls a transcription provider.
 - Explicit tool risk classes and approval controls in the UI.
@@ -27,4 +27,4 @@ Version 1.3 · 2026-09-12
 
 ## Next critical path
 
-Signed/notarized distribution, real end-to-end audio fixtures, packaged whisper.cpp models, semantic/vector RAG, full MCP execution adapters, and automated visual regression. These remain intentionally separate increments because they add native dependencies, permissions, or durable data contracts.
+Signed/notarized distribution, real end-to-end audio fixtures, packaged whisper.cpp models, higher-fidelity local embeddings, full MCP execution adapters, and automated visual regression. These remain intentionally separate increments because they add native dependencies, permissions, or durable data contracts.
