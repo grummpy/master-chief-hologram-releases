@@ -23,6 +23,37 @@ let mainWindow;
 let tray;
 let activeChild = null;
 
+const PROVIDERS = ['codex', 'openai', 'grok', 'ollama', 'huggingface'];
+const MAX_MESSAGES = 24;
+const MAX_MESSAGE_CHARS = 12000;
+
+function validSecret(value, pattern = /[^\s]{8,}/) {
+  return typeof value === 'string' && pattern.test(value.trim());
+}
+
+function safeProviderError(message) {
+  return String(message || 'Provider request failed.')
+    .replace(/(?:sk|xai|hf|ghp|github_pat)[-_][A-Za-z0-9._-]+/gi, '[redacted credential]')
+    .replace(/Bearer\s+[^\s]+/gi, 'Bearer [redacted credential]');
+}
+
+function validateMessages(messages) {
+  if (!Array.isArray(messages) || messages.length > MAX_MESSAGES) throw new Error('Invalid conversation history.');
+  return messages.map(message => {
+    if (!message || !['user', 'assistant', 'system'].includes(message.role) || typeof message.content !== 'string') {
+      throw new Error('Invalid conversation message.');
+    }
+    const content = message.content.trim();
+    if (!content || content.length > MAX_MESSAGE_CHARS) throw new Error('Conversation message is empty or too long.');
+    return { role: message.role, content };
+  });
+}
+
+function validateChatPayload(payload) {
+  if (!payload || !PROVIDERS.includes(payload.provider)) throw new Error('Invalid provider selected.');
+  return { ...payload, messages: validateMessages(payload.messages), masterMode: payload.masterMode === true };
+}
+
 function showWindow() {
   if (!mainWindow) return;
   if (mainWindow.isMinimized()) mainWindow.restore();
@@ -92,7 +123,7 @@ async function providerStatus() {
   }
 
   const openaiKey = (process.env.OPENAI_API_KEY || '').trim();
-  if (openaiKey) {
+  if (validSecret(openaiKey, /^sk-[^\s]{12,}$/)) {
     const result = await checkJson('https://api.openai.com/v1/models', {
       Authorization: `Bearer ${openaiKey}`
     });
@@ -104,7 +135,7 @@ async function providerStatus() {
   }
 
   const xaiKey = (process.env.XAI_API_KEY || '').trim();
-  if (xaiKey.startsWith('xai-') && xaiKey.length > 20) {
+  if (validSecret(xaiKey, /^xai-[^\s]{12,}$/)) {
     const result = await checkJson('https://api.x.ai/v1/models', {
       Authorization: `Bearer ${xaiKey}`
     });
@@ -145,6 +176,20 @@ async function providerStatus() {
   }
 
   return status;
+}
+
+// Discover local models without exposing credentials to the renderer. Failure is
+// intentionally represented as an empty catalog so the built-in fallback remains usable.
+async function modelCatalog() {
+  const catalog = { ollama: [], huggingface: [] };
+  const ollamaUrl = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
+  const ollama = await checkJson(`${ollamaUrl}/api/tags`);
+  if (!ollama.error && ollama.response.ok && Array.isArray(ollama.body.models)) {
+    catalog.ollama = ollama.body.models.map(model => String(model.name || model.model || '')).filter(Boolean);
+  }
+  const configured = (process.env.HF_MODEL || '').trim();
+  if (configured) catalog.huggingface.push(configured);
+  return catalog;
 }
 
 function conversationText(messages) {
@@ -205,7 +250,7 @@ async function callCodex({ messages, masterMode }) {
 async function callOpenAI({ messages, masterMode }) {
   const systemPrompt = masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy; route complex work through planning, specialists, implementation, and verification.' : 'You are a clear, helpful desktop AI assistant.';
   const key = (process.env.OPENAI_API_KEY || '').trim();
-  if (!key) throw new Error('OPENAI_API_KEY is missing from .env.');
+  if (!validSecret(key, /^sk-[^\s]{12,}$/)) throw new Error('A valid OPENAI_API_KEY is missing from .env.');
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
@@ -225,7 +270,7 @@ async function callOpenAI({ messages, masterMode }) {
 async function callGrok({ messages, masterMode }) {
   const systemPrompt = masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy; route complex work through planning, specialists, implementation, and verification.' : 'You are a clear, helpful desktop AI assistant.';
   const key = (process.env.XAI_API_KEY || '').trim();
-  if (!key.startsWith('xai-') || key.length < 20) throw new Error('A valid XAI_API_KEY has not been added to .env.');
+  if (!validSecret(key, /^xai-[^\s]{12,}$/)) throw new Error('A valid XAI_API_KEY has not been added to .env.');
   const response = await fetch('https://api.x.ai/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
@@ -243,9 +288,9 @@ async function callGrok({ messages, masterMode }) {
   return { reply, label: 'Grok · xAI' };
 }
 
-async function callOllama({ messages, masterMode }) {
+async function callOllama({ messages, masterMode, model: requestedModel }) {
   const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
-  const model = process.env.OLLAMA_MODEL || 'llama3.2';
+  const model = requestedModel || process.env.OLLAMA_MODEL || 'llama3.2';
   const response = await fetch(`${base}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model, messages: [{ role: 'system', content: masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy.' : 'You are a clear, helpful desktop AI assistant.' }, ...messages.slice(-16)], stream: false }), signal: AbortSignal.timeout(300000) });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || `Ollama error ${response.status}`);
@@ -254,10 +299,10 @@ async function callOllama({ messages, masterMode }) {
   return { reply, label: `Ollama · ${model}` };
 }
 
-async function callHuggingFace({ messages, masterMode }) {
+async function callHuggingFace({ messages, masterMode, model: requestedModel }) {
   const base = (process.env.HF_BASE_URL || '').replace(/\/$/, '');
   const key = (process.env.HF_API_KEY || '').trim();
-  const model = process.env.HF_MODEL || 'HuggingFaceH4/zephyr-7b-beta';
+  const model = requestedModel || process.env.HF_MODEL || 'HuggingFaceH4/zephyr-7b-beta';
   if (!base || !key) throw new Error('HF_BASE_URL and HF_API_KEY are missing from .env.');
   const response = await fetch(`${base}/chat/completions`, { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model, messages: [{ role: 'system', content: masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy.' : 'You are a clear, helpful desktop AI assistant.' }, ...messages.slice(-16)], stream: false }), signal: AbortSignal.timeout(300000) });
   const body = await response.json().catch(() => ({}));
@@ -268,7 +313,7 @@ async function callHuggingFace({ messages, masterMode }) {
 }
 
 async function routeChat(payload) {
-  if (!payload || !['codex', 'openai', 'grok', 'ollama', 'huggingface'].includes(payload.provider) || !Array.isArray(payload.messages) || payload.messages.length > 24) throw new Error('Invalid command request.');
+  payload = validateChatPayload(payload);
   if (payload.provider === 'codex') return callCodex(payload);
   if (payload.provider === 'openai') return callOpenAI(payload);
   if (payload.provider === 'grok') return callGrok(payload);
@@ -309,11 +354,12 @@ app.on('activate', () => {
 });
 
 ipcMain.handle('provider-status', providerStatus);
+ipcMain.handle('model-catalog', modelCatalog);
 ipcMain.handle('chat', (_event, payload) => routeChat(payload));
 ipcMain.handle('cancel-chat', () => { activeChild?.kill('SIGTERM'); return true; });
 ipcMain.handle('transcribe-audio', async (_event, payload) => {
   const key = (process.env.OPENAI_API_KEY || '').trim();
-  if (!key) throw new Error('Voice transcription needs OPENAI_API_KEY in the local .env.');
+  if (!validSecret(key, /^sk-[^\s]{12,}$/)) throw new Error('Voice transcription needs a valid OPENAI_API_KEY in the local .env.');
   const bytes = Buffer.from(payload?.audio || []);
   if (!bytes.length) throw new Error('No microphone audio was captured.');
   const contentType = String(payload?.type || 'audio/webm').split(';')[0].toLowerCase();
@@ -323,7 +369,7 @@ ipcMain.handle('transcribe-audio', async (_event, payload) => {
   form.append('model', 'gpt-4o-mini-transcribe');
   const response = await fetch('https://api.openai.com/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: form, signal: AbortSignal.timeout(120000) });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error?.message || `Transcription error ${response.status}`);
+  if (!response.ok) throw new Error(safeProviderError(body.error?.message || `Transcription error ${response.status}`));
   return String(body.text || '').trim();
 });
 ipcMain.handle('window-action', (_event, action) => {
@@ -336,3 +382,5 @@ ipcMain.handle('window-action', (_event, action) => {
   }
   return true;
 });
+
+if (require.main !== module) module.exports = { validateChatPayload, validateMessages, safeProviderError, validSecret };
