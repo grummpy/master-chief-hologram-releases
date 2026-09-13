@@ -23,6 +23,8 @@ Release acceptance:
 - The macOS build references `assets/icon.png` and packages `assets/**/*`.
 - The bundle launches from a clean checkout and shows the fallback if the primary visual is unavailable.
 - Microphone permission denial and provider errors remain visible in the UI.
+- Tool access lists each capability's data scope and risk class; network, microphone, and attachment actions are disabled until explicitly approved.
+- Approval settings are stored in the app user-data directory with restrictive permissions and never in packaged assets.
 - `scripts/launch-mac.sh` preserves the current bundle if fetch, install, or build fails.
 - Only `Master Chief Hologram.app` remains on the Desktop after a successful launch; prior bundles are not source artifacts.
 

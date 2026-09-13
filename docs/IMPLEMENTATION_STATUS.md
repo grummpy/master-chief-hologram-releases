@@ -1,6 +1,6 @@
 # Implementation Status
 
-Version 1.2 · 2026-09-12
+Version 1.3 · 2026-09-12
 
 ## Completed in the current increments
 
@@ -14,10 +14,12 @@ Version 1.2 · 2026-09-12
 - Streaming deltas and cancellation events for compatible providers.
 - Encrypted credential storage with safe environment fallback and migration tests.
 - Deterministic asset validation and release checklist.
+- Tool registry now exposes capability scope and risk labels; approval-required actions remain opt-in and persist per user profile.
+- Tool access UI shows per-capability scope, risk class, and explicit approval state.
 
 ## Evidence
 
-`npm test` passes 3/3. JavaScript syntax checks and `git diff --check` pass. `npm run dist:mac` produces `dist/mac-arm64`; `npm run launch:mac` updates and launches the Desktop bundle. Live UI inspection confirms provider choices, ATTACH, MIC, Transmit, and command palette controls.
+`npm test` passes (run the current suite before release). JavaScript syntax checks and `git diff --check` pass. `npm run dist:mac` produces `dist/mac-arm64`; `npm run launch:mac` updates and launches the Desktop bundle. Live UI inspection must confirm provider choices, ATTACH, MIC, Transmit, command palette, and tool-access scope/risk labels.
 
 ## Next critical path
 

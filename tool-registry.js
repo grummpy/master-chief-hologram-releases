@@ -1,10 +1,10 @@
 'use strict';
 const TOOL_REGISTRY = Object.freeze([
-  Object.freeze({ id: 'diagnostics.provider_status', label: 'Provider diagnostics', risk: 'read-only', approvalRequired: false }),
-  Object.freeze({ id: 'models.discover_local', label: 'Discover local models', risk: 'read-only', approvalRequired: false }),
-  Object.freeze({ id: 'files.attach_local_text', label: 'Read attached local text files', risk: 'local-read', approvalRequired: true }),
-  Object.freeze({ id: 'voice.transcribe_microphone', label: 'Transcribe microphone audio', risk: 'local-read', approvalRequired: true }),
-  Object.freeze({ id: 'chat.send_to_configured_provider', label: 'Send command to selected provider', risk: 'network', approvalRequired: true })
+  Object.freeze({ id: 'diagnostics.provider_status', label: 'Provider diagnostics', risk: 'read-only', scope: 'Checks configured connection status; sends no command content.', approvalRequired: false }),
+  Object.freeze({ id: 'models.discover_local', label: 'Discover local models', risk: 'read-only', scope: 'Lists locally available model names.', approvalRequired: false }),
+  Object.freeze({ id: 'files.attach_local_text', label: 'Read attached local text files', risk: 'local-read', scope: 'Reads only files you explicitly attach, up to 200 KB each.', approvalRequired: true }),
+  Object.freeze({ id: 'voice.transcribe_microphone', label: 'Transcribe microphone audio', risk: 'local-read', scope: 'Captures audio after you press MIC and sends it to the selected transcription provider.', approvalRequired: true }),
+  Object.freeze({ id: 'chat.send_to_configured_provider', label: 'Send command to selected provider', risk: 'network', scope: 'Sends your command and selected local context to the provider shown above.', approvalRequired: true })
 ]);
 const DEFAULT_APPROVALS = Object.freeze({ 'files.attach_local_text': false, 'voice.transcribe_microphone': false, 'chat.send_to_configured_provider': false });
 function getToolRegistry() { return TOOL_REGISTRY.map(tool => ({ ...tool })); }
