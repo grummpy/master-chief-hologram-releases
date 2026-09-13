@@ -241,6 +241,10 @@ if (!gotLock) {
 } else {
   app.on('second-instance', showWindow);
   app.whenReady().then(() => {
+    // Grant Chromium's microphone request used by Web Speech in this trusted local window.
+    mainWindow.webContents.session.setPermissionRequestHandler((_webContents, permission, callback) => {
+      callback(permission === 'media' || permission === 'audioCapture');
+    });
     createWindow();
     const image = nativeImage.createFromPath(path.join(__dirname, 'assets', 'icon.png'));
     const trayIcon = image.isEmpty() ? nativeImage.createEmpty() : image.resize({ width: 16, height: 16 });
