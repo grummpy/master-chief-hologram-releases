@@ -78,6 +78,8 @@ async function providerStatus() {
     openai: { state: 'missing', label: 'OpenAI key missing' },
     grok: { state: 'missing', label: 'Grok key missing' },
     github: { state: 'missing', label: 'GitHub token missing' }
+    ,ollama: { state: 'missing', label: 'Ollama unavailable' }
+    ,huggingface: { state: 'missing', label: 'Hugging Face endpoint not configured' }
   };
 
   if (fs.existsSync(CODEX_BIN)) {
@@ -126,6 +128,20 @@ async function providerStatus() {
       : result.response.ok
         ? { state: 'ready', label: `GitHub: ${result.body.login}` }
         : { state: 'error', label: 'GitHub token invalid' };
+  }
+
+  const ollamaUrl = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
+  const ollama = await checkJson(`${ollamaUrl}/api/tags`);
+  if (!ollama.error && ollama.response.ok) {
+    const count = Array.isArray(ollama.body.models) ? ollama.body.models.length : 0;
+    status.ollama = { state: 'ready', label: `Ollama · ${count} model${count === 1 ? '' : 's'}` };
+  } else if (process.env.OLLAMA_BASE_URL) status.ollama = { state: 'error', label: 'Ollama connection error' };
+
+  const hfUrl = (process.env.HF_BASE_URL || '').replace(/\/$/, '');
+  const hfKey = (process.env.HF_API_KEY || '').trim();
+  if (hfUrl && hfKey) {
+    const hf = await checkJson(`${hfUrl}/models`, { Authorization: `Bearer ${hfKey}` });
+    status.huggingface = hf.error ? { state: 'error', label: 'Hugging Face network error' } : hf.response.ok ? { state: 'ready', label: 'Hugging Face endpoint ready' } : { state: 'error', label: `Hugging Face error ${hf.response.status}` };
   }
 
   return status;
@@ -227,11 +243,37 @@ async function callGrok({ messages, masterMode }) {
   return { reply, label: 'Grok · xAI' };
 }
 
+async function callOllama({ messages, masterMode }) {
+  const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
+  const model = process.env.OLLAMA_MODEL || 'llama3.2';
+  const response = await fetch(`${base}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model, messages: [{ role: 'system', content: masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy.' : 'You are a clear, helpful desktop AI assistant.' }, ...messages.slice(-16)], stream: false }), signal: AbortSignal.timeout(300000) });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || `Ollama error ${response.status}`);
+  const reply = body.message?.content;
+  if (!reply) throw new Error('Ollama returned an empty response.');
+  return { reply, label: `Ollama · ${model}` };
+}
+
+async function callHuggingFace({ messages, masterMode }) {
+  const base = (process.env.HF_BASE_URL || '').replace(/\/$/, '');
+  const key = (process.env.HF_API_KEY || '').trim();
+  const model = process.env.HF_MODEL || 'HuggingFaceH4/zephyr-7b-beta';
+  if (!base || !key) throw new Error('HF_BASE_URL and HF_API_KEY are missing from .env.');
+  const response = await fetch(`${base}/chat/completions`, { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model, messages: [{ role: 'system', content: masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy.' : 'You are a clear, helpful desktop AI assistant.' }, ...messages.slice(-16)], stream: false }), signal: AbortSignal.timeout(300000) });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error?.message || body.error || `Hugging Face error ${response.status}`);
+  const reply = body.choices?.[0]?.message?.content;
+  if (!reply) throw new Error('Hugging Face returned an empty response.');
+  return { reply, label: `Hugging Face · ${model}` };
+}
+
 async function routeChat(payload) {
-  if (!payload || !['codex', 'openai', 'grok'].includes(payload.provider) || !Array.isArray(payload.messages) || payload.messages.length > 24) throw new Error('Invalid command request.');
+  if (!payload || !['codex', 'openai', 'grok', 'ollama', 'huggingface'].includes(payload.provider) || !Array.isArray(payload.messages) || payload.messages.length > 24) throw new Error('Invalid command request.');
   if (payload.provider === 'codex') return callCodex(payload);
   if (payload.provider === 'openai') return callOpenAI(payload);
   if (payload.provider === 'grok') return callGrok(payload);
+  if (payload.provider === 'ollama') return callOllama(payload);
+  if (payload.provider === 'huggingface') return callHuggingFace(payload);
   throw new Error('Unknown provider selected.');
 }
 
