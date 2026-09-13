@@ -89,3 +89,10 @@ GitHub Models is not offered as an AI route because GitHub retired the service o
 ---
 
 Built for Commander grummpy · 2026
+
+## Reaction States (Day / Night)
+
+See [STATES.md](STATES.md). Full art pack also on Google Drive:
+https://drive.google.com/drive/folders/1PtTkpeiAhop0MU-6hWZy5O3GmW8QkQG3
+
+Use `index-with-states.html` for the fully wired Day/Night + 12-state hologram UI, or merge `setState()` into your current `index.html`.

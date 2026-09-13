@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Master Chief Hologram</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%;
+      background: transparent;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      overflow: hidden;
+      color: #e0f7ff;
+      user-select: none;
+    }
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      background: linear-gradient(180deg, rgba(0,20,40,0.82) 0%, rgba(0,10,25,0.9) 100%);
+      border: 1px solid rgba(0, 200, 255, 0.4);
+      border-radius: 16px;
+      backdrop-filter: blur(14px);
+      box-shadow: 0 0 40px rgba(0, 180, 255, 0.3), inset 0 0 60px rgba(0, 100, 200, 0.12);
+      overflow: hidden;
+      transition: background 0.5s, border-color 0.5s;
+    }
+    #app.day-mode {
+      background: linear-gradient(180deg, rgba(40,60,100,0.75) 0%, rgba(20,40,70,0.85) 100%);
+      border-color: rgba(255, 200, 100, 0.45);
+      box-shadow: 0 0 40px rgba(255, 180, 80, 0.25), inset 0 0 60px rgba(255, 200, 100, 0.08);
+    }
+    .titlebar {
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      -webkit-app-region: drag;
+      background: rgba(0, 40, 80, 0.65);
+      border-bottom: 1px solid rgba(0, 200, 255, 0.25);
+    }
+    .titlebar .title {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      color: #7dd3fc;
+      text-shadow: 0 0 8px #0ea5e9;
+    }
+    .titlebar .controls {
+      display: flex;
+      gap: 8px;
+      -webkit-app-region: no-drag;
+    }
+    .titlebar button {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      opacity: 0.85;
+    }
+    .btn-close { background: #ff5f57; }
+    .btn-min { background: #febc2e; }
+    .btn-pin { background: #28c840; }
+
+    .holo-stage {
+      position: relative;
+      height: 260px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(ellipse at center, rgba(0,80,160,0.3) 0%, transparent 70%);
+      overflow: hidden;
+      transition: background 0.4s;
+    }
+    #app.day-mode .holo-stage {
+      background: radial-gradient(ellipse at center, rgba(255,200,100,0.2) 0%, transparent 70%);
+    }
+    #holoImg {
+      max-height: 94%;
+      max-width: 94%;
+      object-fit: contain;
+      filter: drop-shadow(0 0 14px rgba(0, 200, 255, 0.7));
+      transition: opacity 0.25s, filter 0.3s;
+      pointer-events: none;
+    }
+    #app.day-mode #holoImg {
+      filter: drop-shadow(0 0 14px rgba(255, 200, 80, 0.6));
+    }
+    .scanlines {
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg, transparent, transparent 2px,
+        rgba(0, 180, 255, 0.035) 2px, rgba(0, 180, 255, 0.035) 4px
+      );
+      pointer-events: none;
+      animation: scan 8s linear infinite;
+    }
+    @keyframes scan {
+      0% { background-position: 0 0; }
+      100% { background-position: 0 100px; }
+    }
+    .glow-ring {
+      position: absolute;
+      width: 190px; height: 190px;
+      border-radius: 50%;
+      border: 1px solid rgba(0, 200, 255, 0.18);
+      box-shadow: 0 0 40px rgba(0, 180, 255, 0.22);
+      animation: pulse 3s ease-in-out infinite;
+      pointer-events: none;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 0.4; }
+      50% { transform: scale(1.08); opacity: 0.7; }
+    }
+    .state-label {
+      position: absolute;
+      bottom: 6px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(125, 211, 252, 0.7);
+      background: rgba(0,0,0,0.35);
+      padding: 2px 10px;
+      border-radius: 10px;
+    }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      font-size: 11px;
+      background: rgba(0, 30, 60, 0.55);
+      border-bottom: 1px solid rgba(0, 200, 255, 0.18);
+      flex-wrap: wrap;
+    }
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 6px #22c55e;
+      flex-shrink: 0;
+    }
+    .status-dot.busy { background: #f59e0b; box-shadow: 0 0 6px #f59e0b; animation: blink 0.8s infinite; }
+    @keyframes blink { 50% { opacity: 0.4; } }
+    select, .mode-btn {
+      background: rgba(0, 40, 80, 0.85);
+      color: #e0f7ff;
+      border: 1px solid rgba(0, 200, 255, 0.35);
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 11px;
+      outline: none;
+      cursor: pointer;
+    }
+    select#modelSelect { flex: 1; min-width: 100px; }
+    .mode-btn.active {
+      background: linear-gradient(135deg, #0284c7, #0ea5e9);
+      border-color: #0ea5e9;
+    }
+    .master-toggle {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 10px;
+      color: #7dd3fc;
+      white-space: nowrap;
+    }
+    .master-toggle input { accent-color: #0ea5e9; }
+
+    /* State quick buttons */
+    .state-row {
+      display: flex;
+      gap: 4px;
+      padding: 6px 10px;
+      overflow-x: auto;
+      background: rgba(0, 20, 40, 0.4);
+      border-bottom: 1px solid rgba(0, 200, 255, 0.12);
+      scrollbar-width: none;
+    }
+    .state-row::-webkit-scrollbar { display: none; }
+    .state-btn {
+      flex-shrink: 0;
+      padding: 3px 8px;
+      font-size: 10px;
+      border-radius: 12px;
+      border: 1px solid rgba(0, 200, 255, 0.3);
+      background: rgba(0, 40, 80, 0.6);
+      color: #7dd3fc;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .state-btn:hover, .state-btn.active {
+      background: rgba(14, 165, 233, 0.35);
+      border-color: #0ea5e9;
+      color: white;
+    }
+
+    #chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(0,180,255,0.4) transparent;
+    }
+    .msg {
+      max-width: 92%;
+      padding: 7px 11px;
+      border-radius: 12px;
+      font-size: 12.5px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+      animation: fadeIn 0.22s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } }
+    .msg.user {
+      align-self: flex-end;
+      background: linear-gradient(135deg, #0369a1, #0ea5e9);
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+    .msg.bot {
+      align-self: flex-start;
+      background: rgba(0, 50, 90, 0.75);
+      border: 1px solid rgba(0, 200, 255, 0.25);
+      border-bottom-left-radius: 4px;
+    }
+    .msg.system {
+      align-self: center;
+      font-size: 10px;
+      color: #7dd3fc;
+      background: transparent;
+      opacity: 0.85;
+    }
+    .msg .meta { font-size: 9px; opacity: 0.55; margin-bottom: 2px; }
+
+    .input-area {
+      padding: 8px 12px 12px;
+      background: rgba(0, 20, 40, 0.75);
+      border-top: 1px solid rgba(0, 200, 255, 0.2);
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+    #prompt {
+      width: 100%;
+      min-height: 58px;
+      max-height: 120px;
+      resize: vertical;
+      background: rgba(0, 30, 60, 0.9);
+      border: 1px solid rgba(0, 200, 255, 0.35);
+      border-radius: 10px;
+      color: #e0f7ff;
+      padding: 8px 11px;
+      font-size: 12.5px;
+      font-family: inherit;
+      outline: none;
+    }
+    #prompt:focus { border-color: #0ea5e9; box-shadow: 0 0 10px rgba(14, 165, 233, 0.3); }
+    .row { display: flex; gap: 7px; }
+    button.action {
+      flex: 1;
+      padding: 7px 10px;
+      border: none;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    #sendBtn {
+      background: linear-gradient(135deg, #0284c7, #0ea5e9);
+      color: white;
+      box-shadow: 0 0 12px rgba(14, 165, 233, 0.4);
+    }
+    #sendBtn:hover { filter: brightness(1.1); }
+    #sendBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+    #clearBtn {
+      background: rgba(0, 40, 80, 0.8);
+      color: #7dd3fc;
+      border: 1px solid rgba(0, 200, 255, 0.3);
+      flex: 0 0 auto;
+      width: 64px;
+    }
+    .hint {
+      font-size: 9px;
+      color: rgba(125, 211, 252, 0.55);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="titlebar">
+      <div class="title">MASTER CHIEF · HOLOGRAM</div>
+      <div class="controls">
+        <button class="btn-pin" title="Always on top"></button>
+        <button class="btn-min" id="minBtn" title="Minimize"></button>
+        <button class="btn-close" id="closeBtn" title="Close"></button>
+      </div>
+    </div>
+
+    <div class="holo-stage">
+      <div class="glow-ring"></div>
+      <img id="holoImg" src="assets/states/night/night_idle.jpg" alt="Master Chief" />
+      <div class="scanlines"></div>
+      <div class="state-label" id="stateLabel">IDLE</div>
+    </div>
+
+    <div class="status-bar">
+      <div class="status-dot" id="statusDot"></div>
+      <button class="mode-btn active" id="nightBtn" data-mode="night">Night</button>
+      <button class="mode-btn" id="dayBtn" data-mode="day">Day</button>
+      <select id="modelSelect">
+        <option value="grok">Grok (xAI)</option>
+        <option value="grok-bots">Grok Bots</option>
+        <option value="chatgpt">ChatGPT</option>
+        <option value="codex">Codex</option>
+        <option value="copilot">Copilot</option>
+        <option value="copilot-github">GitHub Models</option>
+      </select>
+      <label class="master-toggle" title="Master Chief skill system prompt">
+        <input type="checkbox" id="masterMode" checked /> MC
+      </label>
+    </div>
+
+    <div class="state-row" id="stateRow">
+      <!-- filled by JS -->
+    </div>
+
+    <div id="chat">
+      <div class="msg system">Hologram online · Day/Night + full reaction states ready. Issue orders, Commander.</div>
+    </div>
+
+    <div class="input-area">
+      <textarea id="prompt" placeholder="Enter prompt… (auto-reacts: listen → think → speak)"></textarea>
+      <div class="row">
+        <button class="action" id="sendBtn">TRANSMIT</button>
+        <button class="action" id="clearBtn">Clear</button>
+      </div>
+      <div class="hint">States auto-switch on send · Manual buttons above · Ctrl+Enter to send</div>
+    </div>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+    const OpenAI = require('openai');
+    const path = require('path');
+    require('dotenv').config({ path: path.join(__dirname, '.env') });
+
+    const chat = document.getElementById('chat');
+    const promptEl = document.getElementById('prompt');
+    const sendBtn = document.getElementById('sendBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const modelSelect = document.getElementById('modelSelect');
+    const masterMode = document.getElementById('masterMode');
+    const statusDot = document.getElementById('statusDot');
+    const holoImg = document.getElementById('holoImg');
+    const stateLabel = document.getElementById('stateLabel');
+    const app = document.getElementById('app');
+    const nightBtn = document.getElementById('nightBtn');
+    const dayBtn = document.getElementById('dayBtn');
+    const stateRow = document.getElementById('stateRow');
+
+    // Available states per mode
+    const STATES = {
+      night: {
+        idle: 'assets/states/night/night_idle.jpg',
+        listening: 'assets/states/night/night_listening.jpg',
+        thinking: 'assets/states/night/night_thinking.jpg',
+        speaking: 'assets/states/night/night_speaking.jpg',
+        success: 'assets/states/night/night_success.jpg',
+        alert: 'assets/states/night/night_alert.jpg',
+        wave: 'assets/states/night/night_wave.jpg',
+        salute: 'assets/states/night/night_salute.jpg',
+        loading: 'assets/states/night/night_loading.jpg',
+        confused: 'assets/states/night/night_confused.jpg',
+        happy: 'assets/states/night/night_happy.jpg',
+        coding: 'assets/states/night/night_coding.jpg'
+      },
+      day: {
+        idle: 'assets/states/day/day_idle.jpg',
+        ready: 'assets/states/day/day_ready.jpg',
+        thinking: 'assets/states/day/day_thinking.jpg',
+        success: 'assets/states/day/day_success.jpg',
+        wave: 'assets/states/day/day_wave.jpg',
+        // fallbacks for states not yet drawn in day
+        listening: 'assets/states/day/day_ready.jpg',
+        speaking: 'assets/states/day/day_success.jpg',
+        alert: 'assets/states/night/night_alert.jpg',
+        salute: 'assets/states/night/night_salute.jpg',
+        loading: 'assets/states/night/night_loading.jpg',
+        confused: 'assets/states/night/night_confused.jpg',
+        happy: 'assets/states/day/day_success.jpg',
+        coding: 'assets/states/night/night_coding.jpg'
+      }
+    };
+
+    const STATE_ORDER = ['idle','wave','salute','listening','thinking','loading','coding','speaking','success','happy','confused','alert'];
+    let currentMode = 'night';
+    let currentState = 'idle';
+
+    function setState(name) {
+      const map = STATES[currentMode];
+      const src = map[name] || map.idle;
+      currentState = name;
+      holoImg.style.opacity = '0.4';
+      setTimeout(() => {
+        holoImg.src = src;
+        holoImg.onload = () => { holoImg.style.opacity = '1'; };
+        stateLabel.textContent = name.toUpperCase();
+      }, 120);
+      // highlight button
+      document.querySelectorAll('.state-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.state === name);
+      });
+    }
+
+    function setMode(mode) {
+      currentMode = mode;
+      app.classList.toggle('day-mode', mode === 'day');
+      nightBtn.classList.toggle('active', mode === 'night');
+      dayBtn.classList.toggle('active', mode === 'day');
+      setState(currentState); // re-apply current state in new mode
+    }
+
+    nightBtn.onclick = () => setMode('night');
+    dayBtn.onclick = () => setMode('day');
+
+    // Build state buttons
+    STATE_ORDER.forEach(s => {
+      const btn = document.createElement('button');
+      btn.className = 'state-btn' + (s === 'idle' ? ' active' : '');
+      btn.dataset.state = s;
+      btn.textContent = s;
+      btn.onclick = () => setState(s);
+      stateRow.appendChild(btn);
+    });
+
+    // Window controls
+    document.getElementById('closeBtn').onclick = () => window.close();
+    document.getElementById('minBtn').onclick = () => { try { require('electron').ipcRenderer.send('minimize'); } catch(e){} window.blur(); };
+
+    // Chat + models (same as before)
+    const histories = {};
+    function getHistory(model) {
+      if (!histories[model]) histories[model] = [];
+      return histories[model];
+    }
+
+    const MASTER_CHIEF_SYSTEM = `You are Master Chief, the program-control skill for complex product, software, game, AI, family-operations, and technical-build requests.
+You turn open-ended objectives into researched, executable tasking prompts, route work to the right specialist skills (Jarvis, Leonardo, Decker, PAPM, etc.), verify results, and keep a living upgrade backlog.
+Always: 1) Context Manager first 2) PAPM research 3) Use cases before features 4) Select specialists 5) Produce one tasking prompt 6) Build foundations 7) Execute in increments 8) Maintain upgrade standby.
+Stay concise, actionable, military-clear. You are the holographic face of the bot-and-skills army for Commander grummpy.`;
+
+    function addMsg(role, text, meta = '') {
+      const div = document.createElement('div');
+      div.className = `msg ${role}`;
+      if (meta) {
+        const m = document.createElement('div');
+        m.className = 'meta';
+        m.textContent = meta;
+        div.appendChild(m);
+      }
+      div.appendChild(document.createTextNode(text));
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function setBusy(busy) {
+      statusDot.classList.toggle('busy', busy);
+      sendBtn.disabled = busy;
+    }
+
+    async function callGrok(messages) {
+      const key = process.env.XAI_API_KEY;
+      if (!key) throw new Error('XAI_API_KEY missing in .env');
+      const res = await fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+        body: JSON.stringify({ model: 'grok-3', messages, stream: false, temperature: 0.7 })
+      });
+      if (!res.ok) throw new Error(`Grok ${res.status}: ${await res.text()}`);
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content || '(empty)';
+    }
+
+    async function callOpenAI(messages, model = 'gpt-4o') {
+      const key = process.env.OPENAI_API_KEY;
+      if (!key) throw new Error('OPENAI_API_KEY missing in .env');
+      const openai = new OpenAI({ apiKey: key, dangerouslyAllowBrowser: true });
+      const completion = await openai.chat.completions.create({ model, messages, temperature: 0.7 });
+      return completion.choices[0].message.content;
+    }
+
+    async function callGithubModels(messages) {
+      const token = process.env.GITHUB_TOKEN;
+      if (!token) throw new Error('GITHUB_TOKEN missing');
+      const res = await fetch('https://models.inference.ai.azure.com/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ model: 'gpt-4o', messages, temperature: 0.7 })
+      });
+      if (!res.ok) throw new Error(`GitHub Models ${res.status}: ${await res.text()}`);
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content || '(empty)';
+    }
+
+    // Auto-react sequence on typing / sending
+    let typingTimer;
+    promptEl.addEventListener('input', () => {
+      if (promptEl.value.trim()) {
+        setState('listening');
+        clearTimeout(typingTimer);
+        typingTimer = setTimeout(() => {
+          if (!sendBtn.disabled) setState('idle');
+        }, 2500);
+      }
+    });
+
+    async function transmit() {
+      const text = promptEl.value.trim();
+      if (!text) return;
+      const model = modelSelect.value;
+      promptEl.value = '';
+      addMsg('user', text);
+
+      setBusy(true);
+      setState(model === 'codex' ? 'coding' : 'loading');
+      await new Promise(r => setTimeout(r, 400));
+      setState('thinking');
+
+      try {
+        const history = getHistory(model);
+        const messages = [];
+        if (masterMode.checked) {
+          messages.push({ role: 'system', content: MASTER_CHIEF_SYSTEM });
+        } else {
+          messages.push({ role: 'system', content: 'You are Master Chief, a helpful holographic AI companion.' });
+        }
+        history.forEach(h => messages.push(h));
+        messages.push({ role: 'user', content: text });
+
+        let reply = '', used = model;
+        if (model === 'grok' || model === 'grok-bots') {
+          reply = await callGrok(messages); used = 'Grok (xAI)';
+        } else if (model === 'chatgpt') {
+          reply = await callOpenAI(messages, 'gpt-4o'); used = 'ChatGPT';
+        } else if (model === 'codex') {
+          reply = await callOpenAI(messages, 'o1-mini'); used = 'Codex';
+        } else {
+          try {
+            reply = await callGithubModels(messages); used = 'GitHub Models';
+          } catch (e) {
+            if (process.env.OPENAI_API_KEY) {
+              reply = await callOpenAI(messages, 'gpt-4o'); used = 'OpenAI fallback';
+            } else throw e;
+          }
+        }
+
+        history.push({ role: 'user', content: text });
+        history.push({ role: 'assistant', content: reply });
+        if (history.length > 24) history.splice(0, history.length - 24);
+
+        setState('speaking');
+        await new Promise(r => setTimeout(r, 600));
+        addMsg('bot', reply, used);
+        setState('success');
+        setTimeout(() => setState('happy'), 900);
+        setTimeout(() => setState('idle'), 2800);
+      } catch (err) {
+        addMsg('system', 'Error: ' + err.message);
+        setState('alert');
+        setTimeout(() => setState('confused'), 1200);
+        setTimeout(() => setState('idle'), 3200);
+        console.error(err);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    sendBtn.onclick = transmit;
+    promptEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        transmit();
+      }
+    });
+    clearBtn.onclick = () => {
+      chat.innerHTML = '<div class="msg system">Chat cleared. Hologram ready.</div>';
+      Object.keys(histories).forEach(k => histories[k] = []);
+      setState('idle');
+    };
+
+    // Init
+    setState('idle');
+    setTimeout(() => setState('wave'), 800);
+    setTimeout(() => setState('salute'), 2200);
+    setTimeout(() => setState('idle'), 3800);
+
+    (async () => {
+      let status = 'Ready';
+      if (!process.env.XAI_API_KEY && !process.env.OPENAI_API_KEY) {
+        status = 'No API keys – add to .env';
+        statusDot.style.background = '#ef4444';
+      }
+      addMsg('system', status + ' · Full reaction pack + Day/Night loaded');
+    })();
+  </script>
+</body>
+</html>
