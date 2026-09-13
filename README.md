@@ -6,6 +6,12 @@ The supplied Master Chief bot artwork now drives the interactive desktop command
 
 The Desktop launcher is now a packaged macOS app. Opening it no longer runs npm or installs dependencies. AI keys remain outside the bundle in `~/Library/Application Support/master-chief-hologram/.env`.
 
+## Local model setup
+
+Install Ollama with `brew install ollama`, start it with `ollama serve`, then download a starter model such as `ollama pull qwen2.5:0.5b`. Set `OLLAMA_MODEL` in the local `.env` if you choose another model. The app discovers models from the local Ollama API.
+
+For Hugging Face, create an inference token and set `HF_BASE_URL=https://router.huggingface.co/v1`, `HF_API_KEY`, and `HF_MODEL` in the local `.env`. The repository contains placeholders only; no token is stored in Git.
+
 **Your personal holographic AI command center.**
 
 A floating, always-on-top desktop holographic companion of the **Master Chief** skill bot from [bot-and-skills](https://github.com/grummpy/bot-and-skills).
