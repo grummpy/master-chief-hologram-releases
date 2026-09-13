@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('masterChief', {
   voiceSelfTest: () => ipcRenderer.invoke('voice-self-test'),
   getToolApprovals: () => ipcRenderer.invoke('tool-approvals'),
   setToolApproval: (id, approved) => ipcRenderer.invoke('set-tool-approval', { id, approved }),
+  executeLocalTool: id => ipcRenderer.invoke('execute-local-tool', { id }),
   chat: payload => ipcRenderer.invoke('chat', payload),
   onChatEvent: callback => { const listener = (_event, data) => callback(data); ipcRenderer.on('chat-event', listener); return () => ipcRenderer.removeListener('chat-event', listener); },
   cancelChat: () => ipcRenderer.invoke('cancel-chat'),

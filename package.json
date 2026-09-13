@@ -31,6 +31,7 @@
       "security.js",
       "credential-store.js",
       "tool-registry.js",
+      "local-tool-executor.js",
       "rag-index.js",
       "voice-diagnostics.js",
       "build-info.json",

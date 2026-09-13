@@ -20,7 +20,8 @@ const CODEX_BIN = process.env.CODEX_BIN || '/Applications/ChatGPT.app/Contents/R
 const APP_VERSION = require('./package.json').version;
 const { validateChatPayload, validateMessages, safeProviderError, validSecret } = require('./security');
 const { createCredentialStore } = require('./credential-store');
-const { getToolRegistry, normalizeApprovals, setToolApproval } = require('./tool-registry');
+const { getToolRegistry, normalizeApprovals, setToolApproval, isToolApproved } = require('./tool-registry');
+const { createLocalToolExecutor } = require('./local-tool-executor');
 const { createRagIndex } = require('./rag-index');
 const { voiceSelfTest } = require('./voice-diagnostics');
 
@@ -35,6 +36,39 @@ function approvalFile() { return path.join(app.getPath('userData'), 'tool-approv
 function loadToolApprovals() { if (toolApprovals) return toolApprovals; try { toolApprovals = normalizeApprovals(JSON.parse(fs.readFileSync(approvalFile(), 'utf8'))); } catch { toolApprovals = normalizeApprovals({}); } return toolApprovals; }
 function saveToolApprovals() { fs.mkdirSync(path.dirname(approvalFile()), { recursive: true }); fs.writeFileSync(approvalFile(), JSON.stringify(loadToolApprovals(), null, 2), { mode: 0o600 }); }
 const ragIndex = createRagIndex(path.join(app.getPath('userData'), 'local-index.json'));
+const localTools = createLocalToolExecutor({ appVersion: APP_VERSION, projectDir: __dirname, execFile: execFileAsync });
+function toolAuditFile() { return path.join(app.getPath('userData'), 'tool-audit.jsonl'); }
+function auditToolEvent({ id, outcome, detail }) {
+  // Keep this operational record small and secret-free: no prompts, files, command
+  // arguments, provider credentials, or tool output are written here.
+  const event = JSON.stringify({ at: new Date().toISOString(), tool: id, outcome, detail: String(detail || '').slice(0, 160) });
+  try {
+    fs.mkdirSync(path.dirname(toolAuditFile()), { recursive: true });
+    fs.appendFileSync(toolAuditFile(), `${event}\n`, { mode: 0o600 });
+    const stat = fs.statSync(toolAuditFile());
+    if (stat.size > 256 * 1024) fs.renameSync(toolAuditFile(), `${toolAuditFile()}.previous`);
+  } catch { /* Diagnostics must never prevent the app from functioning. */ }
+}
+async function executeLocalTool(id) {
+  const toolId = String(id || '');
+  const registered = getToolRegistry().find(tool => tool.id === toolId);
+  if (!registered || !localTools.ids.includes(toolId)) {
+    auditToolEvent({ id: toolId || 'unknown', outcome: 'denied', detail: 'not allowlisted' });
+    throw new Error('This tool is not allowlisted for local execution.');
+  }
+  if (!isToolApproved(loadToolApprovals(), toolId)) {
+    auditToolEvent({ id: toolId, outcome: 'denied', detail: 'approval required' });
+    throw new Error('Approve this tool in Tool access before running it.');
+  }
+  try {
+    const report = await localTools.execute(toolId);
+    auditToolEvent({ id: toolId, outcome: 'success', detail: 'completed' });
+    return report;
+  } catch (error) {
+    auditToolEvent({ id: toolId, outcome: 'error', detail: error.message });
+    throw new Error(safeProviderError(error.message));
+  }
+}
 
 function showWindow() {
   if (!mainWindow) return;
@@ -425,6 +459,7 @@ ipcMain.handle('voice-self-test', async () => voiceSelfTest(await localWhisperCo
 ipcMain.handle('tool-registry', () => getToolRegistry());
 ipcMain.handle('tool-approvals', () => ({ approvals: { ...loadToolApprovals() }, registry: getToolRegistry() }));
 ipcMain.handle('set-tool-approval', (_event, payload) => { toolApprovals = setToolApproval(loadToolApprovals(), String(payload?.id || ''), payload?.approved); saveToolApprovals(); return { approvals: { ...toolApprovals } }; });
+ipcMain.handle('execute-local-tool', (_event, payload) => executeLocalTool(payload?.id));
 ipcMain.handle('chat', (_event, payload) => routeChat(payload));
 ipcMain.handle('cancel-chat', () => { activeAbortController?.abort(); activeAbortController = null; activeChild?.kill('SIGTERM'); emitChatEvent('cancelled', {}); return true; });
 ipcMain.handle('transcribe-audio', async (_event, payload) => {

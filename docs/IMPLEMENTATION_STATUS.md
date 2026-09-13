@@ -20,6 +20,7 @@ Version 1.3 · 2026-09-12
 - Explicit tool risk classes and approval controls in the UI.
 - Tool registry now exposes capability scope and risk labels; approval-required actions remain opt-in and persist per user profile.
 - Tool access UI shows per-capability scope, risk class, and explicit approval state.
+- Local tool execution is restricted to a fixed, tested adapter catalog: runtime details and an approval-gated `git status --short --branch` scoped to this project. Each execution, denial, and failure receives a secret-free local audit event. Arbitrary shell commands and network mutations are not exposed.
 
 ## Evidence
 
