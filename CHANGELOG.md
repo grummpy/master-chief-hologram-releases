@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.6
+
+- Throttled optional 3D hologram rendering to reduce steady GPU and renderer load.
+
 ## 1.0.5
 
 - Stopped ordinary launcher clicks from rebuilding and replacing the running app.

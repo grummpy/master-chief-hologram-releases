@@ -38,7 +38,9 @@ function init() {
 }
 
 function render() {
-  requestAnimationFrame(render);
+  // Ten frames per second is enough for the subtle hologram idle movement and
+  // avoids keeping the GPU busy at the display's full refresh rate.
+  setTimeout(() => requestAnimationFrame(render), 100);
   if (!renderer || !enabled || document.hidden) return;
   const t = clock.getElapsedTime();
   mascot.rotation.y += (pointerX - mascot.rotation.y) * .04;

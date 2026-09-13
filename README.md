@@ -1,6 +1,6 @@
 # Master Chief Hologram Desktop Bot
 
-Current release: **1.0.5**
+Current release: **1.0.6**
 
 The supplied Master Chief bot artwork now drives the interactive desktop command center. Click the hologram to focus the command field; its expression changes while it listens, thinks, reports, succeeds, or needs attention. **Auto** uses local time (light from 7:00 AM through 6:59 PM), and Light/Dark overrides persist.
 
