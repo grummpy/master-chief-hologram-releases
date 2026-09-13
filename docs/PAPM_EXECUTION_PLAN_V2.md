@@ -55,6 +55,8 @@ flowchart LR
 
 Interfaces and source-of-truth boundaries: the renderer owns presentation only; preload exposes an allowlisted IPC contract; the main process owns provider routing, local index, tool policy, and secret handling; safe storage and ignored local environment files own credentials; Git source plus the release manifest own release provenance. Existing diagrams, visual brief, learning guide, and art provenance remain the foundation: [SYSTEM_FLOW.md](SYSTEM_FLOW.md), [visual-brief.png](visual-brief.png), [TECHNICAL_LEARNING_GUIDE.md](TECHNICAL_LEARNING_GUIDE.md), and [ART_PROVENANCE.md](ART_PROVENANCE.md).
 
+When Codex Desktop is selected with MC Mode enabled, it receives workspace-write access only to this repository so it can create requested durable artifacts under the approved local tree. Ordinary assistant mode remains read-only. The app does not grant network access through this route.
+
 ## Work breakdown and critical path
 
 | Phase | Deliverable and dependency | Estimate | Exit gate |

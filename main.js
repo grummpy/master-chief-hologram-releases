@@ -301,7 +301,7 @@ async function callCodex({ messages, masterMode }) {
   try {
     await runCodex([
       'exec', '--ephemeral', '--skip-git-repo-check',
-      '--sandbox', 'read-only', '--cd', __dirname,
+      '--sandbox', masterMode ? 'workspace-write' : 'read-only', '--cd', __dirname,
       '--output-last-message', outputFile, prompt
     ]);
     const reply = fs.readFileSync(outputFile, 'utf8').trim();
