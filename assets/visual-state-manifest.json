@@ -2,19 +2,95 @@
   "version": 1,
   "description": "Approved visual baseline for the hologram states rendered by renderer.js. Update deliberately when approved artwork changes.",
   "assets": [
-    { "path": "assets/icon.png", "sha256": "552e61c3eae86c8871e7cec6fb0bf66d288758b753b306e8d27ee2676060389e", "width": 1024, "height": 1024 },
-    { "path": "assets/master-chief-hologram-v1.png", "sha256": "be0db43c61481be265cf55c7d4a6dab840865bd01cdcbac9d3ddfa16889600d8", "width": 1024, "height": 1536 },
-    { "path": "assets/states/night/night_idle.jpg", "sha256": "b97bb2d44379094f203caf36302e3de8e8230f5f3009a11fa893d0159d6b61af", "width": 1408, "height": 1408 },
-    { "path": "assets/states/night/night_listening.jpg", "sha256": "4f301300b18c2ca039a756160fd09a6b7b47ceb06a8a4d8dc75c6c0e4c1a58e5", "width": 1408, "height": 1408 },
-    { "path": "assets/states/night/night_thinking.jpg", "sha256": "2012b9fe6e016288b5155e3d8466ff9e9411aaa9f97b7274afde1534eccf9462", "width": 1408, "height": 1408 },
-    { "path": "assets/states/night/night_speaking.jpg", "sha256": "0f0941ef069ca914dcd79e39c990e6210977b2ff3ebe9528ca4cea89a220bcbc", "width": 1408, "height": 1408 },
-    { "path": "assets/states/night/night_success.jpg", "sha256": "f7df93cef16c5dfa4a55b0f0b337601662d88b23567e36dee763b19ef47bcbe1", "width": 1408, "height": 1408 },
-    { "path": "assets/states/night/night_alert.jpg", "sha256": "d22be6f9ee9d63ecc5541bd24ab34ed78fa3113d3c68bdbcf17753f97f1d137f", "width": 1408, "height": 1408 },
-    { "path": "assets/states/night/night_wave.jpg", "sha256": "3c791e942b500e5de958a95736be636db747e75691b9bb1b730d64c3c63b081a", "width": 1408, "height": 1408 },
-    { "path": "assets/states/day/day_idle.jpg", "sha256": "8a23155dfbb5a6d90367e39b860f68973a3e24c76d92b9bfb40ab62c416b2e03", "width": 1408, "height": 1408 },
-    { "path": "assets/states/day/day_ready.jpg", "sha256": "36838069277cfafce135f8aeba721d659fb9b010de36830aa5b555d7f5d2f731", "width": 1408, "height": 1408 },
-    { "path": "assets/states/day/day_thinking.jpg", "sha256": "0849122146ce44e129e7a49b0deec73a3b083b07b35bc436c7c15bc21a283dc3", "width": 1408, "height": 1408 },
-    { "path": "assets/states/day/day_wave.jpg", "sha256": "3919543857e8d2f94578a08510effb734fc8a1abea7d3873266bf18580415610", "width": 1408, "height": 1408 },
-    { "path": "assets/states/day/day_success.jpg", "sha256": "13693fb60d9a6a665c5d0cd48513ec5d37099236d21d64516b01fa2b97aa57d8", "width": 1408, "height": 1408 }
+    {
+      "path": "assets/icon.png",
+      "sha256": "552e61c3eae86c8871e7cec6fb0bf66d288758b753b306e8d27ee2676060389e",
+      "width": 1024,
+      "height": 1024
+    },
+    {
+      "path": "assets/master-chief-hologram-v1.png",
+      "sha256": "be0db43c61481be265cf55c7d4a6dab840865bd01cdcbac9d3ddfa16889600d8",
+      "width": 1024,
+      "height": 1536
+    },
+    {
+      "path": "assets/states/night/night_idle.jpg",
+      "sha256": "b97bb2d44379094f203caf36302e3de8e8230f5f3009a11fa893d0159d6b61af",
+      "width": 1408,
+      "height": 1408
+    },
+    {
+      "path": "assets/states/night/night_listening.jpg",
+      "sha256": "4f301300b18c2ca039a756160fd09a6b7b47ceb06a8a4d8dc75c6c0e4c1a58e5",
+      "width": 1408,
+      "height": 1408
+    },
+    {
+      "path": "assets/states/night/night_thinking.jpg",
+      "sha256": "2012b9fe6e016288b5155e3d8466ff9e9411aaa9f97b7274afde1534eccf9462",
+      "width": 1408,
+      "height": 1408
+    },
+    {
+      "path": "assets/states/night/night_speaking.jpg",
+      "sha256": "0f0941ef069ca914dcd79e39c990e6210977b2ff3ebe9528ca4cea89a220bcbc",
+      "width": 1408,
+      "height": 1408
+    },
+    {
+      "path": "assets/states/night/night_success.jpg",
+      "sha256": "f7df93cef16c5dfa4a55b0f0b337601662d88b23567e36dee763b19ef47bcbe1",
+      "width": 1408,
+      "height": 1408
+    },
+    {
+      "path": "assets/states/night/night_alert.jpg",
+      "sha256": "d22be6f9ee9d63ecc5541bd24ab34ed78fa3113d3c68bdbcf17753f97f1d137f",
+      "width": 1408,
+      "height": 1408
+    },
+    {
+      "path": "assets/states/night/night_wave.jpg",
+      "sha256": "3c791e942b500e5de958a95736be636db747e75691b9bb1b730d64c3c63b081a",
+      "width": 1408,
+      "height": 1408
+    },
+    {
+      "path": "assets/states/day/day_idle.jpg",
+      "sha256": "8a23155dfbb5a6d90367e39b860f68973a3e24c76d92b9bfb40ab62c416b2e03",
+      "width": 1408,
+      "height": 1408
+    },
+    {
+      "path": "assets/states/day/day_ready.jpg",
+      "sha256": "36838069277cfafce135f8aeba721d659fb9b010de36830aa5b555d7f5d2f731",
+      "width": 1408,
+      "height": 1408
+    },
+    {
+      "path": "assets/states/day/day_thinking.jpg",
+      "sha256": "0849122146ce44e129e7a49b0deec73a3b083b07b35bc436c7c15bc21a283dc3",
+      "width": 1408,
+      "height": 1408
+    },
+    {
+      "path": "assets/states/day/day_wave.jpg",
+      "sha256": "3919543857e8d2f94578a08510effb734fc8a1abea7d3873266bf18580415610",
+      "width": 1408,
+      "height": 1408
+    },
+    {
+      "path": "assets/states/day/day_success.jpg",
+      "sha256": "13693fb60d9a6a665c5d0cd48513ec5d37099236d21d64516b01fa2b97aa57d8",
+      "width": 1408,
+      "height": 1408
+    },
+    {
+      "path": "assets/characters/holographic-command-officer-3d-v1.png",
+      "sha256": "16a3baad76f9bc61bbae113cc267815518aeff8e467a2f532544c61d76cffd23",
+      "width": 1024,
+      "height": 1536
+    }
   ]
 }

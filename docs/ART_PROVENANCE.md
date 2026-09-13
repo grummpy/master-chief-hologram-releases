@@ -33,3 +33,13 @@ The image is the video poster and static fallback in the hologram stage. CSS sup
 ## G0 controls
 
 The visual direction, original-IP exclusions, seven-state taxonomy, icon review criteria, and approval checklist are in [VISUAL_STYLE_BRIEF.md](VISUAL_STYLE_BRIEF.md). New asset records must use [ASSET_INTAKE_SCHEMA.md](ASSET_INTAKE_SCHEMA.md) before any runtime export replaces an approved file.
+
+## 3D-rendered hologram prototype
+
+File: `assets/characters/holographic-command-officer-3d-v1.png`
+
+Origin: Generated specifically for this project with the built-in image-generation tool on 2026-09-13. It is a 1024×1536 3D-rendered original command-officer image used for the idle/ready hologram setting; it is not a mesh or GLB asset.
+
+Generation brief: original full-body futuristic naval command AI officer, dark navy uniform, cyan hologram light, no text, logo, weapon, helmet, visor, green armor, Halo imagery, franchise character, or watermark.
+
+The app's **3D** display toggle enables this visual prototype and **Classic** restores the existing state artwork. Interactive 3D runtime work remains subject to the plan's GLB, performance, and fallback gate.

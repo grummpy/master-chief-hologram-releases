@@ -1,6 +1,6 @@
 # Master Chief Hologram — Graphics and 3D PAPM Plan
 
-Version 1.2 · 2026-09-13 · Owner: Master Chief program · Status: G0 implemented; G1 export audit prepared; owner approval pending
+Version 1.3 · 2026-09-13 · Owner: Master Chief program · Status: G0–G3 visual prototype implemented; interactive 3D feasibility remains pending
 
 ## Mission and decision authority
 
@@ -114,6 +114,8 @@ Critical path: G0 → G1/G2 → G3 → G6. G4/G5 are parallel option work and ca
 G0 deliverables: [VISUAL_STYLE_BRIEF.md](VISUAL_STYLE_BRIEF.md), [ASSET_INTAKE_SCHEMA.md](ASSET_INTAKE_SCHEMA.md), and the updated [ART_PROVENANCE.md](ART_PROVENANCE.md). No runtime artwork or user-owned untracked asset was changed.
 
 G1 preparation: [ICON_REVIEW_SHEET.md](ICON_REVIEW_SHEET.md) and `npm test` verify the tracked icon export set. The human Finder-size review and any change to artwork remain pending owner approval.
+
+The original 3D-rendered visual prototype is packaged as an opt-in idle/ready hologram render with a Classic fallback. Its provenance is recorded in [ART_PROVENANCE.md](ART_PROVENANCE.md), and its hash is enforced by the visual manifest. It is intentionally not represented as a GLB mesh or interactive 3D runtime completion.
 
 ## Acceptance and sustainment
 
