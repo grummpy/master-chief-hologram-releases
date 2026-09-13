@@ -22,6 +22,7 @@ Version 1.3 · 2026-09-12
 - Tool access UI shows per-capability scope, risk class, and explicit approval state.
 - Local tool execution is restricted to a fixed, tested adapter catalog: runtime details and an approval-gated `git status --short --branch` scoped to this project. Each execution, denial, and failure receives a secret-free local audit event. Arbitrary shell commands and network mutations are not exposed.
 - The compose panel has deterministic, no-provider command autocomplete with keyboard selection and insertion.
+- A healthy local Ollama route is the default and first option for Master Chief. If it is unavailable, the app stops with a local recovery message; it never silently sends the prompt to a paid cloud route.
 - Master Chief responses can expose safe, clickable local artifact links for existing files under the Desktop repository's `docs/`, `artifacts/`, and `exports/` roots. Path traversal and other repository paths are rejected.
 - The microphone flow requests macOS access before browser capture, reports denied/restricted access plainly, and opens the macOS Microphone privacy pane for recovery. The bundle explicitly declares why it needs microphone access.
 - Separate PAPM plans now baseline graphics/3D, local-AI-first operation, and army skills/training. Local Ollama is the recommended route for lightweight prompts; Apache Spark is not part of the interactive runtime and is only a future owner-operated LAN batch option.

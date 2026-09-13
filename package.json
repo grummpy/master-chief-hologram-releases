@@ -39,6 +39,7 @@
       "voice-setup-ui.js",
       "microphone-access.js",
       "autocomplete.js",
+      "local-routing.js",
       "artifact-links.js",
       "build-info.json",
       "main.js",
