@@ -18,6 +18,15 @@ It never requests microphone access, records audio, transcribes, or contacts a
 provider. A passing self-test means the capture handoff contract is sound; it
 does not claim a microphone permission or ASR provider has been exercised.
 
+## Offline distribution setup
+
+The packaged app contains runtime detection and a model manifest, but no native
+whisper.cpp binary or model weights. This keeps the app bundle small and lets a
+user choose an appropriate local model. Put compatible GGML models in the app's
+Application Support `voice/models` folder; the first safe model filename is
+selected automatically unless `WHISPER_CPP_MODEL` is set. The package never
+downloads software or model files, and it exposes no credentials.
+
 For a live release check, approve microphone transcription in Tool access, press
 MIC, speak a short command, press STOP, and confirm the transcript appears in
 the command input before transmitting. Record permission-denied, silence, local

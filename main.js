@@ -24,6 +24,7 @@ const { getToolRegistry, normalizeApprovals, setToolApproval, isToolApproved } =
 const { createLocalToolExecutor } = require('./local-tool-executor');
 const { createRagIndex } = require('./rag-index');
 const { voiceSelfTest } = require('./voice-diagnostics');
+const { discoverModels, buildVoiceSetup } = require('./voice-installation');
 
 let mainWindow;
 let tray;
@@ -195,8 +196,8 @@ async function providerStatus() {
 
   const voice = await localWhisperConfig();
   if (voice.ready) status.voice = { state: 'ready', label: `Voice · local whisper.cpp (${path.basename(voice.bin)})`, detail: 'Offline ASR ready.' };
-  else if (!voice.bin) status.voice = { state: 'unavailable', label: 'Voice · install whisper.cpp', detail: 'Set WHISPER_CPP_BIN to whisper-cli.' };
-  else if (!voice.model) status.voice = { state: 'missing', label: 'Voice · choose a whisper model', detail: 'Set WHISPER_CPP_MODEL to a GGML model file.' };
+  else if (!voice.bin) status.voice = { state: 'unavailable', label: 'Voice · offline setup required', detail: 'Open Systems and choose Offline voice setup for local installation steps.' };
+  else if (!voice.model) status.voice = { state: 'missing', label: 'Voice · choose a whisper model', detail: `Add a GGML model to ${voice.modelDirectory}, or set WHISPER_CPP_MODEL.` };
   else if (!voice.modelExists) status.voice = { state: 'missing', label: 'Voice · whisper model not found', detail: `Model path: ${voice.model}` };
   else if (!voice.ffmpeg) status.voice = { state: 'missing', label: 'Voice · install ffmpeg', detail: 'ffmpeg is required for browser audio conversion.' };
   else status.voice = { state: 'error', label: 'Voice · local ASR unavailable', detail: 'Use cloud transcription or complete local setup.' };
@@ -211,12 +212,14 @@ async function localWhisperConfig() {
     try { bin = (await execFileAsync('which', ['whisper-cli'], { timeout: 3000 })).stdout.trim(); } catch {}
     if (!bin) { try { bin = (await execFileAsync('which', ['main'], { timeout: 3000 })).stdout.trim(); } catch {} }
   }
-  const model = (process.env.WHISPER_CPP_MODEL || '').trim();
+  const modelDirectory = path.join(app.getPath('userData'), 'voice', 'models');
+  const discoveredModels = discoverModels(modelDirectory, { exists: fs.existsSync, readDir: fs.readdirSync });
+  const model = (process.env.WHISPER_CPP_MODEL || '').trim() || discoveredModels[0]?.path || '';
   let ffmpeg = '';
   try { ffmpeg = (await execFileAsync('which', ['ffmpeg'], { timeout: 3000 })).stdout.trim(); } catch {}
   const binExists = Boolean(bin && fs.existsSync(bin));
   const modelExists = Boolean(model && fs.existsSync(model));
-  return { bin: binExists ? bin : '', model, modelExists, ffmpeg: Boolean(ffmpeg && fs.existsSync(ffmpeg)), ready: Boolean(binExists && modelExists && ffmpeg) };
+  return { bin: binExists ? bin : '', model, modelExists, ffmpeg: Boolean(ffmpeg && fs.existsSync(ffmpeg)), ready: Boolean(binExists && modelExists && ffmpeg), modelDirectory, discoveredModels };
 }
 
 async function transcribeWithWhisper(bytes, contentType) {
@@ -456,6 +459,7 @@ ipcMain.handle('voice-self-test', async () => voiceSelfTest(await localWhisperCo
   bytes: 4800,
   expectedTranscript: 'Master Chief, run diagnostics.'
 }));
+ipcMain.handle('voice-setup', async () => buildVoiceSetup(await localWhisperConfig()));
 ipcMain.handle('tool-registry', () => getToolRegistry());
 ipcMain.handle('tool-approvals', () => ({ approvals: { ...loadToolApprovals() }, registry: getToolRegistry() }));
 ipcMain.handle('set-tool-approval', (_event, payload) => { toolApprovals = setToolApproval(loadToolApprovals(), String(payload?.id || ''), payload?.approved); saveToolApprovals(); return { approvals: { ...toolApprovals } }; });

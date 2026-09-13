@@ -88,12 +88,18 @@ This is the visual "face" of `skills/master-chief`. Use it as the desktop front-
 ## Local voice setup
 
 The app reports local ASR readiness in the Systems panel. To enable offline
-transcription, install `whisper-cli` from whisper.cpp and `ffmpeg`, then set
-`WHISPER_CPP_BIN` and `WHISPER_CPP_MODEL` in the app's local `.env` file. The
-model must be a downloaded GGML whisper model file. If either executable or the
-model is missing, the MIC control remains usable through cloud transcription
-when `OPENAI_API_KEY` is configured, and the Systems panel shows the exact
-missing setup item. No model is downloaded automatically.
+transcription, install the runtime and converter with `brew install whisper-cpp
+ffmpeg`, then download a compatible GGML model following the
+[whisper.cpp quick start](https://github.com/ggml-org/whisper.cpp#quick-start).
+Place the model in `~/Library/Application Support/master-chief-hologram/voice/models/`
+and restart the app. The recommended filename is `ggml-base.en.bin`; models are
+detected automatically from that folder.
+
+You may instead set `WHISPER_CPP_BIN` and `WHISPER_CPP_MODEL` in the app's local
+`.env` file. The package contains only a small model manifest and setup
+detection; model weights are never bundled, downloaded, or committed. If a
+local component is missing, the MIC control can use cloud transcription when
+`OPENAI_API_KEY` is configured, and the Systems panel reports the missing item.
 
 GitHub Models is not offered as an AI route because GitHub retired the service on July 30, 2026. A GitHub token is used only for repository authentication.
 
