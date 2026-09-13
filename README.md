@@ -79,6 +79,16 @@ This is the visual "face" of `skills/master-chief`. Use it as the desktop front-
 - Local Ollama / LM Studio support
 - Signed native packaging and automatic update rollback
 
+## Local voice setup
+
+The app reports local ASR readiness in the Systems panel. To enable offline
+transcription, install `whisper-cli` from whisper.cpp and `ffmpeg`, then set
+`WHISPER_CPP_BIN` and `WHISPER_CPP_MODEL` in the app's local `.env` file. The
+model must be a downloaded GGML whisper model file. If either executable or the
+model is missing, the MIC control remains usable through cloud transcription
+when `OPENAI_API_KEY` is configured, and the Systems panel shows the exact
+missing setup item. No model is downloaded automatically.
+
 GitHub Models is not offered as an AI route because GitHub retired the service on July 30, 2026. A GitHub token is used only for repository authentication.
 
 ## Design and operating package

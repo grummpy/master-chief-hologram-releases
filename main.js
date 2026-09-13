@@ -159,8 +159,12 @@ async function providerStatus() {
   }
 
   const voice = await localWhisperConfig();
-  if (voice.ready) status.voice = { state: 'ready', label: `Voice · local whisper.cpp (${path.basename(voice.bin)})` };
-  else if (voice.bin) status.voice = { state: 'error', label: 'Voice · whisper.cpp model missing' };
+  if (voice.ready) status.voice = { state: 'ready', label: `Voice · local whisper.cpp (${path.basename(voice.bin)})`, detail: 'Offline ASR ready.' };
+  else if (!voice.bin) status.voice = { state: 'unavailable', label: 'Voice · install whisper.cpp', detail: 'Set WHISPER_CPP_BIN to whisper-cli.' };
+  else if (!voice.model) status.voice = { state: 'missing', label: 'Voice · choose a whisper model', detail: 'Set WHISPER_CPP_MODEL to a GGML model file.' };
+  else if (!voice.modelExists) status.voice = { state: 'missing', label: 'Voice · whisper model not found', detail: `Model path: ${voice.model}` };
+  else if (!voice.ffmpeg) status.voice = { state: 'missing', label: 'Voice · install ffmpeg', detail: 'ffmpeg is required for browser audio conversion.' };
+  else status.voice = { state: 'error', label: 'Voice · local ASR unavailable', detail: 'Use cloud transcription or complete local setup.' };
 
   return status;
 }
@@ -173,7 +177,11 @@ async function localWhisperConfig() {
     if (!bin) { try { bin = (await execFileAsync('which', ['main'], { timeout: 3000 })).stdout.trim(); } catch {} }
   }
   const model = (process.env.WHISPER_CPP_MODEL || '').trim();
-  return { bin: bin && fs.existsSync(bin) ? bin : '', model, ready: Boolean(bin && fs.existsSync(bin) && model && fs.existsSync(model)) };
+  let ffmpeg = '';
+  try { ffmpeg = (await execFileAsync('which', ['ffmpeg'], { timeout: 3000 })).stdout.trim(); } catch {}
+  const binExists = Boolean(bin && fs.existsSync(bin));
+  const modelExists = Boolean(model && fs.existsSync(model));
+  return { bin: binExists ? bin : '', model, modelExists, ffmpeg: Boolean(ffmpeg && fs.existsSync(ffmpeg)), ready: Boolean(binExists && modelExists && ffmpeg) };
 }
 
 async function transcribeWithWhisper(bytes, contentType) {
