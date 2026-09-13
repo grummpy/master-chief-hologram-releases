@@ -6,3 +6,4 @@ dist/
 out/
 
 release-archive/
+build-info.json

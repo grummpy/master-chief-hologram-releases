@@ -6,7 +6,10 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --enable-logging",
-    "dist:mac": "electron-builder --mac dir",
+    "build:manifest": "node scripts/generate-build-info.js",
+    "inspect:mac": "node scripts/inspect-mac-package.js",
+    "release:readiness": "zsh scripts/check-macos-release-readiness.sh",
+    "dist:mac": "npm run build:manifest && electron-builder --mac dir && npm run inspect:mac",
     "launch:mac": "zsh scripts/launch-mac.sh",
     "test": "node --test tests/*.test.js",
     "test:assets": "node scripts/validate-assets.js"
@@ -30,6 +33,7 @@
       "tool-registry.js",
       "rag-index.js",
       "voice-diagnostics.js",
+      "build-info.json",
       "main.js",
       "preload.js",
       "renderer.js",
