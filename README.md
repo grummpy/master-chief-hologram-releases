@@ -26,7 +26,7 @@ He displays the original chibi navy Master Chief mascot as a glowing cyan hologr
 - **Idle holographic video (6s loopable)**: [View](https://grok.com/imagine/post/ad3392da-ab48-4ba5-ba34-88952bb7377c?source=agent)
 - **Original solid mascot (transparent)**: [View](https://grok.com/imagine/post/23655507-73ca-4af7-883b-01941dd9ad5c?source=agent)
 
-The repository includes the supplied state artwork under `assets/drive/` and uses the original mascot as its identity fallback.
+The repository includes the supplied state artwork under `assets/states/` and uses the original mascot as its identity fallback.
 
 ## Quick Start (Electron desktop app)
 
