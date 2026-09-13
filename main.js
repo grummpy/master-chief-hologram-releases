@@ -81,6 +81,7 @@ async function providerStatus() {
     github: { state: 'missing', label: 'GitHub token missing' }
     ,ollama: { state: 'missing', label: 'Ollama unavailable' }
     ,huggingface: { state: 'missing', label: 'Hugging Face endpoint not configured' }
+    ,voice: { state: 'cloud', label: 'Voice · cloud transcription' }
   };
 
   if (fs.existsSync(CODEX_BIN)) {
@@ -145,7 +146,42 @@ async function providerStatus() {
     status.huggingface = hf.error ? { state: 'error', label: 'Hugging Face network error' } : hf.response.ok ? { state: 'ready', label: 'Hugging Face endpoint ready' } : { state: 'error', label: `Hugging Face error ${hf.response.status}` };
   }
 
+  const voice = await localWhisperConfig();
+  if (voice.ready) status.voice = { state: 'ready', label: `Voice · local whisper.cpp (${path.basename(voice.bin)})` };
+  else if (voice.bin) status.voice = { state: 'error', label: 'Voice · whisper.cpp model missing' };
+
   return status;
+}
+
+async function localWhisperConfig() {
+  const configuredBin = (process.env.WHISPER_CPP_BIN || '').trim();
+  let bin = configuredBin;
+  if (!bin) {
+    try { bin = (await execFileAsync('which', ['whisper-cli'], { timeout: 3000 })).stdout.trim(); } catch {}
+    if (!bin) { try { bin = (await execFileAsync('which', ['main'], { timeout: 3000 })).stdout.trim(); } catch {} }
+  }
+  const model = (process.env.WHISPER_CPP_MODEL || '').trim();
+  return { bin: bin && fs.existsSync(bin) ? bin : '', model, ready: Boolean(bin && fs.existsSync(bin) && model && fs.existsSync(model)) };
+}
+
+async function transcribeWithWhisper(bytes, contentType) {
+  const config = await localWhisperConfig();
+  if (!config.ready) return null;
+  const tempDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'master-chief-voice-'));
+  const input = path.join(tempDir, `command.${contentType === 'audio/mp4' ? 'm4a' : contentType === 'audio/ogg' ? 'ogg' : 'webm'}`);
+  const wav = path.join(tempDir, 'command.wav');
+  try {
+    fs.writeFileSync(input, bytes);
+    // MediaRecorder generally produces WebM/MP4; use an already-installed ffmpeg only when needed.
+    let audioFile = input;
+    if (contentType !== 'audio/wav' && contentType !== 'audio/x-wav') {
+      try { await execFileAsync('ffmpeg', ['-y', '-i', input, '-ar', '16000', '-ac', '1', '-f', 'wav', wav], { timeout: 30000 }); audioFile = wav; }
+      catch { return null; }
+    }
+    const result = await execFileAsync(config.bin, ['-m', config.model, '-f', audioFile, '--no-prints'], { timeout: 120000, maxBuffer: 1024 * 1024 });
+    const text = String(result.stdout || '').replace(/^\s*\[[^\]]+\]\s*/gm, '').trim();
+    return text || null;
+  } finally { fs.rmSync(tempDir, { recursive: true, force: true }); }
 }
 
 // Discover local models without exposing credentials to the renderer. Failure is
@@ -332,11 +368,13 @@ ipcMain.handle('model-catalog', modelCatalog);
 ipcMain.handle('chat', (_event, payload) => routeChat(payload));
 ipcMain.handle('cancel-chat', () => { activeChild?.kill('SIGTERM'); return true; });
 ipcMain.handle('transcribe-audio', async (_event, payload) => {
-  const key = (process.env.OPENAI_API_KEY || '').trim();
-  if (!validSecret(key, /^sk-[^\s]{12,}$/)) throw new Error('Voice transcription needs a valid OPENAI_API_KEY in the local .env.');
   const bytes = Buffer.from(payload?.audio || []);
   if (!bytes.length) throw new Error('No microphone audio was captured.');
   const contentType = String(payload?.type || 'audio/webm').split(';')[0].toLowerCase();
+  const localText = await transcribeWithWhisper(bytes, contentType);
+  if (localText) return localText;
+  const key = (process.env.OPENAI_API_KEY || '').trim();
+  if (!validSecret(key, /^sk-[^\s]{12,}$/)) throw new Error('Local whisper.cpp is unavailable and voice transcription needs a valid OPENAI_API_KEY in the local .env.');
   const extension = contentType === 'audio/mp4' ? 'm4a' : contentType === 'audio/ogg' ? 'ogg' : 'webm';
   const form = new FormData();
   form.append('file', new Blob([bytes], { type: contentType }), `command.${extension}`);
