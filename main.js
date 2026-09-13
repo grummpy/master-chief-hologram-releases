@@ -20,6 +20,8 @@ const CODEX_BIN = process.env.CODEX_BIN || '/Applications/ChatGPT.app/Contents/R
 const APP_VERSION = require('./package.json').version;
 const { validateChatPayload, safeProviderError, validSecret } = require('./security');
 const { createCredentialStore } = require('./credential-store');
+const { getToolRegistry, normalizeApprovals, setToolApproval } = require('./tool-registry');
+const { createRagIndex } = require('./rag-index');
 
 let mainWindow;
 let tray;
@@ -27,6 +29,11 @@ let activeChild = null;
 let credentialStore;
 function credentials() { return credentialStore || (credentialStore = createCredentialStore({ safeStorage, filePath: path.join(app.getPath('userData'), 'credentials.json') })); }
 let activeAbortController = null;
+let toolApprovals;
+function approvalFile() { return path.join(app.getPath('userData'), 'tool-approvals.json'); }
+function loadToolApprovals() { if (toolApprovals) return toolApprovals; try { toolApprovals = normalizeApprovals(JSON.parse(fs.readFileSync(approvalFile(), 'utf8'))); } catch { toolApprovals = normalizeApprovals({}); } return toolApprovals; }
+function saveToolApprovals() { fs.mkdirSync(path.dirname(approvalFile()), { recursive: true }); fs.writeFileSync(approvalFile(), JSON.stringify(loadToolApprovals(), null, 2), { mode: 0o600 }); }
+const ragIndex = createRagIndex(path.join(app.getPath('userData'), 'local-index.json'));
 
 function showWindow() {
   if (!mainWindow) return;
@@ -372,11 +379,11 @@ if (!gotLock) {
 } else {
   app.on('second-instance', showWindow);
   app.whenReady().then(() => {
-    // Grant Chromium's microphone request used by Web Speech in this trusted local window.
+    createWindow();
+    // Grant Chromium's microphone request after the window/session exists.
     mainWindow.webContents.session.setPermissionRequestHandler((_webContents, permission, callback) => {
       callback(permission === 'media' || permission === 'audioCapture');
     });
-    createWindow();
     const image = nativeImage.createFromPath(path.join(__dirname, 'assets', 'icon.png'));
     const trayIcon = image.isEmpty() ? nativeImage.createEmpty() : image.resize({ width: 16, height: 16 });
     tray = new Tray(trayIcon);
@@ -400,6 +407,9 @@ app.on('activate', () => {
 ipcMain.handle('provider-status', providerStatus);
 ipcMain.handle('credential-status', () => credentials().status());
 ipcMain.handle('model-catalog', modelCatalog);
+ipcMain.handle('tool-registry', () => getToolRegistry());
+ipcMain.handle('tool-approvals', () => ({ approvals: { ...loadToolApprovals() }, registry: getToolRegistry() }));
+ipcMain.handle('set-tool-approval', (_event, payload) => { toolApprovals = setToolApproval(loadToolApprovals(), String(payload?.id || ''), payload?.approved); saveToolApprovals(); return { approvals: { ...toolApprovals } }; });
 ipcMain.handle('chat', (_event, payload) => routeChat(payload));
 ipcMain.handle('cancel-chat', () => { activeAbortController?.abort(); activeAbortController = null; activeChild?.kill('SIGTERM'); emitChatEvent('cancelled', {}); return true; });
 ipcMain.handle('transcribe-audio', async (_event, payload) => {
@@ -419,6 +429,9 @@ ipcMain.handle('transcribe-audio', async (_event, payload) => {
   if (!response.ok) throw new Error(safeProviderError(body.error?.message || `Transcription error ${response.status}`));
   return String(body.text || '').trim();
 });
+ipcMain.handle('index-document', (_event, payload) => ragIndex.indexDocument(payload?.name, payload?.text));
+ipcMain.handle('search-index', (_event, payload) => ragIndex.search(payload?.query, payload));
+ipcMain.handle('index-stats', () => ragIndex.stats());
 ipcMain.handle('window-action', (_event, action) => {
   if (action === 'minimize') mainWindow?.minimize();
   if (action === 'hide') mainWindow?.hide();

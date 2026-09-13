@@ -1,0 +1,12 @@
+const assert = require('node:assert/strict');
+const { getToolRegistry, normalizeApprovals, setToolApproval, isToolApproved } = require('../tool-registry');
+
+const registry = getToolRegistry();
+assert.ok(registry.some(tool => tool.id === 'voice.transcribe_microphone'));
+assert.equal(isToolApproved({}, 'diagnostics.provider_status'), true);
+assert.equal(isToolApproved({}, 'voice.transcribe_microphone'), false);
+const approved = setToolApproval({}, 'voice.transcribe_microphone', true);
+assert.equal(isToolApproved(approved, 'voice.transcribe_microphone'), true);
+assert.throws(() => setToolApproval({}, 'unknown.tool', true), /not user-approvable/);
+assert.throws(() => setToolApproval({}, 'voice.transcribe_microphone', 'yes'), /boolean/);
+assert.deepEqual(normalizeApprovals({ unknown: true, 'voice.transcribe_microphone': true }), { 'files.attach_local_text': false, 'voice.transcribe_microphone': true, 'chat.send_to_configured_provider': false });
