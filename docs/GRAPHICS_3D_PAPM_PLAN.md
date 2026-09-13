@@ -1,6 +1,6 @@
 # Master Chief Hologram — Graphics and 3D PAPM Plan
 
-Version 1.3 · 2026-09-13 · Owner: Master Chief program · Status: G0–G3 visual prototype implemented; interactive 3D feasibility remains pending
+Version 1.5 · 2026-09-13 · Owner: Master Chief program · Status: G0–G3 foundations and a G4 interactive WebGL prototype implemented; final mesh/rig work remains pending
 
 ## Mission and decision authority
 
@@ -115,7 +115,7 @@ G0 deliverables: [VISUAL_STYLE_BRIEF.md](VISUAL_STYLE_BRIEF.md), [ASSET_INTAKE_S
 
 G1 preparation: [ICON_REVIEW_SHEET.md](ICON_REVIEW_SHEET.md) and `npm test` verify the tracked icon export set. The human Finder-size review and any change to artwork remain pending owner approval.
 
-The original 3D-rendered visual prototype is packaged as an opt-in idle/ready hologram render with a Classic fallback. Its provenance is recorded in [ART_PROVENANCE.md](ART_PROVENANCE.md), and its hash is enforced by the visual manifest. It is intentionally not represented as a GLB mesh or interactive 3D runtime completion.
+The rejected 3D-rendered image prototype was removed because it did not meet the required interactive-3D quality bar. The current G4 prototype uses local Three.js geometry for a seated original command companion and chair; pointer movement, command state, and a click-driven wave change the scene in real time. The 3D switch persists and falls back to the approved 2D state artwork if WebGL is unavailable. It is a feasibility implementation, not a final GLB mesh: a reviewed source `.blend`, optimized GLB export, rig, authored clips, and measured performance record remain required for G5.
 
 ## Acceptance and sustainment
 

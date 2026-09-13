@@ -45,11 +45,13 @@ const ragIndex = createRagIndex(path.join(app.getPath('userData'), 'local-index.
 const localTools = createLocalToolExecutor({ appVersion: APP_VERSION, projectDir: __dirname, execFile: execFileAsync });
 const localAiAudit = createLocalAiAudit(path.join(app.getPath('userData'), 'local-ai-audit.jsonl'));
 function toolAuditFile() { return path.join(app.getPath('userData'), 'tool-audit.jsonl'); }
-function microphoneStatus() { return process.platform === 'darwin' ? systemPreferences.getMediaAccessStatus('microphone') : 'granted'; }
+function microphoneStatus() { try { return process.platform === 'darwin' ? systemPreferences.getMediaAccessStatus('microphone') : 'granted'; } catch { return 'unknown'; } }
 async function requestMicrophoneAccess() {
-  let status = microphoneStatus();
-  if (status === 'not-determined' && process.platform === 'darwin') { await systemPreferences.askForMediaAccess('microphone'); status = microphoneStatus(); }
-  return { status, granted: isGranted(status), recovery: recoveryMessage(status) };
+  try {
+    let status = microphoneStatus();
+    if (status === 'not-determined' && process.platform === 'darwin') { await systemPreferences.askForMediaAccess('microphone'); status = microphoneStatus(); }
+    return { status, granted: isGranted(status), recovery: recoveryMessage(status) };
+  } catch { return { status: 'unknown', granted: false, recovery: 'Microphone access could not be checked. Open Microphone Settings, enable Master Chief Hologram, then retry.' }; }
 }
 function auditToolEvent({ id, outcome, detail }) {
   // Keep this operational record small and secret-free: no prompts, files, command
@@ -226,6 +228,7 @@ async function localWhisperConfig() {
   let bin = configuredBin;
   if (!bin) {
     try { bin = (await execFileAsync('which', ['whisper-cli'], { timeout: 3000 })).stdout.trim(); } catch {}
+    if (!bin) for (const candidate of ['/opt/homebrew/bin/whisper-cli', '/usr/local/bin/whisper-cli']) if (fs.existsSync(candidate)) { bin = candidate; break; }
     if (!bin) { try { bin = (await execFileAsync('which', ['main'], { timeout: 3000 })).stdout.trim(); } catch {} }
   }
   const modelDirectory = path.join(app.getPath('userData'), 'voice', 'models');
@@ -233,6 +236,7 @@ async function localWhisperConfig() {
   const model = (process.env.WHISPER_CPP_MODEL || '').trim() || discoveredModels[0]?.path || '';
   let ffmpeg = '';
   try { ffmpeg = (await execFileAsync('which', ['ffmpeg'], { timeout: 3000 })).stdout.trim(); } catch {}
+  if (!ffmpeg) for (const candidate of ['/opt/homebrew/bin/ffmpeg', '/usr/local/bin/ffmpeg']) if (fs.existsSync(candidate)) { ffmpeg = candidate; break; }
   const binExists = Boolean(bin && fs.existsSync(bin));
   const modelExists = Boolean(model && fs.existsSync(model));
   return { bin: binExists ? bin : '', model, modelExists, ffmpeg: Boolean(ffmpeg && fs.existsSync(ffmpeg)), ready: Boolean(binExists && modelExists && ffmpeg), modelDirectory, discoveredModels };
@@ -252,7 +256,7 @@ async function transcribeWithWhisper(bytes, contentType) {
       try { await execFileAsync('ffmpeg', ['-y', '-i', input, '-ar', '16000', '-ac', '1', '-f', 'wav', wav], { timeout: 30000 }); audioFile = wav; }
       catch { return null; }
     }
-    const result = await execFileAsync(config.bin, ['-m', config.model, '-f', audioFile, '--no-prints'], { timeout: 120000, maxBuffer: 1024 * 1024 });
+    const result = await execFileAsync(config.bin, ['-m', config.model, '-f', audioFile, '-np'], { timeout: 120000, maxBuffer: 1024 * 1024 });
     const text = String(result.stdout || '').replace(/^\s*\[[^\]]+\]\s*/gm, '').trim();
     return text || null;
   } finally { fs.rmSync(tempDir, { recursive: true, force: true }); }
@@ -496,16 +500,7 @@ ipcMain.handle('transcribe-audio', async (_event, payload) => {
   const contentType = String(payload?.type || 'audio/webm').split(';')[0].toLowerCase();
   const localText = await transcribeWithWhisper(bytes, contentType);
   if (localText) return localText;
-  const key = credentials().get('openai', 'OPENAI_API_KEY');
-  if (!validSecret(key, /^sk-[^\s]{12,}$/)) throw new Error('Local whisper.cpp is unavailable and voice transcription needs a valid OPENAI_API_KEY in the local .env.');
-  const extension = contentType === 'audio/mp4' ? 'm4a' : contentType === 'audio/ogg' ? 'ogg' : 'webm';
-  const form = new FormData();
-  form.append('file', new Blob([bytes], { type: contentType }), `command.${extension}`);
-  form.append('model', 'gpt-4o-mini-transcribe');
-  const response = await fetch('https://api.openai.com/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: form, signal: AbortSignal.timeout(120000) });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(safeProviderError(body.error?.message || `Transcription error ${response.status}`));
-  return String(body.text || '').trim();
+  throw new Error('Local offline transcription did not return text. Check Systems for local whisper.cpp readiness, then retry; no paid transcription provider was used.');
 });
 ipcMain.handle('index-document', (_event, payload) => ragIndex.indexDocument(payload?.name, payload?.text));
 ipcMain.handle('remove-indexed-document', (_event, payload) => ragIndex.removeDocument(payload?.name));

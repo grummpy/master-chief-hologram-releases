@@ -27,7 +27,8 @@ Version 1.3 · 2026-09-12
 - Local Ollama executions now create a redacted on-device runtime ledger with model, outcome, and latency only. The launcher icon source set has a deterministic size audit and a separate human-review sheet; no approved artwork was replaced.
 - The local-AI evaluation pack uses synthetic cases only and records the current micro-model’s bounded scope. It does not treat a local response as proof of broad reasoning capability.
 - Master Chief responses can expose safe, clickable local artifact links for existing files under the Desktop repository's `docs/`, `artifacts/`, and `exports/` roots. Path traversal and other repository paths are rejected.
-- The microphone flow requests macOS access before browser capture, reports denied/restricted access plainly, and opens the macOS Microphone privacy pane for recovery. The bundle explicitly declares why it needs microphone access.
+- The microphone flow requests macOS access before browser capture, reports denied/restricted access plainly, and opens the macOS Microphone privacy pane for recovery. The bundle explicitly declares why it needs microphone access. Offline whisper.cpp with the English base model is installed in Application Support; microphone audio never falls back to paid cloud transcription automatically.
+- The hologram stage has an optional local Three.js WebGL scene with an original low-poly seated command companion and chair. It responds to pointer movement, command states, and clicks; the 2D state artwork remains the persistent fallback. The companion is a code-built interactive prototype, not a flat image presented as a 3D model.
 - Separate PAPM plans now baseline graphics/3D, local-AI-first operation, and army skills/training. Local Ollama is the recommended route for lightweight prompts; Apache Spark is not part of the interactive runtime and is only a future owner-operated LAN batch option.
 
 ## Evidence

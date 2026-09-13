@@ -16,7 +16,8 @@
     "test:visual": "node scripts/validate-visual-regression.js"
   },
   "dependencies": {
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "three": "^0.180.0"
   },
   "author": "grummpy",
   "license": "MIT",
@@ -48,6 +49,7 @@
       "main.js",
       "preload.js",
       "renderer.js",
+      "three-scene.js",
       "index.html",
       "styles.css",
       "package.json",

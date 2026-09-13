@@ -29,5 +29,6 @@ downloads software or model files, and it exposes no credentials.
 
 For a live release check, approve microphone transcription in Tool access, press
 MIC, speak a short command, press STOP, and confirm the transcript appears in
-the command input before transmitting. Record permission-denied, silence, local
-whisper.cpp, and cloud-fallback outcomes separately in the release note.
+the command input before transmitting. Record permission-denied, silence, and
+local whisper.cpp outcomes separately in the release note. The application does
+not automatically send microphone audio to a paid cloud transcription provider.

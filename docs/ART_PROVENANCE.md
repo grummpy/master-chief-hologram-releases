@@ -1,6 +1,6 @@
 # Master Chief Hologram art provenance
 
-Version: 1.1
+Version: 1.2
 
 Date: 2026-09-12
 
@@ -22,6 +22,16 @@ Origin: Generated specifically for this project with OpenAI's built-in image-gen
 
 The image is the video poster and static fallback in the hologram stage. CSS supplies a slow float and pulse until a reviewed idle video is added. The SVG placeholder remains available as a recovery asset.
 
+## Interactive command companion
+
+Reference panel: `assets/characters/command-officer-reference-v1.png`
+
+Runtime scene: `three-scene.js`
+
+The reference panel is an original project-generated futuristic female command-officer portrait, recorded in `assets/visual-state-manifest.json`. It appears only as a translucent panel behind the real-time scene and does not represent a third-party character, franchise armor, or celebrity likeness.
+
+The seated companion and command chair are original low-poly primitive geometry assembled at runtime in `three-scene.js`. They are rendered locally with Three.js 0.180.0 (`assets/vendor/three.module.min.js`, MIT). This is a WebGL interaction prototype: it is not a downloaded mesh, an image-to-3D conversion, or a final GLB character. The scene has a user-controlled 2D fallback and no network asset fetches.
+
 ## Acceptance checks
 
 - Full figure remains readable within the 280-pixel stage.
@@ -33,13 +43,3 @@ The image is the video poster and static fallback in the hologram stage. CSS sup
 ## G0 controls
 
 The visual direction, original-IP exclusions, seven-state taxonomy, icon review criteria, and approval checklist are in [VISUAL_STYLE_BRIEF.md](VISUAL_STYLE_BRIEF.md). New asset records must use [ASSET_INTAKE_SCHEMA.md](ASSET_INTAKE_SCHEMA.md) before any runtime export replaces an approved file.
-
-## 3D-rendered hologram prototype
-
-File: `assets/characters/holographic-command-officer-3d-v1.png`
-
-Origin: Generated specifically for this project with the built-in image-generation tool on 2026-09-13. It is a 1024×1536 3D-rendered original command-officer image used for the idle/ready hologram setting; it is not a mesh or GLB asset.
-
-Generation brief: original full-body futuristic naval command AI officer, dark navy uniform, cyan hologram light, no text, logo, weapon, helmet, visor, green armor, Halo imagery, franchise character, or watermark.
-
-The app's **3D** display toggle enables this visual prototype and **Classic** restores the existing state artwork. Interactive 3D runtime work remains subject to the plan's GLB, performance, and fallback gate.
