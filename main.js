@@ -269,6 +269,19 @@ app.on('activate', () => {
 ipcMain.handle('provider-status', providerStatus);
 ipcMain.handle('chat', (_event, payload) => routeChat(payload));
 ipcMain.handle('cancel-chat', () => { activeChild?.kill('SIGTERM'); return true; });
+ipcMain.handle('transcribe-audio', async (_event, payload) => {
+  const key = (process.env.OPENAI_API_KEY || '').trim();
+  if (!key) throw new Error('Voice transcription needs OPENAI_API_KEY in the local .env.');
+  const bytes = Buffer.from(payload?.audio || []);
+  if (!bytes.length) throw new Error('No microphone audio was captured.');
+  const form = new FormData();
+  form.append('file', new Blob([bytes], { type: payload.type || 'audio/webm' }), 'command.webm');
+  form.append('model', 'gpt-4o-mini-transcribe');
+  const response = await fetch('https://api.openai.com/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: form, signal: AbortSignal.timeout(120000) });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error?.message || `Transcription error ${response.status}`);
+  return String(body.text || '').trim();
+});
 ipcMain.handle('window-action', (_event, action) => {
   if (action === 'minimize') mainWindow?.minimize();
   if (action === 'hide') mainWindow?.hide();
