@@ -3,7 +3,17 @@ const { execFile, spawn } = require('child_process');
 const { promisify } = require('util');
 const path = require('path');
 const fs = require('fs');
-require('dotenv').config({ path: path.join(__dirname, '.env') });
+const envCandidates = [
+  path.join(app.getPath('userData'), '.env'),
+  path.join(__dirname, '.env'),
+  path.join(app.getPath('desktop'), 'master-chief-hologram', '.env')
+];
+for (const envPath of envCandidates) {
+  if (fs.existsSync(envPath)) {
+    require('dotenv').config({ path: envPath });
+    break;
+  }
+}
 
 const execFileAsync = promisify(execFile);
 const CODEX_BIN = process.env.CODEX_BIN || '/Applications/ChatGPT.app/Contents/Resources/codex';
@@ -11,9 +21,11 @@ const APP_VERSION = require('./package.json').version;
 
 let mainWindow;
 let tray;
+let activeChild = null;
 
 function showWindow() {
   if (!mainWindow) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
 }
@@ -25,21 +37,22 @@ function createWindow() {
     minWidth: 380,
     minHeight: 640,
     frame: false,
-    transparent: true,
+    transparent: false,
     alwaysOnTop: true,
     resizable: true,
-    hasShadow: false,
-    backgroundColor: '#00000000',
+    hasShadow: true,
+    backgroundColor: '#06111e',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: false,
-      backgroundThrottling: false
+      sandbox: true,
+      backgroundThrottling: true
     },
     icon: path.join(__dirname, 'assets', 'icon.png')
   });
 
+  mainWindow.once('ready-to-show', showWindow);
   mainWindow.loadFile('index.html');
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -128,6 +141,7 @@ function conversationText(messages) {
 function runCodex(args) {
   return new Promise((resolve, reject) => {
     const child = spawn(CODEX_BIN, args, { cwd: __dirname, stdio: ['pipe', 'pipe', 'pipe'] });
+    activeChild = child;
     let stdout = '';
     let stderr = '';
     const timer = setTimeout(() => {
@@ -142,6 +156,7 @@ function runCodex(args) {
       reject(error);
     });
     child.on('close', code => {
+      activeChild = null;
       clearTimeout(timer);
       if (code === 0) resolve({ stdout, stderr });
       else reject(new Error(stderr.trim() || `Codex exited with status ${code}.`));
@@ -150,10 +165,11 @@ function runCodex(args) {
   });
 }
 
-async function callCodex({ messages, systemPrompt }) {
+async function callCodex({ messages, masterMode }) {
   if (!fs.existsSync(CODEX_BIN)) throw new Error('Codex is not installed with the ChatGPT desktop app.');
   const tempDir = fs.mkdtempSync('/tmp/master-chief-codex-');
   const outputFile = path.join(tempDir, 'response.txt');
+  const systemPrompt = masterMode ? `You are Master Chief, the user's program-control assistant. Apply Context Manager first, PAPM second, then use cases, specialist routing, implementation, verification, and the upgrade standby. Preserve intent and privacy.` : 'You are a clear, helpful desktop AI assistant.';
   const prompt = `${systemPrompt}\n\nCURRENT CONVERSATION\n${conversationText(messages)}\n\nRespond to the Commander as Master Chief.`;
 
   try {
@@ -170,7 +186,8 @@ async function callCodex({ messages, systemPrompt }) {
   }
 }
 
-async function callOpenAI({ messages, systemPrompt }) {
+async function callOpenAI({ messages, masterMode }) {
+  const systemPrompt = masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy; route complex work through planning, specialists, implementation, and verification.' : 'You are a clear, helpful desktop AI assistant.';
   const key = (process.env.OPENAI_API_KEY || '').trim();
   if (!key) throw new Error('OPENAI_API_KEY is missing from .env.');
   const response = await fetch('https://api.openai.com/v1/responses', {
@@ -189,7 +206,8 @@ async function callOpenAI({ messages, systemPrompt }) {
   return { reply, label: 'OpenAI · GPT-5.6 Sol' };
 }
 
-async function callGrok({ messages, systemPrompt }) {
+async function callGrok({ messages, masterMode }) {
+  const systemPrompt = masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy; route complex work through planning, specialists, implementation, and verification.' : 'You are a clear, helpful desktop AI assistant.';
   const key = (process.env.XAI_API_KEY || '').trim();
   if (!key.startsWith('xai-') || key.length < 20) throw new Error('A valid XAI_API_KEY has not been added to .env.');
   const response = await fetch('https://api.x.ai/v1/chat/completions', {
@@ -210,6 +228,7 @@ async function callGrok({ messages, systemPrompt }) {
 }
 
 async function routeChat(payload) {
+  if (!payload || !['codex', 'openai', 'grok'].includes(payload.provider) || !Array.isArray(payload.messages) || payload.messages.length > 24) throw new Error('Invalid command request.');
   if (payload.provider === 'codex') return callCodex(payload);
   if (payload.provider === 'openai') return callOpenAI(payload);
   if (payload.provider === 'grok') return callGrok(payload);
@@ -245,6 +264,7 @@ app.on('activate', () => {
 
 ipcMain.handle('provider-status', providerStatus);
 ipcMain.handle('chat', (_event, payload) => routeChat(payload));
+ipcMain.handle('cancel-chat', () => { activeChild?.kill('SIGTERM'); return true; });
 ipcMain.handle('window-action', (_event, action) => {
   if (action === 'minimize') mainWindow?.minimize();
   if (action === 'hide') mainWindow?.hide();

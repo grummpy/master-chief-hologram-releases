@@ -1,6 +1,10 @@
 # Master Chief Hologram Desktop Bot
 
-Current release: **1.0.3**
+Current release: **1.0.4**
+
+The supplied Master Chief bot artwork now drives the interactive desktop command center. Click the hologram to focus the command field; its expression changes while it listens, thinks, reports, succeeds, or needs attention. **Auto** uses local time (light from 7:00 AM through 6:59 PM), and Light/Dark overrides persist.
+
+The Desktop launcher is now a packaged macOS app. Opening it no longer runs npm or installs dependencies. AI keys remain outside the bundle in `~/Library/Application Support/master-chief-hologram/.env`.
 
 **Your personal holographic AI command center.**
 
@@ -22,7 +26,7 @@ He displays the original chibi navy Master Chief mascot as a glowing cyan hologr
 - **Idle holographic video (6s loopable)**: [View](https://grok.com/imagine/post/ad3392da-ab48-4ba5-ba34-88952bb7377c?source=agent)
 - **Original solid mascot (transparent)**: [View](https://grok.com/imagine/post/23655507-73ca-4af7-883b-01941dd9ad5c?source=agent)
 
-The repository includes the production hologram still at `assets/master-chief-hologram-v1.png`. The app animates it automatically and retains the SVG recovery placeholder.
+The repository includes the supplied state artwork under `assets/drive/` and uses the original mascot as its identity fallback.
 
 ## Quick Start (Electron desktop app)
 

@@ -1,16 +1,27 @@
 {
   "name": "master-chief-hologram",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Desktop holographic Master Chief AI companion – multi-model prompt runner",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dev": "electron . --enable-logging"
+    "dev": "electron . --enable-logging",
+    "dist:mac": "electron-builder --mac dir"
   },
   "dependencies": {
-    "dotenv": "^16.4.5",
-    "electron": "^44.3.0"
+    "dotenv": "^16.4.5"
   },
   "author": "grummpy",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "44.3.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.grummpy.master-chief-hologram",
+    "productName": "Master Chief Hologram",
+    "asar": true,
+    "files": ["main.js", "preload.js", "renderer.js", "index.html", "styles.css", "package.json", "assets/**/*"],
+    "mac": {"category": "public.app-category.productivity", "target": ["dir"], "icon": "assets/icon.png"}
+  }
 }

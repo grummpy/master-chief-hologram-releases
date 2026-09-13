@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.4
+
+- Replaced the placeholder officer with the supplied Master Chief bot artwork.
+- Added interactive command states, automatic time-of-day themes, and Light/Dark overrides.
+- Added accessible controls, compact-window behavior, cancellation, and provider-specific chat history.
+- Enabled renderer sandboxing and background throttling, removed perpetual idle animations, and added a packaged macOS build.
+
 ## 1.0.3 — 2026-09-12
 
 - Added original full-body Master Chief AI hologram artwork to the repository and application.
