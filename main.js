@@ -316,8 +316,10 @@ ipcMain.handle('transcribe-audio', async (_event, payload) => {
   if (!key) throw new Error('Voice transcription needs OPENAI_API_KEY in the local .env.');
   const bytes = Buffer.from(payload?.audio || []);
   if (!bytes.length) throw new Error('No microphone audio was captured.');
+  const contentType = String(payload?.type || 'audio/webm').split(';')[0].toLowerCase();
+  const extension = contentType === 'audio/mp4' ? 'm4a' : contentType === 'audio/ogg' ? 'ogg' : 'webm';
   const form = new FormData();
-  form.append('file', new Blob([bytes], { type: payload.type || 'audio/webm' }), 'command.webm');
+  form.append('file', new Blob([bytes], { type: contentType }), `command.${extension}`);
   form.append('model', 'gpt-4o-mini-transcribe');
   const response = await fetch('https://api.openai.com/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: form, signal: AbortSignal.timeout(120000) });
   const body = await response.json().catch(() => ({}));
