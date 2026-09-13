@@ -25,6 +25,6 @@ for (const token of ['#app[data-theme=day]', '.holo-stage', '.holo-stage img', '
 for (const name of ['night_idle.jpg', 'night_listening.jpg', 'night_thinking.jpg', 'night_speaking.jpg', 'night_success.jpg', 'night_alert.jpg', 'night_wave.jpg', 'day_idle.jpg', 'day_ready.jpg', 'day_thinking.jpg', 'day_wave.jpg', 'day_success.jpg']) if (!renderer.includes(name)) fail(`renderer state map no longer references ${name}`);
 for (const token of ['masterChiefThreeD?.setState', 'masterChiefThreeD?.setEnabled', 'mcVisualMode']) if (!renderer.includes(token)) fail(`renderer.js is missing ${token}`);
 const scene = read('three-scene.js'); const bundledScene = read('three-scene.bundle.js');
-for (const token of ['THREE.WebGLRenderer', 'buildChair', 'buildCompanion', 'setEnabled', 'command-officer-reference-v1.png']) if (!scene.includes(token)) fail(`three-scene.js is missing ${token}`);
-for (const token of ['WebGLRenderer', 'buildChair', 'buildCompanion']) if (!bundledScene.includes(token)) fail(`three-scene.bundle.js is missing ${token}`);
+for (const token of ['THREE.WebGLRenderer', 'setEnabled', 'original_mascot.png', 'powerPreference: \'low-power\'']) if (!scene.includes(token)) fail(`three-scene.js is missing ${token}`);
+for (const token of ['WebGLRenderer', 'original_mascot.png']) if (!bundledScene.includes(token)) fail(`three-scene.bundle.js is missing ${token}`);
 console.log(`visual regression validation passed (${manifest.assets.length} approved assets; day/night state contract intact)`);

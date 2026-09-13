@@ -34,10 +34,13 @@ update_repo() {
   if [[ "$("$GIT_BIN" rev-parse HEAD)" != "$("$GIT_BIN" rev-parse origin/main)" ]]; then
     "$GIT_BIN" pull --ff-only --quiet origin main >>"$LOG_DIR/launcher.log" 2>&1 || return 0
     "$NPM_BIN" ci --ignore-scripts >>"$LOG_DIR/launcher.log" 2>&1 || return 0
+    return 10
   fi
+  return 0
 }
 
-update_repo
+UPDATE_RESULT=0
+update_repo || UPDATE_RESULT=$?
 
 if [[ ! -x "$APP_DIR/node_modules/.bin/electron" ]]; then
   "$NPM_BIN" ci >>"$LOG_DIR/launcher.log" 2>&1
@@ -45,7 +48,7 @@ fi
 
 # Build into dist first, then replace the desktop bundle as one directory
 # operation.  Preserve the existing bundle if a build fails.
-if [[ -x "$APP_DIR/node_modules/.bin/electron-builder" ]]; then
+if [[ "$UPDATE_RESULT" -eq 10 || ! -d "$APP_BUNDLE" ]] && [[ -x "$APP_DIR/node_modules/.bin/electron-builder" ]]; then
   "$NPM_BIN" run dist:mac >>"$LOG_DIR/launcher.log" 2>&1 || true
   if [[ -d "$BUILD_BUNDLE" ]]; then
     STAGE_DIR="$(mktemp -d /tmp/master-chief-hologram-stage.XXXXXX)"
@@ -59,5 +62,9 @@ if [[ -x "$APP_DIR/node_modules/.bin/electron-builder" ]]; then
   fi
 fi
 
-open -a "$APP_BUNDLE" >>"$LOG_DIR/app.log" 2>&1 || nohup "$NPM_BIN" start >>"$LOG_DIR/app.log" 2>&1 </dev/null &
+if [[ -d "$APP_BUNDLE" ]]; then
+  open "$APP_BUNDLE" >>"$LOG_DIR/app.log" 2>&1
+else
+  nohup "$NPM_BIN" start >>"$LOG_DIR/app.log" 2>&1 </dev/null &
+fi
 exit 0

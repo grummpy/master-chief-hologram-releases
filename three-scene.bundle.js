@@ -5458,14 +5458,6 @@
     return true !== s2.has(i2) && true !== s2.has(r2) && (s2.add(i2), s2.add(r2), true);
   }
   var Pl = Object.freeze({ __proto__: null, BoxGeometry: Un, CapsuleGeometry: lh, CircleGeometry: ch, ConeGeometry: dh, CylinderGeometry: uh, DodecahedronGeometry: mh, EdgesGeometry: bh, ExtrudeGeometry: bl, IcosahedronGeometry: wl, LatheGeometry: Ml, OctahedronGeometry: Sl, PlaneGeometry: _l, PolyhedronGeometry: ph, RingGeometry: Al, ShapeGeometry: Tl, SphereGeometry: zl, TetrahedronGeometry: Cl, TorusGeometry: Il, TorusKnotGeometry: Bl, TubeGeometry: kl, WireframeGeometry: El });
-  var Vl = class extends en {
-    constructor(t2) {
-      super(), this.isMeshStandardMaterial = true, this.type = "MeshStandardMaterial", this.defines = { STANDARD: "" }, this.color = new Qr(16777215), this.roughness = 1, this.metalness = 0, this.map = null, this.lightMap = null, this.lightMapIntensity = 1, this.aoMap = null, this.aoMapIntensity = 1, this.emissive = new Qr(0), this.emissiveIntensity = 1, this.emissiveMap = null, this.bumpMap = null, this.bumpScale = 1, this.normalMap = null, this.normalMapType = 0, this.normalScale = new $s(1, 1), this.displacementMap = null, this.displacementScale = 1, this.displacementBias = 0, this.roughnessMap = null, this.metalnessMap = null, this.alphaMap = null, this.envMap = null, this.envMapRotation = new gr(), this.envMapIntensity = 1, this.wireframe = false, this.wireframeLinewidth = 1, this.wireframeLinecap = "round", this.wireframeLinejoin = "round", this.flatShading = false, this.fog = true, this.setValues(t2);
-    }
-    copy(t2) {
-      return super.copy(t2), this.defines = { STANDARD: "" }, this.color.copy(t2.color), this.roughness = t2.roughness, this.metalness = t2.metalness, this.map = t2.map, this.lightMap = t2.lightMap, this.lightMapIntensity = t2.lightMapIntensity, this.aoMap = t2.aoMap, this.aoMapIntensity = t2.aoMapIntensity, this.emissive.copy(t2.emissive), this.emissiveMap = t2.emissiveMap, this.emissiveIntensity = t2.emissiveIntensity, this.bumpMap = t2.bumpMap, this.bumpScale = t2.bumpScale, this.normalMap = t2.normalMap, this.normalMapType = t2.normalMapType, this.normalScale.copy(t2.normalScale), this.displacementMap = t2.displacementMap, this.displacementScale = t2.displacementScale, this.displacementBias = t2.displacementBias, this.roughnessMap = t2.roughnessMap, this.metalnessMap = t2.metalnessMap, this.alphaMap = t2.alphaMap, this.envMap = t2.envMap, this.envMapRotation.copy(t2.envMapRotation), this.envMapIntensity = t2.envMapIntensity, this.wireframe = t2.wireframe, this.wireframeLinewidth = t2.wireframeLinewidth, this.wireframeLinecap = t2.wireframeLinecap, this.wireframeLinejoin = t2.wireframeLinejoin, this.flatShading = t2.flatShading, this.fog = t2.fog, this;
-    }
-  };
   var Ul = class extends en {
     constructor(t2) {
       super(), this.isMeshDepthMaterial = true, this.type = "MeshDepthMaterial", this.depthPacking = 3200, this.map = null, this.alphaMap = null, this.displacementMap = null, this.displacementScale = 1, this.displacementBias = 0, this.wireframe = false, this.wireframeLinewidth = 1, this.setValues(t2);
@@ -5936,94 +5928,12 @@
       }, s2, i2), r2;
     }
   };
-  var zc = class extends Rr {
-    constructor(t2, e2 = 1) {
-      super(), this.isLight = true, this.type = "Light", this.color = new Qr(t2), this.intensity = e2;
-    }
-    dispose() {
-    }
-    copy(t2, e2) {
-      return super.copy(t2, e2), this.color.copy(t2.color), this.intensity = t2.intensity, this;
-    }
-    toJSON(t2) {
-      const e2 = super.toJSON(t2);
-      return e2.object.color = this.color.getHex(), e2.object.intensity = this.intensity, void 0 !== this.groundColor && (e2.object.groundColor = this.groundColor.getHex()), void 0 !== this.distance && (e2.object.distance = this.distance), void 0 !== this.angle && (e2.object.angle = this.angle), void 0 !== this.decay && (e2.object.decay = this.decay), void 0 !== this.penumbra && (e2.object.penumbra = this.penumbra), void 0 !== this.shadow && (e2.object.shadow = this.shadow.toJSON()), void 0 !== this.target && (e2.object.target = this.target.uuid), e2;
-    }
-  };
-  var Cc = class extends zc {
-    constructor(t2, e2, s2) {
-      super(t2, s2), this.isHemisphereLight = true, this.type = "HemisphereLight", this.position.copy(Rr.DEFAULT_UP), this.updateMatrix(), this.groundColor = new Qr(e2);
-    }
-    copy(t2, e2) {
-      return super.copy(t2, e2), this.groundColor.copy(t2.groundColor), this;
-    }
-  };
   var Ic = new ar();
   var Bc = new Ks();
   var kc = new Ks();
-  var Ec = class {
-    constructor(t2) {
-      this.camera = t2, this.intensity = 1, this.bias = 0, this.normalBias = 0, this.radius = 1, this.blurSamples = 8, this.mapSize = new $s(512, 512), this.mapType = Tt, this.map = null, this.mapPass = null, this.matrix = new ar(), this.autoUpdate = true, this.needsUpdate = false, this._frustum = new lo(), this._frameExtents = new $s(1, 1), this._viewportCount = 1, this._viewports = [new Ti(0, 0, 1, 1)];
-    }
-    getViewportCount() {
-      return this._viewportCount;
-    }
-    getFrustum() {
-      return this._frustum;
-    }
-    updateMatrices(t2) {
-      const e2 = this.camera, s2 = this.matrix;
-      Bc.setFromMatrixPosition(t2.matrixWorld), e2.position.copy(Bc), kc.setFromMatrixPosition(t2.target.matrixWorld), e2.lookAt(kc), e2.updateMatrixWorld(), Ic.multiplyMatrices(e2.projectionMatrix, e2.matrixWorldInverse), this._frustum.setFromProjectionMatrix(Ic, e2.coordinateSystem, e2.reversedDepth), e2.reversedDepth ? s2.set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 1, 0, 0, 0, 0, 1) : s2.set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1), s2.multiply(Ic);
-    }
-    getViewport(t2) {
-      return this._viewports[t2];
-    }
-    getFrameExtents() {
-      return this._frameExtents;
-    }
-    dispose() {
-      this.map && this.map.dispose(), this.mapPass && this.mapPass.dispose();
-    }
-    copy(t2) {
-      return this.camera = t2.camera.clone(), this.intensity = t2.intensity, this.bias = t2.bias, this.radius = t2.radius, this.autoUpdate = t2.autoUpdate, this.needsUpdate = t2.needsUpdate, this.normalBias = t2.normalBias, this.blurSamples = t2.blurSamples, this.mapSize.copy(t2.mapSize), this;
-    }
-    clone() {
-      return new this.constructor().copy(this);
-    }
-    toJSON() {
-      const t2 = {};
-      return 1 !== this.intensity && (t2.intensity = this.intensity), 0 !== this.bias && (t2.bias = this.bias), 0 !== this.normalBias && (t2.normalBias = this.normalBias), 1 !== this.radius && (t2.radius = this.radius), 512 === this.mapSize.x && 512 === this.mapSize.y || (t2.mapSize = this.mapSize.toArray()), t2.camera = this.camera.toJSON(false).object, delete t2.camera.matrix, t2;
-    }
-  };
   var Oc = new ar();
   var Nc = new Ks();
   var Vc = new Ks();
-  var Fc = class extends Ec {
-    constructor() {
-      super(new Kn(90, 1, 0.5, 500)), this.isPointLightShadow = true, this._frameExtents = new $s(4, 2), this._viewportCount = 6, this._viewports = [new Ti(2, 1, 1, 1), new Ti(0, 1, 1, 1), new Ti(3, 1, 1, 1), new Ti(1, 1, 1, 1), new Ti(3, 0, 1, 1), new Ti(1, 0, 1, 1)], this._cubeDirections = [new Ks(1, 0, 0), new Ks(-1, 0, 0), new Ks(0, 0, 1), new Ks(0, 0, -1), new Ks(0, 1, 0), new Ks(0, -1, 0)], this._cubeUps = [new Ks(0, 1, 0), new Ks(0, 1, 0), new Ks(0, 1, 0), new Ks(0, 1, 0), new Ks(0, 0, 1), new Ks(0, 0, -1)];
-    }
-    updateMatrices(t2, e2 = 0) {
-      const s2 = this.camera, i2 = this.matrix, r2 = t2.distance || s2.far;
-      r2 !== s2.far && (s2.far = r2, s2.updateProjectionMatrix()), Nc.setFromMatrixPosition(t2.matrixWorld), s2.position.copy(Nc), Vc.copy(s2.position), Vc.add(this._cubeDirections[e2]), s2.up.copy(this._cubeUps[e2]), s2.lookAt(Vc), s2.updateMatrixWorld(), i2.makeTranslation(-Nc.x, -Nc.y, -Nc.z), Oc.multiplyMatrices(s2.projectionMatrix, s2.matrixWorldInverse), this._frustum.setFromProjectionMatrix(Oc, s2.coordinateSystem, s2.reversedDepth);
-    }
-  };
-  var Lc = class extends zc {
-    constructor(t2, e2, s2 = 0, i2 = 2) {
-      super(t2, e2), this.isPointLight = true, this.type = "PointLight", this.distance = s2, this.decay = i2, this.shadow = new Fc();
-    }
-    get power() {
-      return 4 * this.intensity * Math.PI;
-    }
-    set power(t2) {
-      this.intensity = t2 / (4 * Math.PI);
-    }
-    dispose() {
-      this.shadow.dispose();
-    }
-    copy(t2, e2) {
-      return super.copy(t2, e2), this.distance = t2.distance, this.decay = t2.decay, this.shadow = t2.shadow.clone(), this;
-    }
-  };
   var jc = class extends Zn {
     constructor(t2 = -1, e2 = 1, s2 = 1, i2 = -1, r2 = 0.1, n2 = 2e3) {
       super(), this.isOrthographicCamera = true, this.type = "OrthographicCamera", this.zoom = 1, this.view = null, this.left = t2, this.right = e2, this.top = s2, this.bottom = i2, this.near = r2, this.far = n2, this.updateProjectionMatrix();
@@ -9943,71 +9853,35 @@
   // three-scene.js
   var canvas = document.getElementById("threeScene");
   var stage = document.getElementById("holoStage");
-  var enabled = true;
+  var enabled = false;
   var state = "idle";
   var pointerX = 0;
   var pointerY = 0;
   var renderer;
   var scene;
   var camera;
-  var companion;
-  var chair;
-  var portrait;
+  var mascot;
+  var halo;
   var clock;
-  function material(color, emissive = 0) {
-    return new Vl({ color, roughness: 0.55, metalness: 0.22, emissive: color, emissiveIntensity: emissive });
-  }
-  function part(geometry, materialValue, position, rotation) {
-    const mesh = new Dn(geometry, materialValue);
-    mesh.position.set(...position);
-    if (rotation) mesh.rotation.set(...rotation);
-    return mesh;
-  }
-  function cylinder(radiusTop, radiusBottom, height, color, position, rotation) {
-    return part(new uh(radiusTop, radiusBottom, height, 12), material(color), position, rotation);
-  }
-  function buildCompanion() {
-    const root = new ra();
-    const navy = material(1059925, 0.08), cyan = material(2481663, 0.8), silver = material(11126745, 0.22), skin = material(12571875, 0.12), hair = material(1319219);
-    const head = part(new zl(0.36, 18, 14), skin, [0, 1.3, 0.1]);
-    const hairCap = part(new zl(0.375, 18, 14, 0, Math.PI * 2, 0, Math.PI * 0.48), hair, [0, 1.38, 0.08]);
-    const eyeMaterial = material(8779263, 1.6);
-    const eyeL = part(new zl(0.052, 10, 8), eyeMaterial, [-0.12, 1.33, 0.42]);
-    const eyeR = part(new zl(0.052, 10, 8), eyeMaterial, [0.12, 1.33, 0.42]);
-    const badge = part(new ch(0.075, 12), cyan, [0, 0.82, 0.49]);
-    root.add(head, hairCap, eyeL, eyeR, badge, cylinder(0.42, 0.56, 0.85, 1059925, [0, 0.62, 0.05]), part(new Un(0.72, 0.08, 0.12), silver, [0, 0.88, 0.1]));
-    const leftArm = cylinder(0.12, 0.15, 0.78, 1059925, [-0.46, 0.63, 0.02], [0, 0, 0.38]);
-    const rightArm = cylinder(0.12, 0.15, 0.78, 1059925, [0.46, 0.63, 0.02], [0, 0, -0.38]);
-    root.add(leftArm, rightArm);
-    root.add(cylinder(0.17, 0.2, 0.9, 1059925, [-0.23, -0.28, 0.18], [0.52, 0, 0]), cylinder(0.17, 0.2, 0.9, 1059925, [0.23, -0.28, 0.18], [0.52, 0, 0]));
-    root.add(part(new Il(0.46, 0.025, 8, 24), cyan, [0, 0.58, -0.06], [Math.PI / 2, 0, 0]));
-    return root;
-  }
-  function buildChair() {
-    const root = new ra(), dark = material(463649, 0.03), cyan = material(2481663, 0.45);
-    root.add(part(new Un(1.55, 0.24, 1.1), dark, [0, -0.53, 0]), part(new Un(1.4, 1.75, 0.22), dark, [0, 0.37, -0.5]), part(new Un(0.18, 0.5, 1), dark, [-0.85, -0.18, 0]), part(new Un(0.18, 0.5, 1), dark, [0.85, -0.18, 0]), part(new Il(0.83, 0.018, 8, 32), cyan, [0, 0.2, -0.61]));
-    return root;
+  function setEnabled(value) {
+    enabled = Boolean(value && renderer && mascot);
+    canvas.hidden = !enabled;
+    stage.classList.toggle("three-active", enabled);
   }
   function init() {
     try {
       renderer = new ca2({ canvas, alpha: true, antialias: true, powerPreference: "low-power" });
-      renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 1.25));
       scene = new la();
       camera = new Kn(34, 1, 0.1, 100);
-      camera.position.set(0, 0.35, 5.2);
+      camera.position.z = 4.4;
       clock = new uu();
-      scene.add(new Cc(11071487, 462876, 2.4));
-      const light = new Lc(3726847, 20, 8);
-      light.position.set(0, 2.5, 3);
-      scene.add(light);
-      chair = buildChair();
-      companion = buildCompanion();
-      companion.position.y = 0.1;
-      scene.add(chair, companion);
-      const texture = new Tc().load("./assets/characters/command-officer-reference-v1.png");
-      const panel = part(new _l(1.2, 1.8), new sn({ map: texture, transparent: true, opacity: 0.28 }), [1.35, 0.5, -0.8], [0, -0.45, 0]);
-      scene.add(panel);
-      portrait = panel;
+      const texture = new Tc().load("./assets/drive/original_mascot.png", void 0, void 0, () => setEnabled(false));
+      texture.colorSpace = Ze;
+      mascot = new Dn(new _l(2.45, 2.45), new sn({ map: texture, transparent: true, opacity: 0.92, depthWrite: false }));
+      halo = new Dn(new Al(1.24, 1.28, 64), new sn({ color: 3465215, transparent: true, opacity: 0.28, side: p }));
+      halo.position.z = -0.08;
+      scene.add(halo, mascot);
       const resize = () => {
         const rect = stage.getBoundingClientRect();
         renderer.setSize(rect.width, rect.height, false);
@@ -10018,46 +9892,36 @@
       resize();
       stage.addEventListener("pointermove", (event) => {
         const rect = stage.getBoundingClientRect();
-        pointerX = ((event.clientX - rect.left) / rect.width - 0.5) * 0.55;
-        pointerY = ((event.clientY - rect.top) / rect.height - 0.5) * 0.18;
+        pointerX = ((event.clientX - rect.left) / rect.width - 0.5) * 0.28;
+        pointerY = ((event.clientY - rect.top) / rect.height - 0.5) * 0.1;
       });
       stage.addEventListener("pointerleave", () => {
         pointerX = 0;
         pointerY = 0;
       });
-      stage.addEventListener("click", () => {
-        state = state === "wave" ? "idle" : "wave";
-      });
       render();
     } catch (error) {
-      console.error("Interactive 3D scene initialization failed", error);
-      enabled = false;
-      canvas.hidden = true;
       stage.dataset.threeError = String(error?.message || error);
-      document.getElementById("holoStatus").textContent = `3D unavailable: ${stage.dataset.threeError}`;
+      setEnabled(false);
     }
   }
   function render() {
     requestAnimationFrame(render);
-    if (!renderer || !enabled) return;
+    if (!renderer || !enabled || document.hidden) return;
     const t2 = clock.getElapsedTime();
-    const activity = state === "thinking" ? 0.12 : state === "listening" ? 0.08 : 0.035;
-    companion.rotation.y += (pointerX - companion.rotation.y) * 0.035;
-    companion.rotation.x += (pointerY - companion.rotation.x) * 0.035;
-    companion.position.y = 0.1 + Math.sin(t2 * (state === "thinking" ? 2.4 : 1.2)) * activity;
-    chair.rotation.y = Math.sin(t2 * 0.42) * 0.025;
-    if (state === "wave") companion.rotation.z = Math.sin(t2 * 4) * 0.08;
-    else companion.rotation.z *= 0.92;
-    portrait.material.opacity = state === "thinking" ? 0.48 : 0.28;
+    mascot.rotation.y += (pointerX - mascot.rotation.y) * 0.04;
+    mascot.rotation.x += (pointerY - mascot.rotation.x) * 0.04;
+    const activity = state === "thinking" ? 0.05 : state === "listening" ? 0.035 : 0.018;
+    mascot.position.y = Math.sin(t2 * 1.25) * activity;
+    const wave = state === "wave" ? Math.sin(t2 * 4) * 0.035 : 0;
+    mascot.rotation.z += (wave - mascot.rotation.z) * 0.1;
+    halo.rotation.z = t2 * 0.08;
+    halo.material.opacity = state === "thinking" ? 0.48 : 0.28;
     renderer.render(scene, camera);
   }
   window.masterChiefThreeD = { setState: (value) => {
     state = value;
-  }, setEnabled: (value) => {
-    enabled = Boolean(value) && Boolean(renderer);
-    canvas.hidden = !enabled;
-    stage.classList.toggle("three-active", enabled);
-  } };
+  }, setEnabled };
   init();
   window.dispatchEvent(new Event("master-chief-three-ready"));
 })();

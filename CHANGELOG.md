@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.5
+
+- Stopped ordinary launcher clicks from rebuilding and replacing the running app.
+- Stopped command suggestions from opening or selecting anything on an empty prompt.
+- Restored the supplied Master Chief mascot as the interactive 3D identity instead of drawing a generic officer over it.
+- Reduced 3D pixel density and paused rendering while hidden.
+
 ## 1.0.4
 
 - Replaced the placeholder officer with the supplied Master Chief bot artwork.

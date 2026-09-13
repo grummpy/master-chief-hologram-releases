@@ -1,10 +1,10 @@
 # Master Chief Hologram Desktop Bot
 
-Current release: **1.0.4**
+Current release: **1.0.5**
 
 The supplied Master Chief bot artwork now drives the interactive desktop command center. Click the hologram to focus the command field; its expression changes while it listens, thinks, reports, succeeds, or needs attention. **Auto** uses local time (light from 7:00 AM through 6:59 PM), and Light/Dark overrides persist.
 
-The Desktop launcher is now a packaged macOS app. Opening it no longer runs npm or installs dependencies. AI keys remain outside the bundle in `~/Library/Application Support/master-chief-hologram/.env`.
+The Desktop launcher is a packaged macOS app. Ordinary launches open it immediately without rebuilding or replacing the running bundle; a rebuild occurs only after a clean Git fast-forward update. AI keys remain outside the bundle in `~/Library/Application Support/master-chief-hologram/.env`.
 
 ## Local model setup
 

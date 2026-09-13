@@ -11,7 +11,9 @@
   ]);
   function suggestions(value, limit = 5) {
     const query = String(value || '').trim().toLowerCase();
-    if (!query) return commands.slice(0, limit);
+    // An empty prompt is a normal focus state. Do not cover the command box or
+    // imply that the first suggestion has been selected until the user types.
+    if (!query) return [];
     return commands.filter(command => command.toLowerCase().startsWith(query)).slice(0, limit);
   }
   return { commands, suggestions };
