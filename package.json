@@ -7,7 +7,8 @@
     "start": "electron .",
     "dev": "electron . --enable-logging",
     "dist:mac": "electron-builder --mac dir",
-    "launch:mac": "zsh scripts/launch-mac.sh"
+    "launch:mac": "zsh scripts/launch-mac.sh",
+    "test": "node --test tests/*.test.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5"
@@ -22,7 +23,22 @@
     "appId": "com.grummpy.master-chief-hologram",
     "productName": "Master Chief Hologram",
     "asar": true,
-    "files": ["main.js", "preload.js", "renderer.js", "index.html", "styles.css", "package.json", "assets/**/*"],
-    "mac": {"category": "public.app-category.productivity", "target": ["dir"], "icon": "assets/icon.png"}
+    "files": [
+      "security.js",
+      "main.js",
+      "preload.js",
+      "renderer.js",
+      "index.html",
+      "styles.css",
+      "package.json",
+      "assets/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dir"
+      ],
+      "icon": "assets/icon.png"
+    }
   }
 }

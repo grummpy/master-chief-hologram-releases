@@ -18,41 +18,11 @@ for (const envPath of envCandidates) {
 const execFileAsync = promisify(execFile);
 const CODEX_BIN = process.env.CODEX_BIN || '/Applications/ChatGPT.app/Contents/Resources/codex';
 const APP_VERSION = require('./package.json').version;
+const { validateChatPayload, safeProviderError, validSecret } = require('./security');
 
 let mainWindow;
 let tray;
 let activeChild = null;
-
-const PROVIDERS = ['codex', 'openai', 'grok', 'ollama', 'huggingface'];
-const MAX_MESSAGES = 24;
-const MAX_MESSAGE_CHARS = 12000;
-
-function validSecret(value, pattern = /[^\s]{8,}/) {
-  return typeof value === 'string' && pattern.test(value.trim());
-}
-
-function safeProviderError(message) {
-  return String(message || 'Provider request failed.')
-    .replace(/(?:sk|xai|hf|ghp|github_pat)[-_][A-Za-z0-9._-]+/gi, '[redacted credential]')
-    .replace(/Bearer\s+[^\s]+/gi, 'Bearer [redacted credential]');
-}
-
-function validateMessages(messages) {
-  if (!Array.isArray(messages) || messages.length > MAX_MESSAGES) throw new Error('Invalid conversation history.');
-  return messages.map(message => {
-    if (!message || !['user', 'assistant', 'system'].includes(message.role) || typeof message.content !== 'string') {
-      throw new Error('Invalid conversation message.');
-    }
-    const content = message.content.trim();
-    if (!content || content.length > MAX_MESSAGE_CHARS) throw new Error('Conversation message is empty or too long.');
-    return { role: message.role, content };
-  });
-}
-
-function validateChatPayload(payload) {
-  if (!payload || !PROVIDERS.includes(payload.provider)) throw new Error('Invalid provider selected.');
-  return { ...payload, messages: validateMessages(payload.messages), masterMode: payload.masterMode === true };
-}
 
 function showWindow() {
   if (!mainWindow) return;
@@ -314,11 +284,15 @@ async function callHuggingFace({ messages, masterMode, model: requestedModel }) 
 
 async function routeChat(payload) {
   payload = validateChatPayload(payload);
-  if (payload.provider === 'codex') return callCodex(payload);
-  if (payload.provider === 'openai') return callOpenAI(payload);
-  if (payload.provider === 'grok') return callGrok(payload);
-  if (payload.provider === 'ollama') return callOllama(payload);
-  if (payload.provider === 'huggingface') return callHuggingFace(payload);
+  try {
+    if (payload.provider === 'codex') return await callCodex(payload);
+    if (payload.provider === 'openai') return await callOpenAI(payload);
+    if (payload.provider === 'grok') return await callGrok(payload);
+    if (payload.provider === 'ollama') return await callOllama(payload);
+    if (payload.provider === 'huggingface') return await callHuggingFace(payload);
+  } catch (error) {
+    throw new Error(safeProviderError(error.message));
+  }
   throw new Error('Unknown provider selected.');
 }
 
