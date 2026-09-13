@@ -14,6 +14,9 @@ Version 1.3 · 2026-09-12
 - Streaming deltas and cancellation events for compatible providers.
 - Encrypted credential storage with safe environment fallback and migration tests.
 - Deterministic asset validation and release checklist.
+- Persistent local RAG index with chunked lexical retrieval and attachment provenance.
+- Local voice readiness diagnostics for whisper.cpp, model files, and ffmpeg.
+- Explicit tool risk classes and approval controls in the UI.
 - Tool registry now exposes capability scope and risk labels; approval-required actions remain opt-in and persist per user profile.
 - Tool access UI shows per-capability scope, risk class, and explicit approval state.
 
@@ -23,4 +26,4 @@ Version 1.3 · 2026-09-12
 
 ## Next critical path
 
-Signed/notarized distribution, real end-to-end audio fixtures, packaged whisper.cpp models, persistent vector RAG, MCP approval gates, and automated visual regression. These remain intentionally separate increments because they add native dependencies, permissions, or durable data contracts.
+Signed/notarized distribution, real end-to-end audio fixtures, packaged whisper.cpp models, semantic/vector RAG, full MCP execution adapters, and automated visual regression. These remain intentionally separate increments because they add native dependencies, permissions, or durable data contracts.
