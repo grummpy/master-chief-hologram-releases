@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "routing": {
+    "defaultProvider": "ollama",
+    "cloudFallback": "explicit-user-selection-only",
+    "localhostOnly": true
+  },
+  "runtimes": [
+    {
+      "id": "ollama",
+      "role": "primary-local-runtime",
+      "baseUrlEnvironment": "OLLAMA_BASE_URL",
+      "defaultBaseUrl": "http://127.0.0.1:11434",
+      "networkScope": "localhost",
+      "enabled": true
+    }
+  ],
+  "models": [
+    {
+      "id": "qwen2.5:0.5b",
+      "runtime": "ollama",
+      "tier": "micro-local",
+      "eligibleTasks": ["short rewrite", "concise summary", "simple extraction", "local command assistance"],
+      "enabled": true,
+      "distribution": "not bundled",
+      "licenseReview": "required before redistribution",
+      "provenance": "installed locally by the owner through Ollama"
+    }
+  ]
+}

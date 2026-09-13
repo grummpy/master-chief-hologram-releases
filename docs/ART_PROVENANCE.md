@@ -1,6 +1,6 @@
 # Master Chief Hologram art provenance
 
-Version: 1.0.3
+Version: 1.1
 
 Date: 2026-09-12
 
@@ -29,3 +29,7 @@ The image is the video poster and static fallback in the hologram stage. CSS sup
 - Transparent edges render without a rectangular matte.
 - Missing video automatically reveals this still.
 - Missing still falls back to the SVG placeholder.
+
+## G0 controls
+
+The visual direction, original-IP exclusions, seven-state taxonomy, icon review criteria, and approval checklist are in [VISUAL_STYLE_BRIEF.md](VISUAL_STYLE_BRIEF.md). New asset records must use [ASSET_INTAKE_SCHEMA.md](ASSET_INTAKE_SCHEMA.md) before any runtime export replaces an approved file.

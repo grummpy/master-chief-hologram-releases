@@ -40,6 +40,8 @@
       "microphone-access.js",
       "autocomplete.js",
       "local-routing.js",
+      "local-ai-manifest.js",
+      "local-ai-manifest.json",
       "artifact-links.js",
       "build-info.json",
       "main.js",

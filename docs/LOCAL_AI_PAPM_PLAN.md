@@ -1,6 +1,6 @@
 # Master Chief Hologram — Local-AI-First PAPM Plan
 
-Version 1.0 · 2026-09-13 · Status: proposed · Decision authority: owner
+Version 1.1 · 2026-09-13 · Status: L0 implemented; measurement increments pending · Decision authority: owner
 
 ## Mission
 
@@ -165,6 +165,8 @@ These routes are planned work, not claims that a specialist has completed implem
 
 > Implement L0 only. Preserve untracked owner assets and secrets. Add a versioned local provider/model manifest and a local-routing contract that defaults eligible lightweight tasks to a healthy installed local runtime, without changing external credentials, downloading models, or enabling a cloud fallback. Define an approved Desktop workspace-root/artifact-link contract without writing artifacts yet. Add deterministic tests for route selection, cloud opt-in, model-health failure, and workspace path rejection. Update implementation status and this plan’s decision record, run relevant checks, and commit the focused increment.
 
+L0 implementation: [local-ai-manifest.json](../local-ai-manifest.json) records Ollama as the localhost-only primary runtime and `qwen2.5:0.5b` as an owner-installed micro-local development model. [local-ai-manifest.js](../local-ai-manifest.js) validates the manifest and selects a local default only when that model is installed. The UI exposes the local-first state and stops rather than silently escalating to cloud. License review remains required before redistribution or bundling.
+
 ## Standby backlog
 
 1. Measure and tune the current Ollama starter model against the local evaluation pack.
@@ -177,4 +179,3 @@ These routes are planned work, not claims that a specialist has completed implem
 8. Create a one-host batch index/evaluation queue before any Apache Spark experiment.
 9. Add optional local speech/TTS routing only after physical microphone closure and model-license review.
 10. Add recurring, opt-in benchmark refreshes that never upload prompts or documents.
-

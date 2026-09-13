@@ -27,6 +27,8 @@ const { safeArtifactPath } = require('./artifact-links');
 const { MICROPHONE_SETTINGS_URL, isGranted, recoveryMessage } = require('./microphone-access');
 const { voiceSelfTest } = require('./voice-diagnostics');
 const { discoverModels, buildVoiceSetup } = require('./voice-installation');
+const { loadLocalAiManifest, primaryInstalledModel } = require('./local-ai-manifest');
+const localAiManifest = loadLocalAiManifest(path.join(__dirname, 'local-ai-manifest.json'));
 
 let mainWindow;
 let tray;
@@ -137,6 +139,7 @@ async function providerStatus() {
     ,ollama: { state: 'missing', label: 'Ollama unavailable' }
     ,huggingface: { state: 'missing', label: 'Hugging Face endpoint not configured' }
     ,voice: { state: 'cloud', label: 'Voice · cloud transcription' }
+    ,localAi: { state: 'missing', label: 'Local AI manifest has no installed primary model' }
   };
 
   if (fs.existsSync(CODEX_BIN)) {
@@ -191,8 +194,11 @@ async function providerStatus() {
   const ollamaUrl = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
   const ollama = await checkJson(`${ollamaUrl}/api/tags`);
   if (!ollama.error && ollama.response.ok) {
-    const count = Array.isArray(ollama.body.models) ? ollama.body.models.length : 0;
-    status.ollama = { state: 'ready', label: `Ollama · ${count} model${count === 1 ? '' : 's'}` };
+    const names = Array.isArray(ollama.body.models) ? ollama.body.models.map(model => String(model.name || model.model || '')).filter(Boolean) : [];
+    const primary = primaryInstalledModel(localAiManifest, names);
+    const count = names.length;
+    status.ollama = { state: 'ready', label: primary ? `Ollama · ${primary.id} · local first` : `Ollama · ${count} model${count === 1 ? '' : 's'}` };
+    if (primary) status.localAi = { state: 'ready', label: `Local AI · ${primary.tier} · ${primary.id}`, detail: 'Local-only routing; cloud fallback requires explicit selection.' };
   } else if (process.env.OLLAMA_BASE_URL) status.ollama = { state: 'error', label: 'Ollama connection error' };
 
   const hfUrl = (process.env.HF_BASE_URL || '').replace(/\/$/, '');
