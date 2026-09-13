@@ -16,6 +16,7 @@ Version 1.3 · 2026-09-12
 - Deterministic asset validation and release checklist.
 - Persistent local RAG index with chunked lexical retrieval and attachment provenance.
 - Local voice readiness diagnostics for whisper.cpp, model files, and ffmpeg.
+- Deterministic voice fixture contract and an in-app self-test that never records audio or calls a transcription provider.
 - Explicit tool risk classes and approval controls in the UI.
 - Tool registry now exposes capability scope and risk labels; approval-required actions remain opt-in and persist per user profile.
 - Tool access UI shows per-capability scope, risk class, and explicit approval state.

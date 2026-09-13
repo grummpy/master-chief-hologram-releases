@@ -22,6 +22,7 @@ const { validateChatPayload, validateMessages, safeProviderError, validSecret } 
 const { createCredentialStore } = require('./credential-store');
 const { getToolRegistry, normalizeApprovals, setToolApproval } = require('./tool-registry');
 const { createRagIndex } = require('./rag-index');
+const { voiceSelfTest } = require('./voice-diagnostics');
 
 let mainWindow;
 let tray;
@@ -415,6 +416,12 @@ app.on('activate', () => {
 ipcMain.handle('provider-status', providerStatus);
 ipcMain.handle('credential-status', () => credentials().status());
 ipcMain.handle('model-catalog', modelCatalog);
+ipcMain.handle('voice-self-test', async () => voiceSelfTest(await localWhisperConfig(), {
+  name: 'command-reference.webm',
+  contentType: 'audio/webm;codecs=opus',
+  bytes: 4800,
+  expectedTranscript: 'Master Chief, run diagnostics.'
+}));
 ipcMain.handle('tool-registry', () => getToolRegistry());
 ipcMain.handle('tool-approvals', () => ({ approvals: { ...loadToolApprovals() }, registry: getToolRegistry() }));
 ipcMain.handle('set-tool-approval', (_event, payload) => { toolApprovals = setToolApproval(loadToolApprovals(), String(payload?.id || ''), payload?.approved); saveToolApprovals(); return { approvals: { ...toolApprovals } }; });

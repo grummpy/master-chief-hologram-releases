@@ -1,0 +1,7 @@
+{
+  "name": "command-reference.webm",
+  "contentType": "audio/webm;codecs=opus",
+  "bytes": 4800,
+  "expectedTranscript": "Master Chief, run diagnostics.",
+  "purpose": "Contract fixture only. It contains metadata, not recorded user audio or an API credential."
+}

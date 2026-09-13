@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('masterChief', {
   getProviderStatus: () => ipcRenderer.invoke('provider-status'),
   getCredentialStatus: () => ipcRenderer.invoke('credential-status'),
   getModelCatalog: () => ipcRenderer.invoke('model-catalog'),
+  voiceSelfTest: () => ipcRenderer.invoke('voice-self-test'),
   getToolApprovals: () => ipcRenderer.invoke('tool-approvals'),
   setToolApproval: (id, approved) => ipcRenderer.invoke('set-tool-approval', { id, approved }),
   chat: payload => ipcRenderer.invoke('chat', payload),
