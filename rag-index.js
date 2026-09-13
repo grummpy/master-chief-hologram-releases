@@ -59,7 +59,15 @@ function createRagIndex(filePath, { vectorizer = vectorize } = {}) {
       .filter(chunk => chunk.score > 0).sort((left, right) => right.score - left.score || right.semanticScore - left.semanticScore).slice(0, limit)
       .map(({ id, name, content, score, lexicalScore, semanticScore }) => ({ id, name, content, score: Number(score.toFixed(4)), lexicalScore, semanticScore: Number(semanticScore.toFixed(4)) }));
   }
+  function removeDocument(name) {
+    const safeName = String(name || '').slice(0, 200);
+    const before = state.documents.length;
+    state.documents = state.documents.filter(document => document.name !== safeName);
+    state.chunks = state.chunks.filter(chunk => chunk.name !== safeName);
+    if (state.documents.length !== before) save();
+    return { removed: before - state.documents.length };
+  }
   function context(query) { let used = 0; return search(query).map(result => `--- ${result.name} ---\n${result.content}`).filter(part => { if (used + part.length > MAX_CONTEXT_CHARS) return false; used += part.length; return true; }).join('\n\n'); }
-  return { indexDocument, search, context, stats: () => ({ schemaVersion: state.schemaVersion, documents: state.documents.length, chunks: state.chunks.length, retrieval: 'local-feature-vector+lexical' }) };
+  return { indexDocument, removeDocument, search, context, stats: () => ({ schemaVersion: state.schemaVersion, documents: state.documents.length, chunks: state.chunks.length, retrieval: 'local-feature-vector+lexical' }) };
 }
 module.exports = { createRagIndex, vectorize, cosine, SCHEMA_VERSION };

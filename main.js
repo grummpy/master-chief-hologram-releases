@@ -485,6 +485,7 @@ ipcMain.handle('transcribe-audio', async (_event, payload) => {
   return String(body.text || '').trim();
 });
 ipcMain.handle('index-document', (_event, payload) => ragIndex.indexDocument(payload?.name, payload?.text));
+ipcMain.handle('remove-indexed-document', (_event, payload) => ragIndex.removeDocument(payload?.name));
 ipcMain.handle('search-index', (_event, payload) => ragIndex.search(payload?.query, payload));
 ipcMain.handle('index-stats', () => ragIndex.stats());
 ipcMain.handle('open-artifact', async (_event, relativePath) => {

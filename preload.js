@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('masterChief', {
   cancelChat: () => ipcRenderer.invoke('cancel-chat'),
   transcribeAudio: (audio, type) => ipcRenderer.invoke('transcribe-audio', { audio, type }),
   indexDocument: (name, text) => ipcRenderer.invoke('index-document', { name, text }),
+  removeIndexedDocument: name => ipcRenderer.invoke('remove-indexed-document', { name }),
   searchIndex: query => ipcRenderer.invoke('search-index', { query }),
   indexStats: () => ipcRenderer.invoke('index-stats'),
   openArtifact: relativePath => ipcRenderer.invoke('open-artifact', relativePath),
