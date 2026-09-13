@@ -18,7 +18,7 @@ for (const envPath of envCandidates) {
 const execFileAsync = promisify(execFile);
 const CODEX_BIN = process.env.CODEX_BIN || '/Applications/ChatGPT.app/Contents/Resources/codex';
 const APP_VERSION = require('./package.json').version;
-const { validateChatPayload, safeProviderError, validSecret } = require('./security');
+const { validateChatPayload, validateMessages, safeProviderError, validSecret } = require('./security');
 const { createCredentialStore } = require('./credential-store');
 const { getToolRegistry, normalizeApprovals, setToolApproval } = require('./tool-registry');
 const { createRagIndex } = require('./rag-index');
