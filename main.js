@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, safeStorage } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, safeStorage, shell } = require('electron');
 const { execFile, spawn } = require('child_process');
 const { promisify } = require('util');
 const path = require('path');
@@ -23,6 +23,7 @@ const { createCredentialStore } = require('./credential-store');
 const { getToolRegistry, normalizeApprovals, setToolApproval, isToolApproved } = require('./tool-registry');
 const { createLocalToolExecutor } = require('./local-tool-executor');
 const { createRagIndex } = require('./rag-index');
+const { safeArtifactPath } = require('./artifact-links');
 const { voiceSelfTest } = require('./voice-diagnostics');
 const { discoverModels, buildVoiceSetup } = require('./voice-installation');
 
@@ -294,7 +295,7 @@ async function callCodex({ messages, masterMode }) {
   if (!fs.existsSync(CODEX_BIN)) throw new Error('Codex is not installed with the ChatGPT desktop app.');
   const tempDir = fs.mkdtempSync('/tmp/master-chief-codex-');
   const outputFile = path.join(tempDir, 'response.txt');
-  const systemPrompt = masterMode ? `You are Master Chief, the user's program-control assistant. Apply Context Manager first, PAPM second, then use cases, specialist routing, implementation, verification, and the upgrade standby. Preserve intent and privacy.` : 'You are a clear, helpful desktop AI assistant.';
+  const systemPrompt = masterMode ? `You are Master Chief, the user's program-control assistant. Apply Context Manager first, PAPM second, then use cases, specialist routing, implementation, verification, and the upgrade standby. Preserve intent and privacy. Store durable artifacts in this Desktop repository under docs/, artifacts/, or exports/ and cite a local artifact with [label](artifact:docs/file.md). Never claim a file was created unless it exists.` : 'You are a clear, helpful desktop AI assistant.';
   const prompt = `${systemPrompt}\n\nCURRENT CONVERSATION\n${conversationText(messages)}\n\nRespond to the Commander as Master Chief.`;
 
   try {
@@ -312,7 +313,7 @@ async function callCodex({ messages, masterMode }) {
 }
 
 async function callOpenAI({ messages, masterMode }) {
-  const systemPrompt = masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy; route complex work through planning, specialists, implementation, and verification.' : 'You are a clear, helpful desktop AI assistant.';
+  const systemPrompt = masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy; route complex work through planning, specialists, implementation, and verification. Store durable artifacts in docs/, artifacts/, or exports/ and cite existing ones as [label](artifact:docs/file.md).' : 'You are a clear, helpful desktop AI assistant.';
   const key = credentials().get('openai', 'OPENAI_API_KEY');
   if (!validSecret(key, /^sk-[^\s]{12,}$/)) throw new Error('A valid OPENAI_API_KEY is missing from .env.');
   const response = await fetch('https://api.openai.com/v1/responses', {
@@ -381,7 +382,7 @@ async function callGrok({ messages, masterMode }) {
 async function callOllama({ messages, masterMode, model: requestedModel }) {
   const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
   const model = requestedModel || process.env.OLLAMA_MODEL || 'llama3.2';
-  const response = await fetch(`${base}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model, messages: [{ role: 'system', content: masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy.' : 'You are a clear, helpful desktop AI assistant.' }, ...messages.slice(-16)], stream: false }), signal: AbortSignal.timeout(300000) });
+  const response = await fetch(`${base}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model, messages: [{ role: 'system', content: masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy. When an existing local repository artifact is useful, cite it as [label](artifact:docs/file.md); do not invent file creation.' : 'You are a clear, helpful desktop AI assistant.' }, ...messages.slice(-16)], stream: false }), signal: AbortSignal.timeout(300000) });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || `Ollama error ${response.status}`);
   const reply = body.message?.content;
@@ -486,6 +487,13 @@ ipcMain.handle('transcribe-audio', async (_event, payload) => {
 ipcMain.handle('index-document', (_event, payload) => ragIndex.indexDocument(payload?.name, payload?.text));
 ipcMain.handle('search-index', (_event, payload) => ragIndex.search(payload?.query, payload));
 ipcMain.handle('index-stats', () => ragIndex.stats());
+ipcMain.handle('open-artifact', async (_event, relativePath) => {
+  const artifactPath = safeArtifactPath(__dirname, relativePath);
+  if (!artifactPath || !fs.existsSync(artifactPath)) throw new Error('That artifact link is unavailable.');
+  const result = await shell.openPath(artifactPath);
+  if (result) throw new Error('The artifact could not be opened.');
+  return true;
+});
 ipcMain.handle('window-action', (_event, action) => {
   if (action === 'minimize') mainWindow?.minimize();
   if (action === 'hide') mainWindow?.hide();

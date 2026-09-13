@@ -16,5 +16,6 @@ contextBridge.exposeInMainWorld('masterChief', {
   indexDocument: (name, text) => ipcRenderer.invoke('index-document', { name, text }),
   searchIndex: query => ipcRenderer.invoke('search-index', { query }),
   indexStats: () => ipcRenderer.invoke('index-stats'),
+  openArtifact: relativePath => ipcRenderer.invoke('open-artifact', relativePath),
   windowAction: action => ipcRenderer.invoke('window-action', action)
 });

@@ -2,6 +2,8 @@
 
 Version 2.0 · 2026-09-13 · Owner: grummpy · Status: proposed execution baseline
 
+Current direction: execute this plan except Phase 3, **Provider completion**. Hugging Face setup remains deferred until the owner supplies a token. The graphics/3D, local-AI-first, and army-training work streams are maintained in their separate linked PAPM plans.
+
 ## Executive outcome
 
 Ship a dependable, local-first macOS companion that opens from one Desktop launcher, accepts a spoken command into the input box, runs a selected local or cloud model, explains its readiness state, and only performs locally approved diagnostic actions. The next release target is a signed, recoverable release candidate; it is not a public multi-user agent platform.
@@ -125,4 +127,6 @@ One experienced Electron engineer plus the specialist reviews can complete each 
 | [TECHNICAL_LEARNING_GUIDE.md](TECHNICAL_LEARNING_GUIDE.md) | current | Learner-facing architecture and alternatives. |
 | [VISUAL_REGRESSION.md](VISUAL_REGRESSION.md) | current | Asset/state acceptance contract. |
 | [VOICE_VERIFICATION.md](VOICE_VERIFICATION.md) | current | Deterministic voice test and physical-test boundary. |
-
+| [GRAPHICS_3D_PAPM_PLAN.md](GRAPHICS_3D_PAPM_PLAN.md) | current | Separate visual identity and 3D-production baseline. |
+| [LOCAL_AI_PAPM_PLAN.md](LOCAL_AI_PAPM_PLAN.md) | current | Local-first, lightweight-model and resource plan. |
+| [ARMY_SKILLS_TRAINING_PLAN.md](ARMY_SKILLS_TRAINING_PLAN.md) | current | Failure-gap, skills, and training baseline. |

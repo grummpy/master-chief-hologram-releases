@@ -21,6 +21,9 @@ Version 1.3 · 2026-09-12
 - Tool registry now exposes capability scope and risk labels; approval-required actions remain opt-in and persist per user profile.
 - Tool access UI shows per-capability scope, risk class, and explicit approval state.
 - Local tool execution is restricted to a fixed, tested adapter catalog: runtime details and an approval-gated `git status --short --branch` scoped to this project. Each execution, denial, and failure receives a secret-free local audit event. Arbitrary shell commands and network mutations are not exposed.
+- The compose panel has deterministic, no-provider command autocomplete with keyboard selection and insertion.
+- Master Chief responses can expose safe, clickable local artifact links for existing files under the Desktop repository's `docs/`, `artifacts/`, and `exports/` roots. Path traversal and other repository paths are rejected.
+- Separate PAPM plans now baseline graphics/3D, local-AI-first operation, and army skills/training. Local Ollama is the recommended route for lightweight prompts; Apache Spark is not part of the interactive runtime and is only a future owner-operated LAN batch option.
 
 ## Evidence
 
@@ -28,4 +31,4 @@ Version 1.3 · 2026-09-12
 
 ## Next critical path
 
-Signed/notarized distribution, real end-to-end audio fixtures, packaged whisper.cpp models, higher-fidelity local embeddings, full MCP execution adapters, and automated visual regression. These remain intentionally separate increments because they add native dependencies, permissions, or durable data contracts.
+Signed/notarized distribution, real end-to-end audio fixtures, packaged whisper.cpp models, higher-fidelity local embeddings, full MCP execution adapters, and automated visual regression. The visual regression gate is now automated; signing/notarization remains blocked on a Developer ID Application certificate, and physical microphone acceptance needs target-device evidence. Provider completion, including Hugging Face configuration, is deferred by current direction.

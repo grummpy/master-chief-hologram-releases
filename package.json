@@ -37,6 +37,8 @@
       "voice-diagnostics.js",
       "voice-installation.js",
       "voice-setup-ui.js",
+      "autocomplete.js",
+      "artifact-links.js",
       "build-info.json",
       "main.js",
       "preload.js",
