@@ -32,8 +32,7 @@ function normalizeProject(input = {}, existing = {}) {
     title: cleanText(input.title ?? existing.title, 160) || 'Commander Nova project',
     subject: {
       name: cleanText(input.subject?.name ?? existing.subject?.name, 160) || 'Commander Nova',
-      identityLock: cleanText(input.subject?.identityLock ?? existing.subject?.identityLock),
-      adultConfirmed: Boolean(input.subject?.adultConfirmed ?? existing.subject?.adultConfirmed)
+      identityLock: cleanText(input.subject?.identityLock ?? existing.subject?.identityLock)
     },
     shots,
     createdAt: existing.createdAt || new Date().toISOString(),

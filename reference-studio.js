@@ -11,7 +11,6 @@
     get('referenceProjectTitle').value = project?.title || 'Commander Nova project';
     get('referenceSubjectName').value = project?.subject?.name || 'Commander Nova';
     get('referenceIdentityLock').value = project?.subject?.identityLock || '';
-    get('referenceAdultConfirmed').checked = Boolean(project?.subject?.adultConfirmed);
   }
 
   function renderQueue() {
@@ -81,8 +80,7 @@
       title: get('referenceProjectTitle').value,
       subject: {
         name: get('referenceSubjectName').value,
-        identityLock: get('referenceIdentityLock').value,
-        adultConfirmed: get('referenceAdultConfirmed').checked
+        identityLock: get('referenceIdentityLock').value
       }
     });
     renderQueue();
