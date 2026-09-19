@@ -9,10 +9,11 @@ $ErrorActionPreference = 'Stop'
 $taskName = 'Master Chief ComfyUI Worker'
 $repo = Join-Path $InstallRoot 'ComfyUI'
 $python = Join-Path $repo '.venv\Scripts\python.exe'
-$pythonw = Join-Path $repo '.venv\Scripts\pythonw.exe'
 $main = Join-Path $repo 'main.py'
 $serviceRoot = Join-Path $InstallRoot 'service'
 $runner = Join-Path $serviceRoot 'run-comfyui-worker.ps1'
+$cmdRunner = Join-Path $serviceRoot 'run-comfyui-worker.cmd'
+$vbsRunner = Join-Path $serviceRoot 'run-comfyui-worker.vbs'
 $logRoot = Join-Path $InstallRoot 'logs'
 $stdoutLog = Join-Path $logRoot 'comfyui-worker.log'
 $stderrLog = Join-Path $logRoot 'comfyui-worker-error.log'
@@ -21,13 +22,12 @@ $healthUrl = "http://127.0.0.1:$Port/system_stats"
 function Assert-WorkerFiles {
   if (-not (Test-Path $main)) { throw "ComfyUI was not found at $repo." }
   if (-not (Test-Path $python)) { throw "ComfyUI Python environment was not found at $python." }
-  if (-not (Test-Path $pythonw)) { throw "The background Python executable was not found at $pythonw." }
 }
 
 function Get-WorkerProcesses {
   Get-CimInstance Win32_Process -Filter "Name = 'python.exe' OR Name = 'pythonw.exe'" -ErrorAction SilentlyContinue |
     Where-Object {
-      ($_.ExecutablePath -eq $python -or $_.ExecutablePath -eq $pythonw) -and
+      $_.ExecutablePath -eq $python -and
       $_.CommandLine -match [regex]::Escape($main)
     }
 }
@@ -83,10 +83,24 @@ switch ($Action) {
   'Install' {
     Assert-WorkerFiles
     New-Item -ItemType Directory -Force -Path $serviceRoot, $logRoot | Out-Null
-    # pythonw provides a windowless worker. Launching it directly also avoids
-    # PowerShell redirection and quoting differences inside Task Scheduler.
-    $taskArguments = "`"$main`" --listen 0.0.0.0 --port $Port"
-    $taskAction = New-ScheduledTaskAction -Execute $pythonw -Argument $taskArguments -WorkingDirectory $repo
+    # ComfyUI writes to console streams during startup, so pythonw is not safe.
+    # WScript hides a regular cmd/python process while cmd preserves both logs.
+    $cmdContent = @"
+@echo off
+cd /d "$repo"
+"$python" "$main" --listen 0.0.0.0 --port $Port 1>>"$stdoutLog" 2>>"$stderrLog"
+exit /b %ERRORLEVEL%
+"@
+    Set-Content -LiteralPath $cmdRunner -Value $cmdContent -Encoding ASCII
+    $escapedCmdRunner = $cmdRunner.Replace('"', '""')
+    $vbsContent = @"
+Set shell = CreateObject("WScript.Shell")
+exitCode = shell.Run(Chr(34) & "$escapedCmdRunner" & Chr(34), 0, True)
+WScript.Quit exitCode
+"@
+    Set-Content -LiteralPath $vbsRunner -Value $vbsContent -Encoding ASCII
+
+    $taskAction = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument "//B //NoLogo `"$vbsRunner`""
     $trigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
     $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 5 -RestartInterval (New-TimeSpan -Minutes 1)
     $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Limited
@@ -124,6 +138,8 @@ switch ($Action) {
     Stop-Worker
     Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $runner -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $cmdRunner -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $vbsRunner -Force -ErrorAction SilentlyContinue
     Write-Host "Removed background task: $taskName"
     Write-Host "Logs were preserved at $logRoot."
   }
