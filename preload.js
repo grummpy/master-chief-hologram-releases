@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('masterChief', {
   voiceSelfTest: () => ipcRenderer.invoke('voice-self-test'),
   voiceSetup: () => ipcRenderer.invoke('voice-setup'),
   audioHealth: () => ipcRenderer.invoke('audio-health'),
+  huggingFaceSetupStatus: () => ipcRenderer.invoke('huggingface-setup-status'),
+  saveHuggingFaceSetup: payload => ipcRenderer.invoke('huggingface-setup-save', payload),
   listAudioJobs: limit => ipcRenderer.invoke('audio-job-list', { limit }),
   getAudioJob: id => ipcRenderer.invoke('audio-job-get', { id }),
   synthesizeSpeech: payload => ipcRenderer.invoke('audio-synthesize', payload),

@@ -54,6 +54,19 @@ function loadConnectorSettings() {
   } catch { return {}; }
 }
 const connectorSettings = loadConnectorSettings();
+function saveConnectorSettings() {
+  const target = path.join(app.getPath('userData'), 'connector-settings.json');
+  fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
+  const temp = `${target}.${process.pid}.tmp`;
+  fs.writeFileSync(temp, JSON.stringify(connectorSettings, null, 2), { mode: 0o600 });
+  fs.renameSync(temp, target);
+}
+function huggingFaceConfig() {
+  const baseUrl = String(connectorSettings.hfBaseUrl || process.env.HF_BASE_URL || 'https://router.huggingface.co/v1').replace(/\/$/, '');
+  const model = String(connectorSettings.hfModel || process.env.HF_MODEL || 'openai/gpt-oss-120b:fastest').trim();
+  const key = credentials().get('huggingface', 'HF_API_KEY') || String(process.env.HF_API_KEY || '').trim();
+  return { baseUrl, model, key };
+}
 const comfyBaseUrl = String(process.env.COMFYUI_BASE_URL || connectorSettings.comfyuiBaseUrl || '').trim();
 const generatedArtifactDir = path.join(app.getPath('userData'), 'artifacts', 'generated');
 const referenceStudio = createReferenceStudioStore(path.join(app.getPath('userData'), 'reference-studio.json'));
@@ -255,7 +268,7 @@ async function providerStatus() {
     }
   })());
 
-  const store = credentials(); store.migrate('openai', 'OPENAI_API_KEY'); store.migrate('xai', 'XAI_API_KEY'); store.migrate('github', 'GITHUB_TOKEN'); store.migrate('elevenlabs', 'ELEVENLABS_API_KEY'); status.credentials = store.status();
+  const store = credentials(); store.migrate('openai', 'OPENAI_API_KEY'); store.migrate('xai', 'XAI_API_KEY'); store.migrate('github', 'GITHUB_TOKEN'); store.migrate('elevenlabs', 'ELEVENLABS_API_KEY'); store.migrate('huggingface', 'HF_API_KEY'); status.credentials = store.status();
   const openaiKey = store.get('openai', 'OPENAI_API_KEY');
   if (validSecret(openaiKey, /^sk-[^\s]{12,}$/)) checks.push((async () => {
     const result = await checkJson('https://api.openai.com/v1/models', {
@@ -305,8 +318,7 @@ async function providerStatus() {
     if (primary) status.localAi = { state: 'ready', label: `Local AI · ${primary.tier} · ${primary.id}`, detail: 'Local-only routing; cloud fallback requires explicit selection.' };
   } else if (process.env.OLLAMA_BASE_URL) status.ollama = { state: 'error', label: 'Ollama connection error' }; })());
 
-  const hfUrl = (process.env.HF_BASE_URL || '').replace(/\/$/, '');
-  const hfKey = (process.env.HF_API_KEY || '').trim();
+  const { baseUrl: hfUrl, key: hfKey } = huggingFaceConfig();
   if (hfUrl && hfKey) checks.push((async () => {
     const hf = await checkJson(`${hfUrl}/models`, { Authorization: `Bearer ${hfKey}` });
     status.huggingface = hf.error ? { state: 'error', label: 'Hugging Face network error' } : hf.response.ok ? { state: 'ready', label: 'Hugging Face endpoint ready' } : { state: 'error', label: `Hugging Face error ${hf.response.status}` };
@@ -530,6 +542,30 @@ async function audioHealth() {
   };
 }
 
+function huggingFaceSetupStatus() {
+  const config = huggingFaceConfig();
+  return { baseUrl: config.baseUrl, model: config.model, tokenConfigured: Boolean(config.key), secureStorage: credentials().available };
+}
+
+async function saveHuggingFaceSetup(payload = {}) {
+  const baseUrl = String(payload.baseUrl || 'https://router.huggingface.co/v1').trim().replace(/\/$/, '');
+  const model = String(payload.model || '').trim();
+  const token = String(payload.token || '').trim();
+  if (baseUrl !== 'https://router.huggingface.co/v1') throw new Error('Use the official Hugging Face router endpoint: https://router.huggingface.co/v1');
+  if (!model || model.length > 240 || !/^[A-Za-z0-9._/-]+(?::[A-Za-z0-9._-]+)?$/.test(model)) throw new Error('Enter a valid Hugging Face chat model ID.');
+  if (token && !/^hf_[A-Za-z0-9]{20,}$/.test(token)) throw new Error('The Hugging Face token format is not valid.');
+  if (token && !credentials().set('huggingface', token)) throw new Error('macOS encrypted credential storage is unavailable.');
+  connectorSettings.hfBaseUrl = baseUrl;
+  connectorSettings.hfModel = model;
+  saveConnectorSettings();
+  const config = huggingFaceConfig();
+  if (!config.key) return { ...huggingFaceSetupStatus(), ready: false, message: 'Endpoint and model saved. Add a token to complete setup.' };
+  const result = await checkJson(`${baseUrl}/models`, { Authorization: `Bearer ${config.key}` });
+  if (result.error) throw new Error('Hugging Face could not be reached. Check the network and try again.');
+  if (!result.response.ok) throw new Error(result.response.status === 401 || result.response.status === 403 ? 'Hugging Face rejected the token or its Inference Providers permission.' : `Hugging Face returned HTTP ${result.response.status}.`);
+  return { ...huggingFaceSetupStatus(), ready: true, message: 'Hugging Face authenticated successfully.' };
+}
+
 async function synthesizeSpeech(payload = {}) {
   requireToolApproval('media.generate_local');
   const contract = normalizeSpeechContract(payload);
@@ -627,7 +663,7 @@ async function modelCatalog() {
   if (!ollama.error && ollama.response.ok && Array.isArray(ollama.body.models)) {
     catalog.ollama = ollama.body.models.map(model => String(model.name || model.model || '')).filter(Boolean);
   }
-  const configured = (process.env.HF_MODEL || '').trim();
+  const configured = huggingFaceConfig().model;
   if (configured) catalog.huggingface.push(configured);
   return catalog;
 }
@@ -777,10 +813,11 @@ async function callOllama({ messages, masterMode, model: requestedModel }) {
 }
 
 async function callHuggingFace({ messages, masterMode, model: requestedModel }) {
-  const base = (process.env.HF_BASE_URL || '').replace(/\/$/, '');
-  const key = (process.env.HF_API_KEY || '').trim();
-  const model = requestedModel || process.env.HF_MODEL || 'HuggingFaceH4/zephyr-7b-beta';
-  if (!base || !key) throw new Error('HF_BASE_URL and HF_API_KEY are missing from .env.');
+  const configured = huggingFaceConfig();
+  const base = configured.baseUrl;
+  const key = configured.key;
+  const model = requestedModel || configured.model;
+  if (!key) throw new Error('Configure a Hugging Face token in Systems.');
   const response = await chatFetch(`${base}/chat/completions`, { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model, messages: [{ role: 'system', content: masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy.' : 'You are a clear, helpful desktop AI assistant.' }, ...messages.slice(-16)], stream: false }) });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error?.message || body.error || `Hugging Face error ${response.status}`);
@@ -797,7 +834,7 @@ async function routeChat(payload) {
     if (payload.provider === 'codex') result = await callCodex(payload);
     else if (payload.provider === 'openai') result = await callOpenAI(payload);
     else if (payload.stream && payload.provider === 'grok') result = await streamCompatible({ url: 'https://api.x.ai/v1/chat/completions', key: (process.env.XAI_API_KEY || '').trim(), model: 'grok-3', messages: payload.messages, systemPrompt: payload.masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy.' : 'You are a clear, helpful desktop AI assistant.', label: 'Grok · xAI', provider: 'Grok' });
-    else if (payload.stream && payload.provider === 'huggingface') { const base = (process.env.HF_BASE_URL || '').replace(/\/$/, ''); const key = (process.env.HF_API_KEY || '').trim(); if (!base || !key) throw new Error('HF_BASE_URL and HF_API_KEY are missing from .env.'); const model = payload.model || process.env.HF_MODEL || 'HuggingFaceH4/zephyr-7b-beta'; result = await streamCompatible({ url: `${base}/chat/completions`, key, model, messages: payload.messages, systemPrompt: payload.masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy.' : 'You are a clear, helpful desktop AI assistant.', label: `Hugging Face · ${model}`, provider: 'Hugging Face' }); }
+    else if (payload.stream && payload.provider === 'huggingface') { const configured = huggingFaceConfig(); if (!configured.key) throw new Error('Configure a Hugging Face token in Systems.'); const model = payload.model || configured.model; result = await streamCompatible({ url: `${configured.baseUrl}/chat/completions`, key: configured.key, model, messages: payload.messages, systemPrompt: payload.masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy.' : 'You are a clear, helpful desktop AI assistant.', label: `Hugging Face · ${model}`, provider: 'Hugging Face' }); }
     else if (payload.stream && payload.provider === 'ollama') { const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, ''); const model = payload.model || process.env.OLLAMA_MODEL || 'llama3.2'; result = await streamCompatible({ url: `${base}/v1/chat/completions`, key: 'ollama', model, messages: payload.messages, systemPrompt: payload.masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy.' : 'You are a clear, helpful desktop AI assistant.', label: `Ollama · ${model}`, provider: 'Ollama' }); }
     else if (payload.provider === 'grok') result = await callGrok(payload);
     else if (payload.provider === 'ollama') result = await callOllama(payload);
@@ -872,6 +909,8 @@ secureHandle('voice-self-test', async () => voiceSelfTest(await localWhisperConf
 }));
 secureHandle('voice-setup', async () => buildVoiceSetup(await localWhisperConfig()));
 secureHandle('audio-health', audioHealth);
+secureHandle('huggingface-setup-status', huggingFaceSetupStatus);
+secureHandle('huggingface-setup-save', (_event, payload) => saveHuggingFaceSetup(payload));
 secureHandle('audio-job-list', (_event, payload) => audioJobs.list(payload?.limit));
 secureHandle('audio-job-get', (_event, payload) => audioJobs.get(payload?.id));
 secureHandle('audio-synthesize', (_event, payload) => synthesizeSpeech(payload));

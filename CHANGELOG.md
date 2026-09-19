@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.8.1
+
+- Added an in-app Hugging Face setup dialog with the official router endpoint, configurable chat model, encrypted token storage, and a live authentication test.
+- Removed the need to place a Hugging Face token in the repository `.env` file.
+- Added actionable provider status while keeping the token out of renderer state and diagnostics.
+
 ## 1.8.0
 
 - Completed local Whisper readiness discovery and exposed microphone permission, runtime, model, and ffmpeg health.
