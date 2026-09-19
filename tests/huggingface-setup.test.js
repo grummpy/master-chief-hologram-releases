@@ -14,4 +14,7 @@ test('Hugging Face setup uses encrypted storage and never returns the token', ()
   assert.doesNotMatch(main, /return \{[^}]*token:/);
   assert.match(preload, /saveHuggingFaceSetup/);
   assert.match(ui, /type="password"|hfToken/);
+  assert.match(ui, /provider-config-updated/);
+  const renderer = fs.readFileSync(path.join(root, 'renderer.js'), 'utf8');
+  assert.match(renderer, /addEventListener\('provider-config-updated'/);
 });

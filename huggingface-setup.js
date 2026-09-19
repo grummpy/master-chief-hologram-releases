@@ -29,7 +29,7 @@ window.addEventListener('DOMContentLoaded', () => {
     try {
       const result = await window.masterChief.saveHuggingFaceSetup({ baseUrl: baseUrl.value, model: model.value, token: token.value });
       token.value = ''; status.textContent = result.message;
-      if (result.ready) { button.textContent = 'Hugging Face configured'; setTimeout(() => dialog.close(), 900); }
+      if (result.ready) { button.textContent = 'Hugging Face configured'; window.dispatchEvent(new CustomEvent('provider-config-updated')); setTimeout(() => dialog.close(), 900); }
     } catch (error) { status.textContent = error.message; }
     finally { save.disabled = false; }
   });

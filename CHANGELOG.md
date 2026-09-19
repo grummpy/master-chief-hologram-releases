@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.8.2
+
+- Refreshes provider health and the model catalog immediately after Hugging Face authentication succeeds.
+
 ## 1.8.1
 
 - Added an in-app Hugging Face setup dialog with the official router endpoint, configurable chat model, encrypted token storage, and a live authentication test.
