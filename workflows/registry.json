@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "workflows": [
+    { "id": "sdxl-image-v1", "version": "1.0.0", "contract": "image", "file": "workflows/image-api.json", "modelFamily": "sdxl", "requiredNodes": ["CheckpointLoaderSimple", "KSampler", "EmptyLatentImage", "CLIPTextEncode", "VAEDecode", "SaveImage"], "requiredModels": ["checkpoint:sdxl"], "capabilities": ["text-to-image", "batch"], "rollbackTarget": null, "enabled": true },
+    { "id": "sdxl-revision-v1", "version": "1.0.0", "contract": "revision", "file": "workflows/image-revision-api.json", "modelFamily": "sdxl", "requiredNodes": ["LoadImage", "VAEEncode", "KSampler", "SaveImage"], "requiredModels": ["checkpoint:sdxl"], "capabilities": ["image-to-image", "denoise"], "rollbackTarget": "sdxl-image-v1", "enabled": true },
+    { "id": "sdxl-rebuild-v1", "version": "1.0.0", "contract": "rebuild", "file": "workflows/image-api.json", "modelFamily": "sdxl", "requiredNodes": ["CheckpointLoaderSimple", "KSampler", "EmptyLatentImage", "SaveImage"], "requiredModels": ["checkpoint:sdxl"], "capabilities": ["text-to-image", "lineage"], "rollbackTarget": "sdxl-image-v1", "enabled": true },
+    { "id": "lanczos-upscale-v1", "version": "1.0.0", "contract": "upscale", "file": "workflows/image-upscale-api.json", "modelFamily": "pixel", "requiredNodes": ["LoadImage", "ImageScaleBy", "SaveImage"], "requiredModels": [], "capabilities": ["deterministic-upscale"], "rollbackTarget": null, "enabled": true }
+  ]
+}

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.6.0 — 2026-09-19
+
+- Added durable, recoverable ComfyUI job ledger and six-stage progress reporting.
+- Added cancel, retry, duplicate, resume, idempotency, lineage, and stale-output rejection.
+- Added live checkpoint and generation parameter controls.
+- Added versioned image, revision, rebuild, and upscale workflow contracts.
+- Added artifact reveal, metadata, checksum, recovery, and revision controls.
+- Passed 54 automated tests and a 20-job live AMD ComfyUI acceptance run.
+
 ## 1.3.0 — 2026-09-19
 
 - Added a private-LAN-only ComfyUI connector for one-prompt image and video jobs.

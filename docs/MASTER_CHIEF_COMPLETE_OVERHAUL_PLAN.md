@@ -13,7 +13,7 @@ Reliability comes before adding more model families. Prompt transport is working
 
 | Release | Mission | Required result |
 |---|---|---|
-| v1.6 Reliability and Model Control | Remote operations, checkpoint control, job evidence | Every request shows what ran, where, with which model and parameters. |
+| v1.6 Reliability and Model Control | Implemented; remote SSH gate remains operator setup | Every request records what ran, where, with which model and parameters. |
 | v1.7 Reference Studio Execution | Repeatable character/project continuity | A promoted reference drives queued shots with compare/revise/promote controls. |
 | v1.8 Motion and Sound | Short-form video and audio pilots | One AMD-supported video workflow and one speech workflow pass cancel/retry/archive tests. |
 | v2.0 Agent Fabric | Durable multi-step local work | Jobs survive restart and resume without duplication. |

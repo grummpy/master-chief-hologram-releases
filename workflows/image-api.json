@@ -3,10 +3,10 @@
     "class_type": "KSampler",
     "inputs": {
       "seed": "{{SEED}}",
-      "steps": 28,
-      "cfg": 6.5,
-      "sampler_name": "dpmpp_2m",
-      "scheduler": "karras",
+      "steps": "{{STEPS}}",
+      "cfg": "{{CFG}}",
+      "sampler_name": "{{SAMPLER}}",
+      "scheduler": "{{SCHEDULER}}",
       "denoise": 1,
       "model": ["4", 0],
       "positive": ["6", 0],
@@ -20,7 +20,7 @@
   },
   "5": {
     "class_type": "EmptyLatentImage",
-    "inputs": { "width": 768, "height": 1024, "batch_size": 1 }
+    "inputs": { "width": "{{WIDTH}}", "height": "{{HEIGHT}}", "batch_size": "{{BATCH}}" }
   },
   "6": {
     "class_type": "CLIPTextEncode",

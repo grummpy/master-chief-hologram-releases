@@ -33,7 +33,14 @@ function cloneAndFillWorkflow(template, values) {
     ['{{DENOISE}}', Number.isFinite(values.revisionStrength) ? Math.min(0.99, Math.max(0.2, values.revisionStrength)) : 0.68],
     ['{{SCALE_BY}}', Number.isFinite(values.scaleBy) ? Math.min(4, Math.max(1, values.scaleBy)) : 2],
     ['{{CHECKPOINT}}', String(values.checkpoint || 'sd_xl_base_1.0.safetensors')],
-    ['{{SOURCE_IMAGE}}', String(values.sourceImage || '')]
+    ['{{SOURCE_IMAGE}}', String(values.sourceImage || '')],
+    ['{{STEPS}}', Number.isFinite(values.steps) ? Math.min(100, Math.max(1, Math.round(values.steps))) : 28],
+    ['{{CFG}}', Number.isFinite(values.cfg) ? Math.min(30, Math.max(0, values.cfg)) : 6.5],
+    ['{{SAMPLER}}', String(values.sampler || 'dpmpp_2m')],
+    ['{{SCHEDULER}}', String(values.scheduler || 'karras')],
+    ['{{WIDTH}}', Number.isFinite(values.width) ? Math.min(2048, Math.max(256, Math.round(values.width / 8) * 8)) : 768],
+    ['{{HEIGHT}}', Number.isFinite(values.height) ? Math.min(2048, Math.max(256, Math.round(values.height / 8) * 8)) : 1024],
+    ['{{BATCH}}', Number.isFinite(values.batch) ? Math.min(8, Math.max(1, Math.round(values.batch))) : 1]
   ]);
   function replace(value) {
     if (typeof value === 'string' && replacements.has(value)) return replacements.get(value);
@@ -56,7 +63,9 @@ function createComfyUiClient({ baseUrl, fetchImpl = fetch, artifactDir, timeoutM
   const base = normalizeBaseUrl(baseUrl);
   const outputRoot = path.resolve(artifactDir);
   async function request(relative, options = {}, limit = timeoutMs) {
-    const response = await fetchImpl(`${base}${relative}`, { ...options, signal: AbortSignal.timeout(limit) });
+    const timeout = AbortSignal.timeout(limit);
+    const signal = options.signal && typeof AbortSignal.any === 'function' ? AbortSignal.any([options.signal, timeout]) : (options.signal || timeout);
+    const response = await fetchImpl(`${base}${relative}`, { ...options, signal });
     if (!response.ok) throw new Error(`ComfyUI request failed (${response.status}).`);
     return response;
   }
@@ -83,13 +92,15 @@ function createComfyUiClient({ baseUrl, fetchImpl = fetch, artifactDir, timeoutM
       if (!body.prompt_id) throw new Error('ComfyUI did not return a prompt ID.');
       return { promptId: String(body.prompt_id), clientId };
     },
-    async wait(promptId, { pollMs = 1000 } = {}) {
+    async wait(promptId, { pollMs = 1000, signal, onPoll } = {}) {
       const started = Date.now();
       while (Date.now() - started < timeoutMs) {
-        const response = await request(`/history/${encodeURIComponent(promptId)}`, {}, 10000);
+        if (signal?.aborted) throw signal.reason || new Error('Media job cancelled.');
+        const response = await request(`/history/${encodeURIComponent(promptId)}`, { signal }, 10000);
         const body = await response.json();
         const item = body[promptId];
         if (item) return item;
+        if (onPoll) await onPoll(Date.now() - started);
         await new Promise(resolve => setTimeout(resolve, pollMs));
       }
       throw new Error('ComfyUI job timed out.');
@@ -127,6 +138,11 @@ function createComfyUiClient({ baseUrl, fetchImpl = fetch, artifactDir, timeoutM
     },
     async freeMemory() {
       await request('/free', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ unload_models: true, free_memory: true }) }, 30000);
+      return true;
+    },
+    async cancel(promptId) {
+      await request('/queue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ delete: [String(promptId)] }) }, 10000).catch(() => null);
+      await request('/interrupt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }, 10000).catch(() => null);
       return true;
     }
   };

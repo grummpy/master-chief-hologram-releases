@@ -35,6 +35,8 @@ const { getConnectorRegistry } = require('./connector-registry');
 const { cloneAndFillWorkflow, createComfyUiClient } = require('./comfyui-client');
 const { runAgentPlan } = require('./agent-runner');
 const { createReferenceStudioStore } = require('./reference-studio-store');
+const { createMediaJobLedger } = require('./media-job-ledger');
+const { createWorkflowRegistry } = require('./workflow-registry');
 const localAiManifest = loadLocalAiManifest(path.join(__dirname, 'local-ai-manifest.json'));
 
 let mainWindow;
@@ -54,6 +56,10 @@ const connectorSettings = loadConnectorSettings();
 const comfyBaseUrl = String(process.env.COMFYUI_BASE_URL || connectorSettings.comfyuiBaseUrl || '').trim();
 const generatedArtifactDir = path.join(app.getPath('userData'), 'artifacts', 'generated');
 const referenceStudio = createReferenceStudioStore(path.join(app.getPath('userData'), 'reference-studio.json'));
+const mediaJobLedger = createMediaJobLedger(path.join(app.getPath('userData'), 'media-jobs.json'));
+const workflowRegistry = createWorkflowRegistry(__dirname);
+const activeMediaJobs = new Map();
+mediaJobLedger.recoverInterrupted();
 function generatedRelativePath(filename) { return `artifacts/generated/${path.basename(filename)}`; }
 function listGeneratedArtifacts(limit = 50) {
   if (!fs.existsSync(generatedArtifactDir)) return [];
@@ -63,13 +69,18 @@ function listGeneratedArtifacts(limit = 50) {
     .map(entry => {
       const filePath = path.join(generatedArtifactDir, entry.name);
       const stat = fs.statSync(filePath);
+      const relative = generatedRelativePath(entry.name);
+      const ledgerJob = typeof mediaJobLedger === 'undefined' ? null : mediaJobLedger.list(500).find(job => job.artifacts?.some(artifact => artifact.path === relative));
       return {
         filename: entry.name,
-        path: generatedRelativePath(entry.name),
+        path: relative,
         bytes: stat.size,
         modifiedAt: stat.mtime.toISOString(),
         modifiedMs: stat.mtimeMs,
-        sha256: require('crypto').createHash('sha256').update(fs.readFileSync(filePath)).digest('hex')
+        sha256: require('crypto').createHash('sha256').update(fs.readFileSync(filePath)).digest('hex'),
+        requestId: ledgerJob?.requestId || null,
+        sessionId: ledgerJob?.sessionId || null,
+        job: ledgerJob || null
       };
     })
     .sort((a, b) => b.modifiedMs - a.modifiedMs)
@@ -310,46 +321,94 @@ async function providerStatus() {
   return status;
 }
 
-function workflowPath(kind) {
-  if (!['image', 'image-revision', 'image-upscale', 'video'].includes(kind)) throw new Error('Media kind must be image, image revision, image upscale, or video.');
-  if (kind === 'image-revision') return path.resolve(path.join(__dirname, 'workflows', 'image-revision-api.json'));
-  if (kind === 'image-upscale') return path.resolve(path.join(__dirname, 'workflows', 'image-upscale-api.json'));
-  const configured = kind === 'image' ? process.env.COMFYUI_IMAGE_WORKFLOW : process.env.COMFYUI_VIDEO_WORKFLOW;
-  return path.resolve(configured || path.join(__dirname, 'workflows', `${kind}-api.json`));
+function emitMediaJob(job) {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('media-job-event', { job });
+  return job;
+}
+
+function updateMediaJob(requestId, patch) { return emitMediaJob(mediaJobLedger.update(requestId, patch)); }
+
+function mediaContract(payload = {}) {
+  const kind = String(payload.kind || 'image');
+  if (kind === 'image' && payload.sourceArtifact) return 'revision';
+  if (['image', 'revision', 'rebuild', 'upscale'].includes(kind)) return kind;
+  throw new Error('Media contract must be image, revision, rebuild, or upscale.');
+}
+
+async function executeMediaJob(requestId) {
+  const job = mediaJobLedger.get(requestId);
+  if (!job) throw new Error('Media job was not found.');
+  const payload = { ...job.parameters, requestId };
+  const contract = mediaContract(payload);
+  const controller = new AbortController();
+  activeMediaJobs.set(requestId, { controller, promptId: null });
+  try {
+    updateMediaJob(requestId, { status: 'loading', stage: 'load', progress: 10 });
+    let sourceImage = '';
+    if (['revision', 'upscale'].includes(contract)) {
+      const localSource = resolveArtifactPath(payload.sourceArtifact);
+      if (!localSource || !/\.(png|jpe?g|webp)$/i.test(localSource)) throw new Error('The selected source is unavailable or is not a supported image.');
+      const uploaded = await comfyClient.uploadImage(localSource, `mc-${Date.now()}-${path.basename(localSource)}`);
+      sourceImage = uploaded.subfolder ? `${uploaded.subfolder}/${uploaded.name}` : uploaded.name;
+    }
+    const definition = payload.workflowId ? workflowRegistry.get(payload.workflowId) : workflowRegistry.forKind(contract);
+    if (definition.contract !== contract) throw new Error(`Workflow ${definition.id} does not support the ${contract} contract.`);
+    const template = JSON.parse(fs.readFileSync(definition.file, 'utf8'));
+    const checkpoints = definition.modelFamily === 'pixel' ? [] : await comfyClient.checkpoints();
+    const selectedCheckpoint = payload.checkpoint || checkpoints.find(name => /juggernaut.*xl.*v9/i.test(name)) || checkpoints.find(name => /juggernaut.*xl/i.test(name)) || checkpoints.find(name => /sd.?xl/i.test(name));
+    if (definition.modelFamily !== 'pixel' && (!selectedCheckpoint || !checkpoints.includes(selectedCheckpoint))) throw new Error('The selected checkpoint is not installed on the live ComfyUI worker.');
+    const seed = Number.isSafeInteger(payload.seed) ? payload.seed : require('crypto').randomInt(1, 2147483646);
+    const rawPrompt = contract === 'upscale' ? 'Deterministic image upscale' : String(payload.prompt || '').replace(/^prompt\s+/i, '').trim();
+    const workflow = cloneAndFillWorkflow(template, {
+      ...payload,
+      prompt: rawPrompt,
+      negativePrompt: String(payload?.negativePrompt || ''),
+      sourceImage,
+      checkpoint: selectedCheckpoint,
+      seed,
+      revisionStrength: payload.denoise ?? payload.revisionStrength
+    });
+    updateMediaJob(requestId, {
+      workflow: { id: definition.id, version: definition.version, sha256: definition.sha256, modelFamily: definition.modelFamily },
+      parameters: { ...payload, seed, checkpoint: selectedCheckpoint, workflowId: definition.id },
+      status: 'generating', stage: 'generate', progress: 30
+    });
+    const queued = await comfyClient.submit(workflow, requestId);
+    activeMediaJobs.get(requestId).promptId = queued.promptId;
+    updateMediaJob(requestId, { promptId: queued.promptId, progress: 40 });
+    auditToolEvent({ id: 'media.generate_local', outcome: 'queued', detail: `${contract}:${queued.promptId}` });
+    const history = await comfyClient.wait(queued.promptId, { signal: controller.signal });
+    updateMediaJob(requestId, { status: 'saving', stage: 'save', progress: 70 });
+    updateMediaJob(requestId, { status: 'transferring', stage: 'transfer', progress: 82 });
+    const downloaded = await comfyClient.download(history, queued.promptId);
+    const artifacts = downloaded.map(item => ({ ...item, path: generatedRelativePath(item.filename), requestId }));
+    if (!artifacts.length) throw new Error('The workflow completed without a downloadable artifact.');
+    if (artifacts.some(item => !item.filename.startsWith(`${queued.promptId}-`))) throw new Error('Stale ComfyUI output was rejected because it did not match the current prompt ID.');
+    updateMediaJob(requestId, { status: 'archiving', stage: 'archive', progress: 95, artifacts });
+    const completed = updateMediaJob(requestId, { status: 'completed', stage: 'complete', progress: 100, artifacts });
+    auditToolEvent({ id: 'media.generate_local', outcome: 'success', detail: `${contract}:${artifacts.length} artifact(s)` });
+    return { requestId, kind: contract, promptId: queued.promptId, sessionId: completed.sessionId, revised: contract === 'revision', artifacts, job: completed };
+  } catch (error) {
+    const cancelled = controller.signal.aborted || error?.name === 'AbortError';
+    const failed = updateMediaJob(requestId, { status: cancelled ? 'cancelled' : 'failed', stage: cancelled ? 'cancelled' : 'failed', error: cancelled ? 'Cancelled by operator.' : error.message });
+    auditToolEvent({ id: 'media.generate_local', outcome: cancelled ? 'cancelled' : 'error', detail: `${contract}:${String(error.message).slice(0, 100)}` });
+    const wrapped = new Error(cancelled ? 'Media job cancelled.' : error.message);
+    wrapped.job = failed;
+    throw wrapped;
+  } finally { activeMediaJobs.delete(requestId); }
 }
 
 async function generateLocalMedia(payload) {
   requireToolApproval('media.generate_local');
   if (!comfyClient) throw new Error('ComfyUI is not configured. Add its private-LAN URL to COMFYUI_BASE_URL.');
-  const kind = String(payload?.kind || '');
-  let workflowKind = kind;
-  let sourceImage = '';
-  if ((kind === 'image' && payload?.sourceArtifact) || kind === 'upscale') {
-    const localSource = resolveArtifactPath(payload.sourceArtifact);
-    if (!localSource || !/\.(png|jpe?g|webp)$/i.test(localSource)) throw new Error('The selected source is unavailable or is not a supported image.');
-    const uploaded = await comfyClient.uploadImage(localSource, `mc-${Date.now()}-${path.basename(localSource)}`);
-    sourceImage = uploaded.subfolder ? `${uploaded.subfolder}/${uploaded.name}` : uploaded.name;
-    workflowKind = kind === 'upscale' ? 'image-upscale' : 'image-revision';
+  const contract = mediaContract(payload);
+  const created = mediaJobLedger.create({ ...(payload || {}), kind: contract }, { parentRequestId: payload?.parentRequestId, parentRevision: payload?.parentRevision });
+  if (!created.created) {
+    if (created.job.status === 'completed') return { requestId: created.job.requestId, kind: created.job.parameters.kind, promptId: created.job.promptId, sessionId: created.job.sessionId, revised: created.job.parameters.kind === 'revision', artifacts: created.job.artifacts, job: created.job };
+    if (activeMediaJobs.has(created.job.requestId)) return { requestId: created.job.requestId, pending: true, job: created.job, artifacts: [] };
   }
-  const source = workflowPath(workflowKind);
-  if (!source.startsWith(path.resolve(__dirname) + path.sep) || !fs.existsSync(source)) throw new Error(`Approved ${kind} workflow is missing. Export it in API format to workflows/${kind}-api.json.`);
-  const template = JSON.parse(fs.readFileSync(source, 'utf8'));
-  const checkpoints = await comfyClient.checkpoints();
-  const checkpoint = checkpoints.find(name => /juggernaut.*xl.*v9/i.test(name)) || checkpoints.find(name => /juggernaut.*xl/i.test(name)) || 'sd_xl_base_1.0.safetensors';
-  const rawPrompt = kind === 'upscale' ? 'Deterministic image upscale' : String(payload?.prompt || '').replace(/^prompt\s+/i, '').trim();
-  const workflow = cloneAndFillWorkflow(template, {
-    ...(payload || {}),
-    prompt: rawPrompt,
-    negativePrompt: String(payload?.negativePrompt || ''),
-    sourceImage,
-    checkpoint
-  });
-  const queued = await comfyClient.submit(workflow);
-  auditToolEvent({ id: 'media.generate_local', outcome: 'queued', detail: `${kind}:${queued.promptId}` });
-  const history = await comfyClient.wait(queued.promptId);
-  const artifacts = await comfyClient.download(history, queued.promptId);
-  auditToolEvent({ id: 'media.generate_local', outcome: 'success', detail: `${kind}:${artifacts.length} artifact(s)` });
-  return { kind, promptId: queued.promptId, sessionId: String(payload?.sessionId || require('crypto').randomUUID()), revised: workflowKind === 'image-revision', artifacts: artifacts.map(item => ({ ...item, path: generatedRelativePath(item.filename) })) };
+  emitMediaJob(created.job);
+  return executeMediaJob(created.job.requestId);
 }
 
 async function executeAgentTool(id, input) {
@@ -659,6 +718,44 @@ secureHandle('set-tool-approval', (_event, payload) => { toolApprovals = setTool
 secureHandle('execute-local-tool', (_event, payload) => executeLocalTool(payload?.id));
 secureHandle('generate-local-media', (_event, payload) => generateLocalMedia(payload));
 secureHandle('list-generated-media', (_event, payload) => listGeneratedArtifacts(payload?.limit));
+secureHandle('media-job-list', (_event, payload) => mediaJobLedger.list(payload?.limit));
+secureHandle('media-job-get', (_event, payload) => mediaJobLedger.get(payload?.requestId));
+secureHandle('media-catalog', async () => ({ checkpoints: comfyClient ? await comfyClient.checkpoints() : [], workflows: workflowRegistry.list() }));
+secureHandle('media-job-cancel', async (_event, payload) => {
+  requireToolApproval('media.generate_local');
+  const requestId = String(payload?.requestId || '');
+  const active = activeMediaJobs.get(requestId);
+  if (!active) {
+    const job = mediaJobLedger.get(requestId);
+    if (!job) throw new Error('Media job was not found.');
+    if (['completed', 'failed', 'cancelled'].includes(job.status)) return job;
+    return updateMediaJob(requestId, { status: 'cancelled', stage: 'cancelled', error: 'Cancelled by operator before execution.' });
+  }
+  active.controller.abort(new Error('Cancelled by operator.'));
+  if (active.promptId) await comfyClient.cancel(active.promptId);
+  return mediaJobLedger.get(requestId);
+});
+secureHandle('media-job-retry', async (_event, payload) => {
+  requireToolApproval('media.generate_local');
+  const forked = mediaJobLedger.fork(String(payload?.requestId || ''), 'retry');
+  emitMediaJob(forked.job);
+  return executeMediaJob(forked.job.requestId);
+});
+secureHandle('media-job-duplicate', async (_event, payload) => {
+  requireToolApproval('media.generate_local');
+  const forked = mediaJobLedger.fork(String(payload?.requestId || ''), 'duplicate');
+  emitMediaJob(forked.job);
+  return executeMediaJob(forked.job.requestId);
+});
+secureHandle('media-job-resume', async (_event, payload) => {
+  requireToolApproval('media.generate_local');
+  const requestId = String(payload?.requestId || '');
+  const job = mediaJobLedger.get(requestId);
+  if (!job) throw new Error('Media job was not found.');
+  if (!['recoverable', 'failed', 'cancelled'].includes(job.status)) throw new Error('Only interrupted, failed, or cancelled jobs can be resumed.');
+  updateMediaJob(requestId, { status: 'queued', stage: 'queue', progress: 0, completedAt: null, attempt: Number(job.attempt || 1) + 1 });
+  return executeMediaJob(requestId);
+});
 secureHandle('reference-studio-state', () => referenceStudio.read());
 secureHandle('reference-studio-save-project', (_event, payload) => referenceStudio.saveProject(payload));
 secureHandle('reference-studio-save-shot', (_event, payload) => referenceStudio.saveShot(String(payload?.projectId || ''), payload?.shot));
@@ -707,6 +804,20 @@ secureHandle('open-artifact', async (_event, relativePath) => {
   const result = await shell.openPath(artifactPath);
   if (result) throw new Error('The artifact could not be opened.');
   return true;
+});
+secureHandle('reveal-artifact', async (_event, relativePath) => {
+  const artifactPath = resolveArtifactPath(relativePath);
+  if (!artifactPath) throw new Error('That artifact is unavailable.');
+  shell.showItemInFolder(artifactPath);
+  return true;
+});
+secureHandle('artifact-metadata', (_event, relativePath) => {
+  const artifactPath = resolveArtifactPath(relativePath);
+  if (!artifactPath) throw new Error('That artifact is unavailable.');
+  const relative = generatedRelativePath(path.basename(artifactPath));
+  const job = mediaJobLedger.list(500).find(item => item.artifacts?.some(artifact => artifact.path === relative));
+  const stat = fs.statSync(artifactPath);
+  return { filename: path.basename(artifactPath), path: relative, bytes: stat.size, modifiedAt: stat.mtime.toISOString(), sha256: require('crypto').createHash('sha256').update(fs.readFileSync(artifactPath)).digest('hex'), job: job || null };
 });
 secureHandle('preview-artifact', (_event, relativePath) => {
   const artifactPath = resolveArtifactPath(relativePath);
