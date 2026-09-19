@@ -9,6 +9,6 @@ const approved = setToolApproval({}, 'voice.transcribe_microphone', true);
 assert.equal(isToolApproved(approved, 'voice.transcribe_microphone'), true);
 assert.throws(() => setToolApproval({}, 'unknown.tool', true), /not user-approvable/);
 assert.throws(() => setToolApproval({}, 'voice.transcribe_microphone', 'yes'), /boolean/);
-assert.deepEqual(normalizeApprovals({ unknown: true, 'voice.transcribe_microphone': true }), { 'diagnostics.git_status': false, 'files.attach_local_text': false, 'voice.transcribe_microphone': true, 'chat.send_to_configured_provider': false });
+assert.deepEqual(normalizeApprovals({ unknown: true, 'voice.transcribe_microphone': true }), { 'diagnostics.git_status': false, 'files.attach_local_text': false, 'voice.transcribe_microphone': true, 'chat.send_to_configured_provider': false, 'media.generate_local': false, 'agents.run_bounded_plan': false });
 assert.equal(isToolApproved({}, 'diagnostics.git_status'), false);
 assert.equal(isToolApproved(setToolApproval({}, 'diagnostics.git_status', true), 'diagnostics.git_status'), true);

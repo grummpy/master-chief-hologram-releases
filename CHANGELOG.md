@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.0 — 2026-09-19
+
+- Added a private-LAN-only ComfyUI connector for one-prompt image and video jobs.
+- Added reviewed API-workflow boundaries, artifact hashing, and local output storage.
+- Added connector health telemetry and `/image`, `/video`, and `/agent diagnostics` prompt routes.
+- Added a bounded agent runner with allowlisted tools, eight-step/two-minute limits, and layered approvals.
+- Added a Windows ComfyUI bootstrap script that installs the framework without guessing or downloading model weights.
+- Added the researched creative-agent architecture, acceptance gates, licensing boundaries, and upgrade backlog.
+- Added fixture coverage for URL containment, workflow substitution, queue/poll/download, artifact hashing, agent limits, and approvals.
+
 ## 1.0.6
 
 - Throttled optional 3D hologram rendering to reduce steady GPU and renderer load.

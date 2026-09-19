@@ -1,6 +1,6 @@
 # Implementation Status
 
-Version 1.3 · 2026-09-12
+Version 1.3.0 · 2026-09-19
 
 ## Completed in the current increments
 
@@ -30,11 +30,15 @@ Version 1.3 · 2026-09-12
 - The microphone flow requests macOS access before browser capture, reports denied/restricted access plainly, and opens the macOS Microphone privacy pane for recovery. The bundle explicitly declares why it needs microphone access. Offline whisper.cpp with the English base model is installed in Application Support; microphone audio never falls back to paid cloud transcription automatically.
 - The hologram stage has an optional local Three.js WebGL scene with an original low-poly seated command companion and chair. It responds to pointer movement, command states, and clicks; the 2D state artwork remains the persistent fallback. The companion is a code-built interactive prototype, not a flat image presented as a 3D model.
 - Separate PAPM plans now baseline graphics/3D, local-AI-first operation, and army skills/training. Local Ollama is the recommended route for lightweight prompts; Apache Spark is not part of the interactive runtime and is only a future owner-operated LAN batch option.
+- The one-prompt creative route recognizes `/image` and `/video`, invokes only an approved ComfyUI API workflow on a configured private-LAN worker, downloads the result into `artifacts/generated`, and records a SHA-256 hash. It never chooses a cloud fallback.
+- The connector panel exposes ComfyUI readiness. Missing worker inventory and missing reviewed workflows are explicit blocking states rather than guessed installations.
+- The bounded agent executor accepts typed plans of at most eight allowlisted steps and two minutes. Agent approval and each underlying tool approval are enforced in the Electron main process; arbitrary shell commands and arbitrary URLs remain unavailable.
+- A Windows PowerShell bootstrap installs the official ComfyUI framework without model weights. Live image/video selection remains gated on Windows GPU model, VRAM, disk, IP, workflow, and license inventory.
 
 ## Evidence
 
-`npm test` passes (run the current suite before release). JavaScript syntax checks and `git diff --check` pass. `npm run dist:mac` produces `dist/mac-arm64`; `npm run launch:mac` updates and launches the Desktop bundle. Live UI inspection must confirm provider choices, ATTACH, MIC, Transmit, command palette, and tool-access scope/risk labels.
+`npm test` passes 39/39. Asset and visual-contract gates pass. JavaScript syntax checks, package inspection, and `git diff --check` pass. `npm run dist:mac` produces `dist/mac-arm64`. Live UI inspection confirmed v1.3.0, ComfyUI status, the prompt help, and both new approvals. The npm advisory endpoint returned HTTP 503 maintenance during this release run, so the dependency advisory check is recorded as temporarily unverified rather than passed.
 
 ## Next critical path
 
-Signed/notarized distribution, real end-to-end audio fixtures, packaged whisper.cpp models, higher-fidelity local embeddings, full MCP execution adapters, and automated visual regression. The visual regression gate is now automated; signing/notarization remains blocked on a Developer ID Application certificate, and physical microphone acceptance needs target-device evidence. Provider completion, including Hugging Face configuration, is deferred by current direction.
+Capture the Windows GPU inventory, reserve its LAN address, restrict Windows Firewall port 8188 to the controller, select licensed image/video models, export reviewed API workflows, and run real GPU fixtures. Then add progress/cancellation, Comfy API v2 durability, ElevenLabs TTS, and adversarial evaluation before allowing a language model to author agent plans. Signed/notarized distribution remains blocked on a Developer ID Application certificate.

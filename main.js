@@ -29,6 +29,9 @@ const { voiceSelfTest } = require('./voice-diagnostics');
 const { discoverModels, buildVoiceSetup } = require('./voice-installation');
 const { loadLocalAiManifest, primaryInstalledModel } = require('./local-ai-manifest');
 const { createLocalAiAudit } = require('./local-ai-audit');
+const { getConnectorRegistry } = require('./connector-registry');
+const { cloneAndFillWorkflow, createComfyUiClient } = require('./comfyui-client');
+const { runAgentPlan } = require('./agent-runner');
 const localAiManifest = loadLocalAiManifest(path.join(__dirname, 'local-ai-manifest.json'));
 
 let mainWindow;
@@ -38,6 +41,10 @@ let credentialStore;
 function credentials() { return credentialStore || (credentialStore = createCredentialStore({ safeStorage, filePath: path.join(app.getPath('userData'), 'credentials.json') })); }
 let activeAbortController = null;
 let toolApprovals;
+const comfyBaseUrl = String(process.env.COMFYUI_BASE_URL || '').trim();
+const generatedArtifactDir = path.join(__dirname, 'artifacts', 'generated');
+let comfyClient = null;
+try { if (comfyBaseUrl) comfyClient = createComfyUiClient({ baseUrl: comfyBaseUrl, artifactDir: generatedArtifactDir }); } catch { comfyClient = null; }
 function approvalFile() { return path.join(app.getPath('userData'), 'tool-approvals.json'); }
 function loadToolApprovals() { if (toolApprovals) return toolApprovals; try { toolApprovals = normalizeApprovals(JSON.parse(fs.readFileSync(approvalFile(), 'utf8'))); } catch { toolApprovals = normalizeApprovals({}); } return toolApprovals; }
 function saveToolApprovals() { fs.mkdirSync(path.dirname(approvalFile()), { recursive: true }); fs.writeFileSync(approvalFile(), JSON.stringify(loadToolApprovals(), null, 2), { mode: 0o600 }); }
@@ -150,6 +157,7 @@ async function providerStatus() {
     ,huggingface: { state: 'missing', label: 'Hugging Face endpoint not configured' }
     ,voice: { state: 'cloud', label: 'Voice · cloud transcription' }
     ,localAi: { state: 'missing', label: 'Local AI manifest has no installed primary model' }
+    ,comfyui: { state: comfyBaseUrl ? 'error' : 'missing', label: comfyBaseUrl ? 'ComfyUI · invalid configuration' : 'ComfyUI · worker not configured', detail: comfyBaseUrl ? 'COMFYUI_BASE_URL must be a private LAN URL.' : 'Add COMFYUI_BASE_URL after the Windows GPU inventory is complete.' }
   };
 
   const checks = [];
@@ -226,10 +234,39 @@ async function providerStatus() {
   else if (!voice.modelExists) status.voice = { state: 'missing', label: 'Voice · whisper model not found', detail: `Model path: ${voice.model}` };
   else if (!voice.ffmpeg) status.voice = { state: 'missing', label: 'Voice · install ffmpeg', detail: 'ffmpeg is required for browser audio conversion.' };
   else status.voice = { state: 'error', label: 'Voice · local ASR unavailable', detail: 'Use cloud transcription or complete local setup.' }; })());
+  if (comfyClient) checks.push((async () => { status.comfyui = await comfyClient.health(); })());
 
   await Promise.allSettled(checks);
 
   return status;
+}
+
+function workflowPath(kind) {
+  if (!['image', 'video'].includes(kind)) throw new Error('Media kind must be image or video.');
+  const configured = kind === 'image' ? process.env.COMFYUI_IMAGE_WORKFLOW : process.env.COMFYUI_VIDEO_WORKFLOW;
+  return path.resolve(configured || path.join(__dirname, 'workflows', `${kind}-api.json`));
+}
+
+async function generateLocalMedia(payload) {
+  requireToolApproval('media.generate_local');
+  if (!comfyClient) throw new Error('ComfyUI is not configured. Add its private-LAN URL to COMFYUI_BASE_URL.');
+  const kind = String(payload?.kind || '');
+  const source = workflowPath(kind);
+  if (!source.startsWith(path.resolve(__dirname) + path.sep) || !fs.existsSync(source)) throw new Error(`Approved ${kind} workflow is missing. Export it in API format to workflows/${kind}-api.json.`);
+  const template = JSON.parse(fs.readFileSync(source, 'utf8'));
+  const workflow = cloneAndFillWorkflow(template, payload || {});
+  const queued = await comfyClient.submit(workflow);
+  auditToolEvent({ id: 'media.generate_local', outcome: 'queued', detail: `${kind}:${queued.promptId}` });
+  const history = await comfyClient.wait(queued.promptId);
+  const artifacts = await comfyClient.download(history, queued.promptId);
+  auditToolEvent({ id: 'media.generate_local', outcome: 'success', detail: `${kind}:${artifacts.length} artifact(s)` });
+  return { kind, promptId: queued.promptId, artifacts: artifacts.map(item => ({ ...item, path: path.relative(__dirname, item.path) })) };
+}
+
+async function executeAgentTool(id, input) {
+  if (id === 'diagnostics.local_runtime' || id === 'diagnostics.git_status') return executeLocalTool(id);
+  if (id === 'media.generate_local') return generateLocalMedia(input);
+  throw new Error('Agent tool is not allowlisted.');
 }
 
 async function localWhisperConfig() {
@@ -517,6 +554,7 @@ function secureHandle(channel, handler) {
 secureHandle('provider-status', providerStatus);
 secureHandle('credential-status', () => credentials().status());
 secureHandle('model-catalog', modelCatalog);
+secureHandle('connector-status', async () => ({ connectors: getConnectorRegistry(), comfyui: comfyClient ? await comfyClient.health() : { state: 'missing', label: 'ComfyUI · worker not configured' } }));
 secureHandle('voice-self-test', async () => voiceSelfTest(await localWhisperConfig(), {
   name: 'command-reference.webm',
   contentType: 'audio/webm;codecs=opus',
@@ -530,6 +568,15 @@ secureHandle('tool-registry', () => getToolRegistry());
 secureHandle('tool-approvals', () => ({ approvals: { ...loadToolApprovals() }, registry: getToolRegistry() }));
 secureHandle('set-tool-approval', (_event, payload) => { toolApprovals = setToolApproval(loadToolApprovals(), String(payload?.id || ''), payload?.approved); saveToolApprovals(); return { approvals: { ...toolApprovals } }; });
 secureHandle('execute-local-tool', (_event, payload) => executeLocalTool(payload?.id));
+secureHandle('generate-local-media', (_event, payload) => generateLocalMedia(payload));
+secureHandle('run-agent-plan', (_event, payload) => {
+  requireToolApproval('agents.run_bounded_plan');
+  return runAgentPlan(payload, {
+    knownTools: ['diagnostics.local_runtime', 'diagnostics.git_status', 'media.generate_local'],
+    approved: id => isToolApproved(loadToolApprovals(), id),
+    execute: executeAgentTool
+  });
+});
 secureHandle('chat', (_event, payload) => { requireToolApproval('chat.send_to_configured_provider'); return routeChat(payload); });
 secureHandle('cancel-chat', () => { activeAbortController?.abort(); activeAbortController = null; activeChild?.kill('SIGTERM'); emitChatEvent('cancelled', {}); return true; });
 secureHandle('transcribe-audio', async (_event, payload) => {
