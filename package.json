@@ -50,7 +50,6 @@
       "local-ai-audit.js",
       "connector-registry.js",
       "comfyui-client.js",
-      "media-content-boundary.js",
       "reference-studio-store.js",
       "agent-runner.js",
       "artifact-links.js",
