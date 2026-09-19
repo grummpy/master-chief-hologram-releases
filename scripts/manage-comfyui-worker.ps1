@@ -100,13 +100,16 @@ WScript.Quit exitCode
 "@
     Set-Content -LiteralPath $vbsRunner -Value $vbsContent -Encoding ASCII
 
-    $taskAction = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument "//B //NoLogo `"$vbsRunner`""
-    $trigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
+    # A SYSTEM startup task runs without an open terminal and does not require a
+    # user to sign in. Delay briefly so Windows can initialize the GPU driver.
+    $taskAction = New-ScheduledTaskAction -Execute 'cmd.exe' -Argument "/d /c `"$cmdRunner`""
+    $trigger = New-ScheduledTaskTrigger -AtStartup
+    $trigger.Delay = 'PT30S'
     $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 5 -RestartInterval (New-TimeSpan -Minutes 1)
-    $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Limited
-    Register-ScheduledTask -TaskName $taskName -Action $taskAction -Trigger $trigger -Settings $settings -Principal $principal -Description 'Runs the private Master Chief ComfyUI GPU worker in the background at Windows sign-in.' -Force | Out-Null
+    $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+    Register-ScheduledTask -TaskName $taskName -Action $taskAction -Trigger $trigger -Settings $settings -Principal $principal -Description 'Runs the private Master Chief ComfyUI GPU worker in the background when Windows boots.' -Force | Out-Null
     Write-Host "Installed background task: $taskName"
-    Write-Host 'It will start automatically at Windows sign-in without an open PowerShell window.'
+    Write-Host 'It will start automatically about 30 seconds after Windows boots, without sign-in or an open PowerShell window.'
     if (Test-WorkerHealth) {
       Write-Warning "Port $Port is already serving ComfyUI. Close the old foreground ComfyUI window, then run this script with -Action Restart."
     } else {

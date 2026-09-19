@@ -27,7 +27,9 @@ if ($existing -notcontains $publicKey) { Add-Content -LiteralPath $keyFile -Valu
 # Remove the broad installer-created inbound rule and allow only this Mac.
 Get-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -ErrorAction SilentlyContinue | Disable-NetFirewallRule
 Get-NetFirewallRule -DisplayName 'Master Chief SSH from Mac' -ErrorAction SilentlyContinue | Remove-NetFirewallRule
-New-NetFirewallRule -DisplayName 'Master Chief SSH from Mac' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 22 -RemoteAddress $controllerIp -Profile Private | Out-Null
+# Windows commonly classifies home Wi-Fi as Public. Keep the source locked to the
+# controller Mac while allowing the rule to work regardless of that classification.
+New-NetFirewallRule -DisplayName 'Master Chief SSH from Mac' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 22 -RemoteAddress $controllerIp -Profile Any | Out-Null
 
 Restart-Service sshd
 Write-Host 'Master Chief SSH is installed as an automatic Windows background service.'
