@@ -507,7 +507,7 @@ async function localWhisperConfig() {
     if (!bin) { try { bin = (await execFileAsync('which', ['main'], { timeout: 3000 })).stdout.trim(); } catch {} }
   }
   const modelDirectory = path.join(app.getPath('userData'), 'voice', 'models');
-  const discoveredModels = discoverModels(modelDirectory, { exists: fs.existsSync, readDir: fs.readdirSync });
+  const discoveredModels = discoverModels(modelDirectory, { exists: fs.existsSync, readDir: directory => fs.readdirSync(directory, { withFileTypes: true }) });
   const model = (process.env.WHISPER_CPP_MODEL || '').trim() || discoveredModels[0]?.path || '';
   let ffmpeg = '';
   try { ffmpeg = (await execFileAsync('which', ['ffmpeg'], { timeout: 3000 })).stdout.trim(); } catch {}
