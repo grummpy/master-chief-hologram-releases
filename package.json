@@ -69,6 +69,7 @@
       "hardenedRuntime": true,
       "extendInfo": {
         "NSMicrophoneUsageDescription": "Master Chief Hologram transcribes a command only after you press MIC.",
+        "NSLocalNetworkUsageDescription": "Master Chief Hologram connects to your private Windows ComfyUI worker to submit approved creative jobs and retrieve their results.",
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": false,
           "NSAllowsLocalNetworking": true,
