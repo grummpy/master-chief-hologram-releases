@@ -1,6 +1,6 @@
 # Master Chief Hologram system flow and UML
 
-Version: 1.0.3
+Version: 1.1.0
 
 Date: 2026-09-12
 
@@ -14,15 +14,18 @@ flowchart LR
   D --> E[Check providers]
   C --> F[Enter prompt]
   E --> F
-  F --> G{Selected route}
-  G -->|Codex Desktop| H[Authenticated Codex CLI]
+  F --> P{Capability approved?}
+  P -- No --> R[Tool access recovery]
+  P -- Yes --> G{Selected route}
+  G -->|Codex Desktop / cloud| Q[Per-command destination confirmation]
+  Q --> H[Authenticated Codex CLI]
   G -->|OpenAI API| I[OpenAI Responses API]
   G -->|Grok| J[xAI API]
   H --> K[Return answer]
   I --> K
   J --> K
   K --> L[Display answer and save local provider history]
-  H -. failure .-> M[Plain-language error]
+  H -. cancel/failure .-> M[Plain-language recovery]
   I -. failure .-> M
   J -. failure .-> M
 ```
@@ -44,6 +47,8 @@ classDiagram
   class MainProcess {
     +routeChat()
     +protectCredentials()
+    +enforceToolApproval()
+    +validateTrustedIPC()
     +enforceSingleInstance()
   }
   class CodexCLI

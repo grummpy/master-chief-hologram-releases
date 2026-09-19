@@ -41,6 +41,12 @@ let toolApprovals;
 function approvalFile() { return path.join(app.getPath('userData'), 'tool-approvals.json'); }
 function loadToolApprovals() { if (toolApprovals) return toolApprovals; try { toolApprovals = normalizeApprovals(JSON.parse(fs.readFileSync(approvalFile(), 'utf8'))); } catch { toolApprovals = normalizeApprovals({}); } return toolApprovals; }
 function saveToolApprovals() { fs.mkdirSync(path.dirname(approvalFile()), { recursive: true }); fs.writeFileSync(approvalFile(), JSON.stringify(loadToolApprovals(), null, 2), { mode: 0o600 }); }
+function requireToolApproval(id) {
+  if (!isToolApproved(loadToolApprovals(), id)) {
+    auditToolEvent({ id, outcome: 'denied', detail: 'approval required' });
+    throw new Error(`Approve ${id} in Tool access before using it.`);
+  }
+}
 const ragIndex = createRagIndex(path.join(app.getPath('userData'), 'local-index.json'));
 const localTools = createLocalToolExecutor({ appVersion: APP_VERSION, projectDir: __dirname, execFile: execFileAsync });
 const localAiAudit = createLocalAiAudit(path.join(app.getPath('userData'), 'local-ai-audit.jsonl'));
@@ -94,13 +100,13 @@ function showWindow() {
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 440,
-    height: 800,
-    minWidth: 380,
-    minHeight: 640,
+    width: 1120,
+    height: 760,
+    minWidth: 760,
+    minHeight: 600,
     frame: false,
     transparent: false,
-    alwaysOnTop: true,
+    alwaysOnTop: false,
     resizable: true,
     hasShadow: true,
     backgroundColor: '#06111e',
@@ -146,18 +152,19 @@ async function providerStatus() {
     ,localAi: { state: 'missing', label: 'Local AI manifest has no installed primary model' }
   };
 
-  if (fs.existsSync(CODEX_BIN)) {
+  const checks = [];
+  if (fs.existsSync(CODEX_BIN)) checks.push((async () => {
     try {
       const { stdout } = await execFileAsync(CODEX_BIN, ['--version'], { timeout: 10000 });
       status.codex = { state: 'ready', label: stdout.trim() || 'Codex ready' };
-    } catch (error) {
+    } catch {
       status.codex = { state: 'error', label: 'Codex could not start' };
     }
-  }
+  })());
 
   const store = credentials(); store.migrate('openai', 'OPENAI_API_KEY'); store.migrate('xai', 'XAI_API_KEY'); store.migrate('github', 'GITHUB_TOKEN'); status.credentials = store.status();
   const openaiKey = store.get('openai', 'OPENAI_API_KEY');
-  if (validSecret(openaiKey, /^sk-[^\s]{12,}$/)) {
+  if (validSecret(openaiKey, /^sk-[^\s]{12,}$/)) checks.push((async () => {
     const result = await checkJson('https://api.openai.com/v1/models', {
       Authorization: `Bearer ${openaiKey}`
     });
@@ -166,10 +173,10 @@ async function providerStatus() {
       : result.response.ok
         ? { state: 'ready', label: 'OpenAI authenticated' }
         : { state: 'error', label: result.response.status === 401 ? 'OpenAI key invalid' : `OpenAI error ${result.response.status}` };
-  }
+  })());
 
   const xaiKey = store.get('xai', 'XAI_API_KEY');
-  if (validSecret(xaiKey, /^xai-[^\s]{12,}$/)) {
+  if (validSecret(xaiKey, /^xai-[^\s]{12,}$/)) checks.push((async () => {
     const result = await checkJson('https://api.x.ai/v1/models', {
       Authorization: `Bearer ${xaiKey}`
     });
@@ -178,10 +185,10 @@ async function providerStatus() {
       : result.response.ok
         ? { state: 'ready', label: 'Grok authenticated' }
         : { state: 'error', label: result.response.status === 401 ? 'Grok key invalid' : `Grok error ${result.response.status}` };
-  }
+  })());
 
   const githubToken = store.get('github', 'GITHUB_TOKEN');
-  if (githubToken) {
+  if (githubToken) checks.push((async () => {
     const result = await checkJson('https://api.github.com/user', {
       Authorization: `Bearer ${githubToken}`,
       Accept: 'application/vnd.github+json',
@@ -193,32 +200,34 @@ async function providerStatus() {
       : result.response.ok
         ? { state: 'ready', label: `GitHub: ${result.body.login}` }
         : { state: 'error', label: 'GitHub token invalid' };
-  }
+  })());
 
   const ollamaUrl = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
-  const ollama = await checkJson(`${ollamaUrl}/api/tags`);
+  checks.push((async () => { const ollama = await checkJson(`${ollamaUrl}/api/tags`);
   if (!ollama.error && ollama.response.ok) {
     const names = Array.isArray(ollama.body.models) ? ollama.body.models.map(model => String(model.name || model.model || '')).filter(Boolean) : [];
     const primary = primaryInstalledModel(localAiManifest, names);
     const count = names.length;
     status.ollama = { state: 'ready', label: primary ? `Ollama · ${primary.id} · local first` : `Ollama · ${count} model${count === 1 ? '' : 's'}` };
     if (primary) status.localAi = { state: 'ready', label: `Local AI · ${primary.tier} · ${primary.id}`, detail: 'Local-only routing; cloud fallback requires explicit selection.' };
-  } else if (process.env.OLLAMA_BASE_URL) status.ollama = { state: 'error', label: 'Ollama connection error' };
+  } else if (process.env.OLLAMA_BASE_URL) status.ollama = { state: 'error', label: 'Ollama connection error' }; })());
 
   const hfUrl = (process.env.HF_BASE_URL || '').replace(/\/$/, '');
   const hfKey = (process.env.HF_API_KEY || '').trim();
-  if (hfUrl && hfKey) {
+  if (hfUrl && hfKey) checks.push((async () => {
     const hf = await checkJson(`${hfUrl}/models`, { Authorization: `Bearer ${hfKey}` });
     status.huggingface = hf.error ? { state: 'error', label: 'Hugging Face network error' } : hf.response.ok ? { state: 'ready', label: 'Hugging Face endpoint ready' } : { state: 'error', label: `Hugging Face error ${hf.response.status}` };
-  }
+  })());
 
-  const voice = await localWhisperConfig();
+  checks.push((async () => { const voice = await localWhisperConfig();
   if (voice.ready) status.voice = { state: 'ready', label: `Voice · local whisper.cpp (${path.basename(voice.bin)})`, detail: 'Offline ASR ready.' };
   else if (!voice.bin) status.voice = { state: 'unavailable', label: 'Voice · offline setup required', detail: 'Open Systems and choose Offline voice setup for local installation steps.' };
   else if (!voice.model) status.voice = { state: 'missing', label: 'Voice · choose a whisper model', detail: `Add a GGML model to ${voice.modelDirectory}, or set WHISPER_CPP_MODEL.` };
   else if (!voice.modelExists) status.voice = { state: 'missing', label: 'Voice · whisper model not found', detail: `Model path: ${voice.model}` };
   else if (!voice.ffmpeg) status.voice = { state: 'missing', label: 'Voice · install ffmpeg', detail: 'ffmpeg is required for browser audio conversion.' };
-  else status.voice = { state: 'error', label: 'Voice · local ASR unavailable', detail: 'Use cloud transcription or complete local setup.' };
+  else status.voice = { state: 'error', label: 'Voice · local ASR unavailable', detail: 'Use cloud transcription or complete local setup.' }; })());
+
+  await Promise.allSettled(checks);
 
   return status;
 }
@@ -239,7 +248,8 @@ async function localWhisperConfig() {
   if (!ffmpeg) for (const candidate of ['/opt/homebrew/bin/ffmpeg', '/usr/local/bin/ffmpeg']) if (fs.existsSync(candidate)) { ffmpeg = candidate; break; }
   const binExists = Boolean(bin && fs.existsSync(bin));
   const modelExists = Boolean(model && fs.existsSync(model));
-  return { bin: binExists ? bin : '', model, modelExists, ffmpeg: Boolean(ffmpeg && fs.existsSync(ffmpeg)), ready: Boolean(binExists && modelExists && ffmpeg), modelDirectory, discoveredModels };
+  const ffmpegPath = ffmpeg && fs.existsSync(ffmpeg) ? ffmpeg : '';
+  return { bin: binExists ? bin : '', model, modelExists, ffmpeg: ffmpegPath, ready: Boolean(binExists && modelExists && ffmpegPath), modelDirectory, discoveredModels };
 }
 
 async function transcribeWithWhisper(bytes, contentType) {
@@ -253,7 +263,7 @@ async function transcribeWithWhisper(bytes, contentType) {
     // MediaRecorder generally produces WebM/MP4; use an already-installed ffmpeg only when needed.
     let audioFile = input;
     if (contentType !== 'audio/wav' && contentType !== 'audio/x-wav') {
-      try { await execFileAsync('ffmpeg', ['-y', '-i', input, '-ar', '16000', '-ac', '1', '-f', 'wav', wav], { timeout: 30000 }); audioFile = wav; }
+      try { await execFileAsync(config.ffmpeg, ['-y', '-i', input, '-ar', '16000', '-ac', '1', '-f', 'wav', wav], { timeout: 30000 }); audioFile = wav; }
       catch { return null; }
     }
     const result = await execFileAsync(config.bin, ['-m', config.model, '-f', audioFile, '-np'], { timeout: 120000, maxBuffer: 1024 * 1024 });
@@ -281,6 +291,19 @@ function conversationText(messages) {
     const speaker = message.role === 'assistant' ? 'MASTER CHIEF' : 'COMMANDER';
     return `${speaker}: ${String(message.content).slice(0, 8000)}`;
   }).join('\n\n');
+}
+
+async function chatFetch(url, options = {}, timeoutMs = 300000) {
+  const controller = new AbortController();
+  activeAbortController?.abort();
+  activeAbortController = controller;
+  const timer = setTimeout(() => controller.abort(new Error('Provider request timed out.')), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+    if (activeAbortController === controller) activeAbortController = null;
+  }
 }
 
 function runCodex(args) {
@@ -335,14 +358,13 @@ async function callOpenAI({ messages, masterMode }) {
   const systemPrompt = masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy; route complex work through planning, specialists, implementation, and verification. Store durable artifacts in docs/, artifacts/, or exports/ and cite existing ones as [label](artifact:docs/file.md).' : 'You are a clear, helpful desktop AI assistant.';
   const key = credentials().get('openai', 'OPENAI_API_KEY');
   if (!validSecret(key, /^sk-[^\s]{12,}$/)) throw new Error('A valid OPENAI_API_KEY is missing from .env.');
-  const response = await fetch('https://api.openai.com/v1/responses', {
+  const response = await chatFetch('https://api.openai.com/v1/responses', {
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'gpt-5.6-sol', instructions: systemPrompt,
       input: messages.slice(-16), max_output_tokens: 1600
-    }),
-    signal: AbortSignal.timeout(300000)
+    })
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error?.message || `OpenAI error ${response.status}`);
@@ -379,17 +401,16 @@ async function streamCompatible({ url, key, model, messages, systemPrompt, label
 
 async function callGrok({ messages, masterMode }) {
   const systemPrompt = masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy; route complex work through planning, specialists, implementation, and verification.' : 'You are a clear, helpful desktop AI assistant.';
-  const key = (process.env.XAI_API_KEY || '').trim();
+  const key = credentials().get('xai', 'XAI_API_KEY');
   if (!validSecret(key, /^xai-[^\s]{12,}$/)) throw new Error('A valid XAI_API_KEY has not been added to .env.');
-  const response = await fetch('https://api.x.ai/v1/chat/completions', {
+  const response = await chatFetch('https://api.x.ai/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'grok-3',
       messages: [{ role: 'system', content: systemPrompt }, ...messages.slice(-16)],
       stream: false, temperature: 0.7
-    }),
-    signal: AbortSignal.timeout(300000)
+    })
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error?.message || `Grok error ${response.status}`);
@@ -401,7 +422,7 @@ async function callGrok({ messages, masterMode }) {
 async function callOllama({ messages, masterMode, model: requestedModel }) {
   const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
   const model = requestedModel || process.env.OLLAMA_MODEL || 'llama3.2';
-  const response = await fetch(`${base}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model, messages: [{ role: 'system', content: masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy. When an existing local repository artifact is useful, cite it as [label](artifact:docs/file.md); do not invent file creation.' : 'You are a clear, helpful desktop AI assistant.' }, ...messages.slice(-16)], stream: false }), signal: AbortSignal.timeout(300000) });
+  const response = await chatFetch(`${base}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model, messages: [{ role: 'system', content: masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy. When an existing local repository artifact is useful, cite it as [label](artifact:docs/file.md); do not invent file creation.' : 'You are a clear, helpful desktop AI assistant.' }, ...messages.slice(-16)], stream: false }) });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || `Ollama error ${response.status}`);
   const reply = body.message?.content;
@@ -414,7 +435,7 @@ async function callHuggingFace({ messages, masterMode, model: requestedModel }) 
   const key = (process.env.HF_API_KEY || '').trim();
   const model = requestedModel || process.env.HF_MODEL || 'HuggingFaceH4/zephyr-7b-beta';
   if (!base || !key) throw new Error('HF_BASE_URL and HF_API_KEY are missing from .env.');
-  const response = await fetch(`${base}/chat/completions`, { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model, messages: [{ role: 'system', content: masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy.' : 'You are a clear, helpful desktop AI assistant.' }, ...messages.slice(-16)], stream: false }), signal: AbortSignal.timeout(300000) });
+  const response = await chatFetch(`${base}/chat/completions`, { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model, messages: [{ role: 'system', content: masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy.' : 'You are a clear, helpful desktop AI assistant.' }, ...messages.slice(-16)], stream: false }) });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error?.message || body.error || `Hugging Face error ${response.status}`);
   const reply = body.choices?.[0]?.message?.content;
@@ -452,10 +473,16 @@ if (!gotLock) {
   app.whenReady().then(() => {
     createWindow();
     // Grant Chromium's microphone request after the window/session exists.
-    mainWindow.webContents.session.setPermissionRequestHandler((_webContents, permission, callback) => {
-      callback(permission === 'media' || permission === 'audioCapture');
+    mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback, details) => {
+      const trusted = webContents === mainWindow.webContents && String(details?.requestingUrl || '').startsWith('file://');
+      const mediaTypes = Array.isArray(details?.mediaTypes) ? details.mediaTypes : ['audio'];
+      const audioOnly = mediaTypes.includes('audio') && !mediaTypes.includes('video');
+      callback(Boolean(trusted && audioOnly && (permission === 'media' || permission === 'audioCapture') && isToolApproved(loadToolApprovals(), 'voice.transcribe_microphone')));
     });
-    mainWindow.webContents.session.setPermissionCheckHandler((_webContents, permission) => permission === 'media' || permission === 'audioCapture');
+    mainWindow.webContents.session.setPermissionCheckHandler((webContents, permission, _origin, details) => {
+      const requestingUrl = String(details?.requestingUrl || details?.embeddingOrigin || 'file://');
+      return Boolean(webContents === mainWindow.webContents && requestingUrl.startsWith('file://') && (permission === 'media' || permission === 'audioCapture') && isToolApproved(loadToolApprovals(), 'voice.transcribe_microphone'));
+    });
     const image = nativeImage.createFromPath(path.join(__dirname, 'assets', 'icon.png'));
     const trayIcon = image.isEmpty() ? nativeImage.createEmpty() : image.resize({ width: 16, height: 16 });
     tray = new Tray(trayIcon);
@@ -476,44 +503,58 @@ app.on('activate', () => {
   showWindow();
 });
 
-ipcMain.handle('provider-status', providerStatus);
-ipcMain.handle('credential-status', () => credentials().status());
-ipcMain.handle('model-catalog', modelCatalog);
-ipcMain.handle('voice-self-test', async () => voiceSelfTest(await localWhisperConfig(), {
+function trustedIpc(event) {
+  const frame = event?.senderFrame;
+  return Boolean(mainWindow && event.sender === mainWindow.webContents && frame === mainWindow.webContents.mainFrame && String(frame.url || '').startsWith('file://'));
+}
+function secureHandle(channel, handler) {
+  ipcMain.handle(channel, (event, ...args) => {
+    if (!trustedIpc(event)) throw new Error('Untrusted application request blocked.');
+    return handler(event, ...args);
+  });
+}
+
+secureHandle('provider-status', providerStatus);
+secureHandle('credential-status', () => credentials().status());
+secureHandle('model-catalog', modelCatalog);
+secureHandle('voice-self-test', async () => voiceSelfTest(await localWhisperConfig(), {
   name: 'command-reference.webm',
   contentType: 'audio/webm;codecs=opus',
   bytes: 4800,
   expectedTranscript: 'Master Chief, run diagnostics.'
 }));
-ipcMain.handle('voice-setup', async () => buildVoiceSetup(await localWhisperConfig()));
-ipcMain.handle('request-microphone-access', requestMicrophoneAccess);
-ipcMain.handle('open-microphone-settings', async () => shell.openExternal(MICROPHONE_SETTINGS_URL));
-ipcMain.handle('tool-registry', () => getToolRegistry());
-ipcMain.handle('tool-approvals', () => ({ approvals: { ...loadToolApprovals() }, registry: getToolRegistry() }));
-ipcMain.handle('set-tool-approval', (_event, payload) => { toolApprovals = setToolApproval(loadToolApprovals(), String(payload?.id || ''), payload?.approved); saveToolApprovals(); return { approvals: { ...toolApprovals } }; });
-ipcMain.handle('execute-local-tool', (_event, payload) => executeLocalTool(payload?.id));
-ipcMain.handle('chat', (_event, payload) => routeChat(payload));
-ipcMain.handle('cancel-chat', () => { activeAbortController?.abort(); activeAbortController = null; activeChild?.kill('SIGTERM'); emitChatEvent('cancelled', {}); return true; });
-ipcMain.handle('transcribe-audio', async (_event, payload) => {
+secureHandle('voice-setup', async () => buildVoiceSetup(await localWhisperConfig()));
+secureHandle('request-microphone-access', () => { requireToolApproval('voice.transcribe_microphone'); return requestMicrophoneAccess(); });
+secureHandle('open-microphone-settings', async () => shell.openExternal(MICROPHONE_SETTINGS_URL));
+secureHandle('tool-registry', () => getToolRegistry());
+secureHandle('tool-approvals', () => ({ approvals: { ...loadToolApprovals() }, registry: getToolRegistry() }));
+secureHandle('set-tool-approval', (_event, payload) => { toolApprovals = setToolApproval(loadToolApprovals(), String(payload?.id || ''), payload?.approved); saveToolApprovals(); return { approvals: { ...toolApprovals } }; });
+secureHandle('execute-local-tool', (_event, payload) => executeLocalTool(payload?.id));
+secureHandle('chat', (_event, payload) => { requireToolApproval('chat.send_to_configured_provider'); return routeChat(payload); });
+secureHandle('cancel-chat', () => { activeAbortController?.abort(); activeAbortController = null; activeChild?.kill('SIGTERM'); emitChatEvent('cancelled', {}); return true; });
+secureHandle('transcribe-audio', async (_event, payload) => {
+  requireToolApproval('voice.transcribe_microphone');
   const bytes = Buffer.from(payload?.audio || []);
   if (!bytes.length) throw new Error('No microphone audio was captured.');
   const contentType = String(payload?.type || 'audio/webm').split(';')[0].toLowerCase();
+  if (!['audio/webm', 'audio/mp4', 'audio/ogg', 'audio/wav', 'audio/x-wav'].includes(contentType)) throw new Error('Unsupported microphone audio format.');
+  if (bytes.length > 12 * 1024 * 1024) throw new Error('Microphone recording is too large (12 MB limit).');
   const localText = await transcribeWithWhisper(bytes, contentType);
   if (localText) return localText;
   throw new Error('Local offline transcription did not return text. Check Systems for local whisper.cpp readiness, then retry; no paid transcription provider was used.');
 });
-ipcMain.handle('index-document', (_event, payload) => ragIndex.indexDocument(payload?.name, payload?.text));
-ipcMain.handle('remove-indexed-document', (_event, payload) => ragIndex.removeDocument(payload?.name));
-ipcMain.handle('search-index', (_event, payload) => ragIndex.search(payload?.query, payload));
-ipcMain.handle('index-stats', () => ragIndex.stats());
-ipcMain.handle('open-artifact', async (_event, relativePath) => {
+secureHandle('index-document', (_event, payload) => { requireToolApproval('files.attach_local_text'); return ragIndex.indexDocument(payload?.name, payload?.text); });
+secureHandle('remove-indexed-document', (_event, payload) => { requireToolApproval('files.attach_local_text'); return ragIndex.removeDocument(payload?.name); });
+secureHandle('search-index', (_event, payload) => { requireToolApproval('files.attach_local_text'); return ragIndex.search(payload?.query, payload); });
+secureHandle('index-stats', () => ragIndex.stats());
+secureHandle('open-artifact', async (_event, relativePath) => {
   const artifactPath = safeArtifactPath(__dirname, relativePath);
   if (!artifactPath || !fs.existsSync(artifactPath)) throw new Error('That artifact link is unavailable.');
   const result = await shell.openPath(artifactPath);
   if (result) throw new Error('The artifact could not be opened.');
   return true;
 });
-ipcMain.handle('window-action', (_event, action) => {
+secureHandle('window-action', (_event, action) => {
   if (action === 'minimize') mainWindow?.minimize();
   if (action === 'hide') mainWindow?.hide();
   if (action === 'toggle-top') {

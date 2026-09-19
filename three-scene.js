@@ -4,6 +4,7 @@ const canvas = document.getElementById('threeScene');
 const stage = document.getElementById('holoStage');
 let enabled = false, state = 'idle', pointerX = 0, pointerY = 0;
 let renderer, scene, camera, mascot, halo, clock;
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
 function setEnabled(value) {
   enabled = Boolean(value && renderer && mascot);
@@ -19,7 +20,7 @@ function init() {
     camera = new THREE.PerspectiveCamera(34, 1, .1, 100);
     camera.position.z = 4.4;
     clock = new THREE.Clock();
-    const texture = new THREE.TextureLoader().load('./assets/drive/original_mascot.png', undefined, undefined, () => setEnabled(false));
+    const texture = new THREE.TextureLoader().load('./assets/characters/command-officer-reference-v1.png', undefined, undefined, () => setEnabled(false));
     texture.colorSpace = THREE.SRGBColorSpace;
     mascot = new THREE.Mesh(new THREE.PlaneGeometry(2.45, 2.45), new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: .92, depthWrite: false }));
     halo = new THREE.Mesh(new THREE.RingGeometry(1.24, 1.28, 64), new THREE.MeshBasicMaterial({ color: 0x34dfff, transparent: true, opacity: .28, side: THREE.DoubleSide }));
@@ -28,7 +29,7 @@ function init() {
     const resize = () => { const rect = stage.getBoundingClientRect(); renderer.setSize(rect.width, rect.height, false); camera.aspect = rect.width / rect.height; camera.updateProjectionMatrix(); };
     new ResizeObserver(resize).observe(stage);
     resize();
-    stage.addEventListener('pointermove', event => { const rect = stage.getBoundingClientRect(); pointerX = ((event.clientX - rect.left) / rect.width - .5) * .28; pointerY = ((event.clientY - rect.top) / rect.height - .5) * .1; });
+    stage.addEventListener('pointermove', event => { if (reducedMotion.matches) return; const rect = stage.getBoundingClientRect(); pointerX = ((event.clientX - rect.left) / rect.width - .5) * .28; pointerY = ((event.clientY - rect.top) / rect.height - .5) * .1; });
     stage.addEventListener('pointerleave', () => { pointerX = 0; pointerY = 0; });
     render();
   } catch (error) {
@@ -42,14 +43,14 @@ function render() {
   // avoids keeping the GPU busy at the display's full refresh rate.
   setTimeout(() => requestAnimationFrame(render), 100);
   if (!renderer || !enabled || document.hidden) return;
-  const t = clock.getElapsedTime();
+  const t = reducedMotion.matches ? 0 : clock.getElapsedTime();
   mascot.rotation.y += (pointerX - mascot.rotation.y) * .04;
   mascot.rotation.x += (pointerY - mascot.rotation.x) * .04;
-  const activity = state === 'thinking' ? .05 : state === 'listening' ? .035 : .018;
+  const activity = reducedMotion.matches ? 0 : state === 'thinking' ? .05 : state === 'listening' ? .035 : .018;
   mascot.position.y = Math.sin(t * 1.25) * activity;
   const wave = state === 'wave' ? Math.sin(t * 4) * .035 : 0;
   mascot.rotation.z += (wave - mascot.rotation.z) * .1;
-  halo.rotation.z = t * .08;
+  halo.rotation.z = reducedMotion.matches ? 0 : t * .08;
   halo.material.opacity = state === 'thinking' ? .48 : .28;
   renderer.render(scene, camera);
 }

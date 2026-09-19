@@ -49,17 +49,28 @@ fi
 # Build into dist first, then replace the desktop bundle as one directory
 # operation.  Preserve the existing bundle if a build fails.
 if [[ "$UPDATE_RESULT" -eq 10 || ! -d "$APP_BUNDLE" ]] && [[ -x "$APP_DIR/node_modules/.bin/electron-builder" ]]; then
-  "$NPM_BIN" run dist:mac >>"$LOG_DIR/launcher.log" 2>&1 || true
-  if [[ -d "$BUILD_BUNDLE" ]]; then
-    STAGE_DIR="$(mktemp -d /tmp/master-chief-hologram-stage.XXXXXX)"
-    ditto "$BUILD_BUNDLE" "$STAGE_DIR/Master Chief Hologram.app"
-    if [[ -d "$APP_BUNDLE" ]]; then
-      mv "$APP_BUNDLE" "$DESKTOP_DIR/.Master Chief Hologram.app.previous" 2>/dev/null || true
-    fi
-    mv "$STAGE_DIR/Master Chief Hologram.app" "$APP_BUNDLE"
-    rm -rf "$STAGE_DIR"
-    rm -rf "$DESKTOP_DIR/.Master Chief Hologram.app.previous" 2>/dev/null || true
+  STAGE_DIR="$(mktemp -d /tmp/master-chief-hologram-stage.XXXXXX)"
+  PREVIOUS_BUNDLE="$DESKTOP_DIR/.Master Chief Hologram.app.previous"
+  trap 'rm -rf "$STAGE_DIR"; rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
+  "$NPM_BIN" test >>"$LOG_DIR/launcher.log" 2>&1
+  "$NPM_BIN" run test:assets >>"$LOG_DIR/launcher.log" 2>&1
+  "$NPM_BIN" run test:visual >>"$LOG_DIR/launcher.log" 2>&1
+  "$NPM_BIN" run dist:mac >>"$LOG_DIR/launcher.log" 2>&1
+  [[ -d "$BUILD_BUNDLE" ]] || { print 'Build completed without an app bundle.' >>"$LOG_DIR/launcher.log"; exit 1; }
+  "$NPM_BIN" run inspect:mac >>"$LOG_DIR/launcher.log" 2>&1
+  ditto "$BUILD_BUNDLE" "$STAGE_DIR/Master Chief Hologram.app"
+  rm -rf "$PREVIOUS_BUNDLE"
+  if [[ -d "$APP_BUNDLE" ]]; then mv "$APP_BUNDLE" "$PREVIOUS_BUNDLE"; fi
+  if ! mv "$STAGE_DIR/Master Chief Hologram.app" "$APP_BUNDLE"; then
+    [[ -d "$PREVIOUS_BUNDLE" ]] && mv "$PREVIOUS_BUNDLE" "$APP_BUNDLE"
+    exit 1
   fi
+  if ! open "$APP_BUNDLE" >>"$LOG_DIR/app.log" 2>&1; then
+    rm -rf "$APP_BUNDLE"
+    [[ -d "$PREVIOUS_BUNDLE" ]] && mv "$PREVIOUS_BUNDLE" "$APP_BUNDLE"
+    exit 1
+  fi
+  rm -rf "$PREVIOUS_BUNDLE"
 fi
 
 if [[ -d "$APP_BUNDLE" ]]; then

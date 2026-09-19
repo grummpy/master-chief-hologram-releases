@@ -1,6 +1,6 @@
 # Master Chief Hologram art provenance
 
-Version: 1.2
+Version: 1.3
 
 Date: 2026-09-12
 
@@ -28,9 +28,9 @@ Reference panel: `assets/characters/command-officer-reference-v1.png`
 
 Runtime scene: `three-scene.js`
 
-The reference panel is an original project-generated futuristic female command-officer portrait, recorded in `assets/visual-state-manifest.json`. It appears only as a translucent panel behind the real-time scene and does not represent a third-party character, franchise armor, or celebrity likeness.
+The reference panel is an original project-generated adult futuristic female command-officer portrait, recorded in `assets/visual-state-manifest.json`. In v1.1.0 it is the primary in-app Commander Nova portrait and the texture used by the optional interactive scene. It does not represent a third-party character, franchise armor, or celebrity likeness.
 
-The seated companion and command chair are original low-poly primitive geometry assembled at runtime in `three-scene.js`. They are rendered locally with Three.js 0.180.0 (`assets/vendor/three.module.min.js`, MIT). This is a WebGL interaction prototype: it is not a downloaded mesh, an image-to-3D conversion, or a final GLB character. The scene has a user-controlled 2D fallback and no network asset fetches.
+The interactive companion is a local WebGL plane using the approved Commander Nova portrait, rendered with Three.js 0.180.0 (`assets/vendor/three.module.min.js`, MIT). It is intentionally labeled Interactive/Static rather than 3D. It is not a downloaded mesh or final GLB character. The scene has a user-controlled static fallback, honors reduced-motion preferences, and performs no network asset fetches.
 
 ## Acceptance checks
 

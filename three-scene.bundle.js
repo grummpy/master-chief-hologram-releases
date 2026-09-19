@@ -9863,6 +9863,7 @@
   var mascot;
   var halo;
   var clock;
+  var reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   function setEnabled(value) {
     enabled = Boolean(value && renderer && mascot);
     canvas.hidden = !enabled;
@@ -9876,7 +9877,7 @@
       camera = new Kn(34, 1, 0.1, 100);
       camera.position.z = 4.4;
       clock = new uu();
-      const texture = new Tc().load("./assets/drive/original_mascot.png", void 0, void 0, () => setEnabled(false));
+      const texture = new Tc().load("./assets/characters/command-officer-reference-v1.png", void 0, void 0, () => setEnabled(false));
       texture.colorSpace = Ze;
       mascot = new Dn(new _l(2.45, 2.45), new sn({ map: texture, transparent: true, opacity: 0.92, depthWrite: false }));
       halo = new Dn(new Al(1.24, 1.28, 64), new sn({ color: 3465215, transparent: true, opacity: 0.28, side: p }));
@@ -9891,6 +9892,7 @@
       new ResizeObserver(resize).observe(stage);
       resize();
       stage.addEventListener("pointermove", (event) => {
+        if (reducedMotion.matches) return;
         const rect = stage.getBoundingClientRect();
         pointerX = ((event.clientX - rect.left) / rect.width - 0.5) * 0.28;
         pointerY = ((event.clientY - rect.top) / rect.height - 0.5) * 0.1;
@@ -9908,14 +9910,14 @@
   function render() {
     setTimeout(() => requestAnimationFrame(render), 100);
     if (!renderer || !enabled || document.hidden) return;
-    const t2 = clock.getElapsedTime();
+    const t2 = reducedMotion.matches ? 0 : clock.getElapsedTime();
     mascot.rotation.y += (pointerX - mascot.rotation.y) * 0.04;
     mascot.rotation.x += (pointerY - mascot.rotation.x) * 0.04;
-    const activity = state === "thinking" ? 0.05 : state === "listening" ? 0.035 : 0.018;
+    const activity = reducedMotion.matches ? 0 : state === "thinking" ? 0.05 : state === "listening" ? 0.035 : 0.018;
     mascot.position.y = Math.sin(t2 * 1.25) * activity;
     const wave = state === "wave" ? Math.sin(t2 * 4) * 0.035 : 0;
     mascot.rotation.z += (wave - mascot.rotation.z) * 0.1;
-    halo.rotation.z = t2 * 0.08;
+    halo.rotation.z = reducedMotion.matches ? 0 : t2 * 0.08;
     halo.material.opacity = state === "thinking" ? 0.48 : 0.28;
     renderer.render(scene, camera);
   }

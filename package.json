@@ -1,6 +1,6 @@
 {
   "name": "master-chief-hologram",
-  "version": "1.0.6",
+  "version": "1.1.0",
   "description": "Desktop holographic Master Chief AI companion – multi-model prompt runner",
   "main": "main.js",
   "scripts": {
@@ -10,6 +10,7 @@
     "build:manifest": "node scripts/generate-build-info.js",
     "inspect:mac": "node scripts/inspect-mac-package.js",
     "release:readiness": "zsh scripts/check-macos-release-readiness.sh",
+    "release:local": "npm test && npm run test:assets && npm run test:visual && npm audit --omit=dev && npm run dist:mac",
     "dist:mac": "npm run build:three && npm run build:manifest && electron-builder --mac dir && npm run inspect:mac",
     "launch:mac": "zsh scripts/launch-mac.sh",
     "test": "node --test tests/*.test.js",
@@ -48,6 +49,7 @@
       "local-ai-audit.js",
       "artifact-links.js",
       "build-info.json",
+      "LICENSE",
       "main.js",
       "preload.js",
       "renderer.js",
@@ -59,8 +61,23 @@
       "assets/**/*"
     ],
     "mac": {
+      "hardenedRuntime": true,
       "extendInfo": {
-        "NSMicrophoneUsageDescription": "Master Chief Hologram transcribes a command only after you press MIC."
+        "NSMicrophoneUsageDescription": "Master Chief Hologram transcribes a command only after you press MIC.",
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false,
+          "NSAllowsLocalNetworking": true,
+          "NSExceptionDomains": {
+            "localhost": {
+              "NSExceptionAllowsInsecureHTTPLoads": true,
+              "NSIncludesSubdomains": false
+            },
+            "127.0.0.1": {
+              "NSExceptionAllowsInsecureHTTPLoads": true,
+              "NSIncludesSubdomains": false
+            }
+          }
+        }
       },
       "category": "public.app-category.productivity",
       "target": [

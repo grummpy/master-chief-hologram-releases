@@ -1,6 +1,6 @@
 # Release checklist
 
-Version: 1.0.4 baseline  
+Version: 1.1.0 baseline
 Owner: Master Chief Hologram maintainers  
 Status: repeatable local release gate
 
@@ -10,8 +10,12 @@ Run these checks from the repository root before replacing the Desktop bundle:
 npm ci --ignore-scripts
 npm test
 npm run test:assets
+npm run test:visual
+npm audit --omit=dev
 node --check main.js
 node --check renderer.js
+node --check preload.js
+zsh -n scripts/launch-mac.sh
 git diff --check
 npm run dist:mac
 npm run inspect:mac
@@ -29,6 +33,10 @@ Release acceptance:
 - Tool access lists each capability's data scope and risk class; network, microphone, and attachment actions are disabled until explicitly approved.
 - Approval settings are stored in the app user-data directory with restrictive permissions and never in packaged assets.
 - `scripts/launch-mac.sh` preserves the current bundle if fetch, install, or build fails.
+- A cloud route displays its destination and requires a per-command confirmation.
+- Temporary attachment indexes are deleted after the request completes.
+- Cancellation aborts ordinary network requests as well as Codex child processes.
+- The minimum supported window keeps Transmit and recovery controls reachable; reduced motion stops companion movement.
 - Only `Master Chief Hologram.app` remains on the Desktop after a successful launch; prior bundles are not source artifacts.
 
 Evidence to retain in the release note: commit SHA, package version, test output, build target, signing state, and any skipped live microphone or network checks.

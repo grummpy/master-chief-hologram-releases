@@ -20,11 +20,11 @@ function jpegSize(file) {
 }
 if (manifest.version !== 1 || !Array.isArray(manifest.assets) || manifest.assets.length < 10) fail('invalid visual-state manifest');
 for (const asset of manifest.assets) { const file = path.join(root, asset.path); if (!fs.existsSync(file)) fail(`missing ${asset.path}`); if (hash(file) !== asset.sha256) fail(`${asset.path} differs from approved artwork`); const [width, height] = asset.path.endsWith('.png') ? pngSize(file) : jpegSize(file); if (width !== asset.width || height !== asset.height) fail(`${asset.path} dimensions changed to ${width}x${height}`); }
-for (const token of ['id="app"', 'id="holoStage"', 'id="holoImg"', 'id="threeScene"', 'id="visualModeBtn"', 'id="holoStatus"', 'id="micBtn"', 'id="sendBtn"', 'id="autocompleteList"', 'aria-live="polite"']) if (!html.includes(token)) fail(`index.html is missing ${token}`);
-for (const token of ['#app[data-theme=day]', '.holo-stage', '.holo-stage img', '#threeScene', '.three-active', 'object-fit:cover', '.holo-status', '.scanlines', '.autocomplete-list', '@media(prefers-reduced-motion:reduce)', 'button:focus-visible']) if (!css.includes(token)) fail(`styles.css is missing ${token}`);
-for (const name of ['night_idle.jpg', 'night_listening.jpg', 'night_thinking.jpg', 'night_speaking.jpg', 'night_success.jpg', 'night_alert.jpg', 'night_wave.jpg', 'day_idle.jpg', 'day_ready.jpg', 'day_thinking.jpg', 'day_wave.jpg', 'day_success.jpg']) if (!renderer.includes(name)) fail(`renderer state map no longer references ${name}`);
+for (const token of ['id="app"', 'id="holoStage"', 'id="holoImg"', 'id="threeScene"', 'id="visualModeBtn"', 'id="holoStatus"', 'id="micBtn"', 'id="sendBtn"', 'id="autocompleteList"', 'id="externalConsent"', 'id="residencyBadge"', 'role="log"']) if (!html.includes(token)) fail(`index.html is missing ${token}`);
+for (const token of ['#app[data-theme=day]', '.command-grid', '.holo-stage', '.holo-stage img', '#threeScene', '.three-active', 'object-fit:cover', '.holo-status', '.scanlines', '.autocomplete-list', '@media(prefers-reduced-motion:reduce)', 'button:focus-visible']) if (!css.includes(token)) fail(`styles.css is missing ${token}`);
+if (!renderer.includes('assets/characters/command-officer-reference-v1.png')) fail('renderer no longer references the approved Commander Nova asset');
 for (const token of ['masterChiefThreeD?.setState', 'masterChiefThreeD?.setEnabled', 'mcVisualMode']) if (!renderer.includes(token)) fail(`renderer.js is missing ${token}`);
 const scene = read('three-scene.js'); const bundledScene = read('three-scene.bundle.js');
-for (const token of ['THREE.WebGLRenderer', 'setEnabled', 'original_mascot.png', 'powerPreference: \'low-power\'']) if (!scene.includes(token)) fail(`three-scene.js is missing ${token}`);
-for (const token of ['WebGLRenderer', 'original_mascot.png']) if (!bundledScene.includes(token)) fail(`three-scene.bundle.js is missing ${token}`);
-console.log(`visual regression validation passed (${manifest.assets.length} approved assets; day/night state contract intact)`);
+for (const token of ['THREE.WebGLRenderer', 'setEnabled', 'command-officer-reference-v1.png', 'powerPreference: \'low-power\'', 'prefers-reduced-motion']) if (!scene.includes(token)) fail(`three-scene.js is missing ${token}`);
+for (const token of ['WebGLRenderer', 'command-officer-reference-v1.png']) if (!bundledScene.includes(token)) fail(`three-scene.bundle.js is missing ${token}`);
+console.log(`visual regression validation passed (${manifest.assets.length} approved assets; Midnight Command contract intact)`);
