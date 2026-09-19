@@ -80,6 +80,10 @@
             "127.0.0.1": {
               "NSExceptionAllowsInsecureHTTPLoads": true,
               "NSIncludesSubdomains": false
+            },
+            "192.168.4.31": {
+              "NSExceptionAllowsInsecureHTTPLoads": true,
+              "NSIncludesSubdomains": false
             }
           }
         }
