@@ -25,6 +25,14 @@ test('workflow filling changes only bounded template fields', () => {
   assert.equal(template['1'].inputs.text, '{{PROMPT}}');
 });
 
+test('prompt fields remain verbatim and reject overflow instead of truncating', () => {
+  const template = { '1': { inputs: { text: '{{PROMPT}}', negative: '{{NEGATIVE_PROMPT}}' } } };
+  const output = cloneAndFillWorkflow(template, { prompt: 'prompt keep this prefix', negativePrompt: '  keep negative spacing  ' });
+  assert.equal(output['1'].inputs.text, 'prompt keep this prefix');
+  assert.equal(output['1'].inputs.negative, '  keep negative spacing  ');
+  assert.throws(() => cloneAndFillWorkflow(template, { prompt: 'valid', negativePrompt: 'x'.repeat(4001) }), /4,000/);
+});
+
 test('revision strength supports a near-total redraw when explicitly requested', () => {
   const template = { '1': { inputs: { denoise: '{{DENOISE}}' } } };
   assert.equal(cloneAndFillWorkflow(template, { prompt: 'adult portrait', revisionStrength: 0.98 })['1'].inputs.denoise, 0.98);
@@ -42,7 +50,7 @@ test('client uploads revision context and requests GPU cache release', async () 
   const fetchImpl = async (url, options = {}) => {
     calls.push({ url, options });
     if (url.endsWith('/upload/image')) return new Response(JSON.stringify({ name: 'revision.png', type: 'input' }), { status: 200 });
-    if (url.endsWith('/free')) return new Response('{}', { status: 200 });
+    if (url.endsWith('/free') || url.endsWith('/queue') || url.endsWith('/interrupt')) return new Response('{}', { status: 200 });
     return new Response('', { status: 404 });
   };
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-comfy-session-'));
@@ -52,8 +60,10 @@ test('client uploads revision context and requests GPU cache release', async () 
     const client = createComfyUiClient({ baseUrl: 'http://127.0.0.1:8188', artifactDir: root, fetchImpl, timeoutMs: 1000 });
     assert.equal((await client.uploadImage(source)).name, 'revision.png');
     assert.equal(await client.freeMemory(), true);
+    assert.equal(await client.cancel('prompt-1'), true);
     assert.match(calls[0].options.headers['Content-Type'], /^multipart\/form-data; boundary=/);
     assert.deepEqual(JSON.parse(calls[1].options.body), { unload_models: true, free_memory: true });
+    assert.deepEqual(JSON.parse(calls[2].options.body), { delete: ['prompt-1'] });
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 

@@ -358,7 +358,7 @@ async function executeMediaJob(requestId) {
     const selectedCheckpoint = payload.checkpoint || checkpoints.find(name => /juggernaut.*xl.*v9/i.test(name)) || checkpoints.find(name => /juggernaut.*xl/i.test(name)) || checkpoints.find(name => /sd.?xl/i.test(name));
     if (definition.modelFamily !== 'pixel' && (!selectedCheckpoint || !checkpoints.includes(selectedCheckpoint))) throw new Error('The selected checkpoint is not installed on the live ComfyUI worker.');
     const seed = Number.isSafeInteger(payload.seed) ? payload.seed : require('crypto').randomInt(1, 2147483646);
-    const rawPrompt = contract === 'upscale' ? 'Deterministic image upscale' : String(payload.prompt || '').replace(/^prompt\s+/i, '').trim();
+    const rawPrompt = contract === 'upscale' ? 'Deterministic image upscale' : String(payload.prompt || '');
     const workflow = cloneAndFillWorkflow(template, {
       ...payload,
       prompt: rawPrompt,
@@ -378,9 +378,11 @@ async function executeMediaJob(requestId) {
     updateMediaJob(requestId, { promptId: queued.promptId, progress: 40 });
     auditToolEvent({ id: 'media.generate_local', outcome: 'queued', detail: `${contract}:${queued.promptId}` });
     const history = await comfyClient.wait(queued.promptId, { signal: controller.signal });
+    if (controller.signal.aborted) throw controller.signal.reason || new Error('Media job cancelled.');
     updateMediaJob(requestId, { status: 'saving', stage: 'save', progress: 70 });
     updateMediaJob(requestId, { status: 'transferring', stage: 'transfer', progress: 82 });
-    const downloaded = await comfyClient.download(history, queued.promptId);
+    const downloaded = await comfyClient.download(history, queued.promptId, { signal: controller.signal });
+    if (controller.signal.aborted) throw controller.signal.reason || new Error('Media job cancelled.');
     const artifacts = downloaded.map(item => ({ ...item, path: generatedRelativePath(item.filename), requestId }));
     if (!artifacts.length) throw new Error('The workflow completed without a downloadable artifact.');
     if (artifacts.some(item => !item.filename.startsWith(`${queued.promptId}-`))) throw new Error('Stale ComfyUI output was rejected because it did not match the current prompt ID.');

@@ -25,10 +25,16 @@ function assertPrompt(value) {
   return prompt;
 }
 
+function assertNegativePrompt(value) {
+  const prompt = String(value || '');
+  if (prompt.length > 4000) throw new Error('Negative media prompt exceeds the 4,000 character limit.');
+  return prompt;
+}
+
 function cloneAndFillWorkflow(template, values) {
   const replacements = new Map([
     ['{{PROMPT}}', assertPrompt(values.prompt)],
-    ['{{NEGATIVE_PROMPT}}', String(values.negativePrompt || '').slice(0, 2000)],
+    ['{{NEGATIVE_PROMPT}}', assertNegativePrompt(values.negativePrompt)],
     ['{{SEED}}', Number.isSafeInteger(values.seed) ? values.seed : crypto.randomInt(1, 2147483646)],
     ['{{DENOISE}}', Number.isFinite(values.revisionStrength) ? Math.min(0.99, Math.max(0.2, values.revisionStrength)) : 0.68],
     ['{{SCALE_BY}}', Number.isFinite(values.scaleBy) ? Math.min(4, Math.max(1, values.scaleBy)) : 2],
@@ -105,14 +111,15 @@ function createComfyUiClient({ baseUrl, fetchImpl = fetch, artifactDir, timeoutM
       }
       throw new Error('ComfyUI job timed out.');
     },
-    async download(history, promptId) {
+    async download(history, promptId, { signal } = {}) {
       fs.mkdirSync(outputRoot, { recursive: true, mode: 0o700 });
       const artifacts = [];
       for (const output of Object.values(history.outputs || {})) {
         const files = [...(output.images || []), ...(output.gifs || []), ...(output.videos || []), ...(output.audio || []), ...(output.audios || [])];
         for (const item of files) {
           const params = new URLSearchParams({ filename: item.filename, subfolder: item.subfolder || '', type: item.type || 'output' });
-          const response = await request(`/view?${params.toString()}`, {}, 120000);
+          if (signal?.aborted) throw signal.reason || new Error('Media job cancelled.');
+          const response = await request(`/view?${params.toString()}`, { signal }, 120000);
           const bytes = Buffer.from(await response.arrayBuffer());
           if (!bytes.length || bytes.length > 1024 * 1024 * 1024) throw new Error('ComfyUI output is empty or exceeds the 1 GB limit.');
           const filename = `${promptId}-${safeOutputName(item.filename)}`;
@@ -148,4 +155,4 @@ function createComfyUiClient({ baseUrl, fetchImpl = fetch, artifactDir, timeoutM
   };
 }
 
-module.exports = { normalizeBaseUrl, assertPrompt, cloneAndFillWorkflow, createComfyUiClient };
+module.exports = { normalizeBaseUrl, assertPrompt, assertNegativePrompt, cloneAndFillWorkflow, createComfyUiClient };
