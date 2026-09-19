@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('masterChief', {
   executeLocalTool: id => ipcRenderer.invoke('execute-local-tool', { id }),
   generateLocalMedia: payload => ipcRenderer.invoke('generate-local-media', payload),
   listGeneratedMedia: limit => ipcRenderer.invoke('list-generated-media', { limit }),
+  openMediaArchive: () => ipcRenderer.invoke('open-media-archive'),
   clearCreativeSession: payload => ipcRenderer.invoke('clear-creative-session', payload),
   runAgentPlan: payload => ipcRenderer.invoke('run-agent-plan', payload),
   chat: payload => ipcRenderer.invoke('chat', payload),

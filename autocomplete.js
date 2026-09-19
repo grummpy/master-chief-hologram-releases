@@ -4,6 +4,9 @@
   root.masterChiefAutocomplete = api;
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   const commands = Object.freeze([
+    '/image ', '/video ', '/revise ', '/agent diagnostics',
+    '@master-chief ', '@papm ', '@jarvis ', '@imagination ',
+    '@prompt-engineering ', '@chief-ux ', '@captain-intelligence ',
     'Check system readiness', 'Run voice self-test', 'Create a PAPM plan for ',
     'Create a local AI plan for ', 'Create a graphics and 3D plan for ',
     'Index local document ', 'Inspect local runtime', 'Inspect project Git status',
