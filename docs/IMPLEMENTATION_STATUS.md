@@ -34,6 +34,7 @@ Version 1.3.0 · 2026-09-19
 - The connector panel exposes ComfyUI readiness. Missing worker inventory and missing reviewed workflows are explicit blocking states rather than guessed installations.
 - The bounded agent executor accepts typed plans of at most eight allowlisted steps and two minutes. Agent approval and each underlying tool approval are enforced in the Electron main process; arbitrary shell commands and arbitrary URLs remain unavailable.
 - A Windows PowerShell bootstrap installs the official ComfyUI framework without model weights. Live image/video selection remains gated on Windows GPU model, VRAM, disk, IP, workflow, and license inventory.
+- The verified Windows worker is `192.168.4.31:8188`: ComfyUI 0.36.0, Python 3.13.15, PyTorch 2.13.0 + ROCm 10.0, and AMD Radeon RX 9060 XT with 15.9 GiB reported VRAM. TCP, `/system_stats`, `/queue`, and a harmless rejected `/prompt` contract test passed from the Mac controller.
 
 ## Evidence
 

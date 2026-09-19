@@ -9,6 +9,7 @@
 - Added a Windows ComfyUI bootstrap script that installs the framework without guessing or downloading model weights.
 - Added the researched creative-agent architecture, acceptance gates, licensing boundaries, and upgrade backlog.
 - Added fixture coverage for URL containment, workflow substitution, queue/poll/download, artifact hashing, agent limits, and approvals.
+- Added user-data connector settings and validated the live Windows AMD ROCm worker channel.
 
 ## 1.0.6
 

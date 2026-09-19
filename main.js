@@ -41,7 +41,14 @@ let credentialStore;
 function credentials() { return credentialStore || (credentialStore = createCredentialStore({ safeStorage, filePath: path.join(app.getPath('userData'), 'credentials.json') })); }
 let activeAbortController = null;
 let toolApprovals;
-const comfyBaseUrl = String(process.env.COMFYUI_BASE_URL || '').trim();
+function loadConnectorSettings() {
+  try {
+    const value = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'connector-settings.json'), 'utf8'));
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  } catch { return {}; }
+}
+const connectorSettings = loadConnectorSettings();
+const comfyBaseUrl = String(process.env.COMFYUI_BASE_URL || connectorSettings.comfyuiBaseUrl || '').trim();
 const generatedArtifactDir = path.join(__dirname, 'artifacts', 'generated');
 let comfyClient = null;
 try { if (comfyBaseUrl) comfyClient = createComfyUiClient({ baseUrl: comfyBaseUrl, artifactDir: generatedArtifactDir }); } catch { comfyClient = null; }
