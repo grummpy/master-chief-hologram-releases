@@ -29,6 +29,15 @@ npm start
 
 The Desktop launcher at `/Users/daddy/Desktop/Master Chief Hologram.app` is a packaged local build. A clean fast-forward update triggers tests and a staged rebuild; the previous bundle is retained until the new bundle is installed and opened.
 
+### Windows ComfyUI background worker
+
+After ComfyUI and its GPU runtime are installed, `scripts/manage-comfyui-worker.ps1`
+can register the worker as a per-user Windows Scheduled Task. It starts silently at
+sign-in, restarts after a failure, and writes logs under
+`%USERPROFILE%\MasterChief\logs`. Supported actions are `Install`, `Start`,
+`Stop`, `Restart`, `Status`, and `Uninstall`. The task does not weaken the
+controller-scoped Windows Firewall rule.
+
 ## Credentials and privacy
 
 Credentials are migrated to encrypted macOS safe storage when available. Local `.env` compatibility is retained under the app user-data directory and ignored by Git. Never place keys in source, prompts, screenshots, logs, or committed configuration.
