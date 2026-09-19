@@ -7,7 +7,7 @@ As of: 2026-09-19
 
 - Runtime: Ollama 0.33.3, managed as a Homebrew user service on `127.0.0.1:11434`.
 - Installed utility model: `qwen2.5:0.5b` (Q4_K_M, approximately 397 MB on disk).
-- Creative-freedom model: `dolphin3:8b` (Ollama distribution, approximately 4.9 GB) selected for local installation.
+- Installed creative-freedom model: `dolphin3:8b` (Q4_K_M, 8B parameters, approximately 4.9 GB on disk). Ollama verified its SHA-256 digest, and a bounded local inference test returned the required response.
 
 `qwen2.5:0.5b` is appropriate for short rewrites, simple extraction, and basic local assistance. It is too small to serve as the primary high-quality creative model. Dolphin 3 is the preferred local creative conversation model for this 16 GB Apple Silicon host because its 8B parameter class remains practical while providing a substantially broader general-purpose and creative capability.
 
