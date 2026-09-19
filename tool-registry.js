@@ -7,7 +7,7 @@ const TOOL_REGISTRY = Object.freeze([
   Object.freeze({ id: 'files.attach_local_text', label: 'Read attached local text files', risk: 'local-read', scope: 'Reads only files you explicitly attach, up to 200 KB each.', approvalRequired: true }),
   Object.freeze({ id: 'voice.transcribe_microphone', label: 'Transcribe microphone audio', risk: 'local-read', scope: 'Captures audio after you press MIC and sends it to the selected transcription provider.', approvalRequired: true }),
   Object.freeze({ id: 'chat.send_to_configured_provider', label: 'Send command to selected provider', risk: 'network', scope: 'Sends your command and selected local context to the provider shown above.', approvalRequired: true })
-  ,Object.freeze({ id: 'media.generate_local', label: 'Generate local image or video', risk: 'local-network-write', scope: 'Sends a prompt to the configured private-LAN ComfyUI worker and saves returned media under artifacts/generated.', approvalRequired: true })
+  ,Object.freeze({ id: 'media.generate_local', label: 'Generate local media', risk: 'local-network-write', scope: 'Creates image, video, or audio with configured local/private providers and archives the returned media.', approvalRequired: true })
   ,Object.freeze({ id: 'agents.run_bounded_plan', label: 'Run bounded agent plan', risk: 'controlled-actions', scope: 'Runs up to eight allowlisted steps. Every underlying protected tool still requires approval.', approvalRequired: true })
 ]);
 const DEFAULT_APPROVALS = Object.freeze({ 'diagnostics.git_status': false, 'files.attach_local_text': false, 'voice.transcribe_microphone': false, 'chat.send_to_configured_provider': false, 'media.generate_local': false, 'agents.run_bounded_plan': false });

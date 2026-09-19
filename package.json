@@ -1,6 +1,6 @@
 {
   "name": "master-chief-hologram",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "Desktop holographic Master Chief AI companion – multi-model prompt runner",
   "main": "main.js",
   "scripts": {
@@ -43,6 +43,7 @@
       "voice-diagnostics.js",
       "voice-installation.js",
       "voice-setup-ui.js",
+      "audio-production.js",
       "microphone-access.js",
       "autocomplete.js",
       "local-routing.js",

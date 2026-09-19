@@ -37,6 +37,7 @@ const { runAgentPlan } = require('./agent-runner');
 const { createReferenceStudioStore } = require('./reference-studio-store');
 const { createMediaJobLedger } = require('./media-job-ledger');
 const { createWorkflowRegistry } = require('./workflow-registry');
+const { normalizeSpeechContract, createAudioJobStore } = require('./audio-production');
 const localAiManifest = loadLocalAiManifest(path.join(__dirname, 'local-ai-manifest.json'));
 
 let mainWindow;
@@ -57,6 +58,8 @@ const comfyBaseUrl = String(process.env.COMFYUI_BASE_URL || connectorSettings.co
 const generatedArtifactDir = path.join(app.getPath('userData'), 'artifacts', 'generated');
 const referenceStudio = createReferenceStudioStore(path.join(app.getPath('userData'), 'reference-studio.json'));
 const mediaJobLedger = createMediaJobLedger(path.join(app.getPath('userData'), 'media-jobs.json'));
+const audioArchiveRoot = path.join(app.getPath('userData'), 'audio', 'archive');
+const audioJobs = createAudioJobStore(path.join(app.getPath('userData'), 'audio', 'jobs.json'), audioArchiveRoot);
 const workflowRegistry = createWorkflowRegistry(__dirname);
 const activeMediaJobs = new Map();
 const activeReferenceQueues = new Map();
@@ -237,6 +240,7 @@ async function providerStatus() {
     ,ollama: { state: 'missing', label: 'Ollama unavailable' }
     ,huggingface: { state: 'missing', label: 'Hugging Face endpoint not configured' }
     ,voice: { state: 'cloud', label: 'Voice · cloud transcription' }
+    ,audio: { state: 'missing', label: 'Audio · checking local production' }
     ,localAi: { state: 'missing', label: 'Local AI manifest has no installed primary model' }
     ,comfyui: { state: comfyBaseUrl ? 'error' : 'missing', label: comfyBaseUrl ? 'ComfyUI · invalid configuration' : 'ComfyUI · worker not configured', detail: comfyBaseUrl ? 'COMFYUI_BASE_URL must be a private LAN URL.' : 'Add COMFYUI_BASE_URL after the Windows GPU inventory is complete.' }
   };
@@ -251,7 +255,7 @@ async function providerStatus() {
     }
   })());
 
-  const store = credentials(); store.migrate('openai', 'OPENAI_API_KEY'); store.migrate('xai', 'XAI_API_KEY'); store.migrate('github', 'GITHUB_TOKEN'); status.credentials = store.status();
+  const store = credentials(); store.migrate('openai', 'OPENAI_API_KEY'); store.migrate('xai', 'XAI_API_KEY'); store.migrate('github', 'GITHUB_TOKEN'); store.migrate('elevenlabs', 'ELEVENLABS_API_KEY'); status.credentials = store.status();
   const openaiKey = store.get('openai', 'OPENAI_API_KEY');
   if (validSecret(openaiKey, /^sk-[^\s]{12,}$/)) checks.push((async () => {
     const result = await checkJson('https://api.openai.com/v1/models', {
@@ -309,12 +313,13 @@ async function providerStatus() {
   })());
 
   checks.push((async () => { const voice = await localWhisperConfig();
-  if (voice.ready) status.voice = { state: 'ready', label: `Voice · local whisper.cpp (${path.basename(voice.bin)})`, detail: 'Offline ASR ready.' };
+  if (voice.ready) status.voice = { state: 'ready', label: `Voice · local whisper.cpp (${path.basename(voice.bin)})`, detail: `Offline ASR ready. Microphone permission: ${microphoneStatus()}. Model: ${path.basename(voice.model)}.` };
   else if (!voice.bin) status.voice = { state: 'unavailable', label: 'Voice · offline setup required', detail: 'Open Systems and choose Offline voice setup for local installation steps.' };
   else if (!voice.model) status.voice = { state: 'missing', label: 'Voice · choose a whisper model', detail: `Add a GGML model to ${voice.modelDirectory}, or set WHISPER_CPP_MODEL.` };
   else if (!voice.modelExists) status.voice = { state: 'missing', label: 'Voice · whisper model not found', detail: `Model path: ${voice.model}` };
   else if (!voice.ffmpeg) status.voice = { state: 'missing', label: 'Voice · install ffmpeg', detail: 'ffmpeg is required for browser audio conversion.' };
   else status.voice = { state: 'error', label: 'Voice · local ASR unavailable', detail: 'Use cloud transcription or complete local setup.' }; })());
+  checks.push((async () => { const audio = await audioHealth(); const eleven = audio.speech.elevenlabs.configured ? 'ElevenLabs configured' : 'ElevenLabs optional'; status.audio = { state: audio.speech.local.ready ? 'ready' : 'missing', label: audio.speech.local.ready ? 'Audio · local TTS ready' : 'Audio · local TTS unavailable', detail: `Narration/dialogue: ${audio.speech.local.provider}; ${eleven}; reversible jobs: narration, dialogue, effects, mux; archive: ${audio.archive}` }; })());
   if (comfyClient) checks.push((async () => { status.comfyui = await comfyClient.health(); })());
 
   await Promise.allSettled(checks);
@@ -511,6 +516,86 @@ async function localWhisperConfig() {
   const modelExists = Boolean(model && fs.existsSync(model));
   const ffmpegPath = ffmpeg && fs.existsSync(ffmpeg) ? ffmpeg : '';
   return { bin: binExists ? bin : '', model, modelExists, ffmpeg: ffmpegPath, ready: Boolean(binExists && modelExists && ffmpegPath), modelDirectory, discoveredModels };
+}
+
+async function audioHealth() {
+  const asr = await localWhisperConfig();
+  const elevenKey = credentials().get('elevenlabs', 'ELEVENLABS_API_KEY') || String(process.env.ELEVENLABS_API_KEY || '');
+  const mic = microphoneStatus();
+  return {
+    microphone: { state: mic, permissionGranted: isGranted(mic) },
+    transcription: { ready: asr.ready, provider: 'whisper.cpp', runtime: asr.bin, model: asr.model, ffmpeg: asr.ffmpeg },
+    speech: { local: { ready: process.platform === 'darwin' && fs.existsSync('/usr/bin/say'), provider: 'macos-say' }, elevenlabs: { configured: Boolean(elevenKey), provider: 'elevenlabs', optional: true } },
+    jobs: { kinds: ['transcription', 'narration', 'dialogue', 'effects', 'mux'], reversible: true }, archive: audioArchiveRoot
+  };
+}
+
+async function synthesizeSpeech(payload = {}) {
+  requireToolApproval('media.generate_local');
+  const contract = normalizeSpeechContract(payload);
+  const job = audioJobs.create({ ...contract, parameters: { text: contract.text, format: contract.format, sampleRate: contract.sampleRate, channels: contract.channels, language: contract.language, metadata: contract.metadata } });
+  try {
+    audioJobs.update(job.id, { status: 'generating', stage: 'synthesize' });
+    let bytes; let extension; let mime;
+    if (contract.provider === 'macos-say') {
+      if (process.platform !== 'darwin' || !fs.existsSync('/usr/bin/say')) throw new Error('macOS local speech is unavailable.');
+      const temp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'master-chief-tts-')); const aiff = path.join(temp, 'speech.aiff'); const output = path.join(temp, `speech.${contract.format === 'mp3' ? 'mp3' : 'wav'}`);
+      try {
+        const args = []; if (contract.voice) args.push('-v', contract.voice); args.push('-o', aiff, contract.text); await execFileAsync('/usr/bin/say', args, { timeout: 120000 });
+        const config = await localWhisperConfig(); if (!config.ffmpeg) throw new Error('ffmpeg is required to normalize local speech output.');
+        extension = contract.format === 'mp3' ? 'mp3' : 'wav'; mime = extension === 'mp3' ? 'audio/mpeg' : 'audio/wav';
+        await execFileAsync(config.ffmpeg, ['-y', '-i', aiff, '-ar', String(contract.sampleRate), '-ac', String(contract.channels), output], { timeout: 120000 }); bytes = fs.readFileSync(output);
+      } finally { fs.rmSync(temp, { recursive: true, force: true }); }
+    } else {
+      const key = credentials().get('elevenlabs', 'ELEVENLABS_API_KEY') || String(process.env.ELEVENLABS_API_KEY || ''); const voiceId = contract.voice || String(process.env.ELEVENLABS_VOICE_ID || '');
+      if (!key || !voiceId) throw new Error('ElevenLabs requires an API key and voice ID.');
+      const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`, { method: 'POST', headers: { 'xi-api-key': key, 'content-type': 'application/json', accept: 'audio/mpeg' }, body: JSON.stringify({ text: contract.text, model_id: contract.model || 'eleven_multilingual_v2' }), signal: AbortSignal.timeout(120000) });
+      if (!response.ok) throw new Error(`ElevenLabs returned HTTP ${response.status}.`); bytes = Buffer.from(await response.arrayBuffer()); extension = 'mp3'; mime = 'audio/mpeg';
+    }
+    audioJobs.update(job.id, { status: 'archiving', stage: 'archive' }); const saved = audioJobs.addArtifact(job.id, bytes, { name: contract.cueId, extension, mime, role: contract.kind });
+    return audioJobs.update(job.id, { status: 'completed', stage: 'complete', artifacts: saved.job.artifacts });
+  } catch (error) { audioJobs.update(job.id, { status: 'failed', stage: 'failed', error: error.message }); throw error; }
+}
+
+function audioArtifactInputs(payload = {}) {
+  const ids = Array.isArray(payload.inputJobIds) ? payload.inputJobIds.map(String).slice(0, 32) : [];
+  if (!ids.length) throw new Error('A mux job requires at least one source audio job.');
+  return ids.map(id => {
+    const job = audioJobs.get(id);
+    if (!job) throw new Error(`Audio source job ${id} was not found.`);
+    const artifact = [...job.artifacts].reverse().find(item => String(item.mime || '').startsWith('audio/'));
+    if (!artifact) throw new Error(`Audio source job ${id} has no archived audio artifact.`);
+    const resolved = path.resolve(artifact.path);
+    const root = path.resolve(audioArchiveRoot);
+    if (!resolved.startsWith(`${root}${path.sep}`) || !fs.existsSync(resolved)) throw new Error(`Audio source job ${id} is outside the managed archive or missing.`);
+    return { job, artifact, path: resolved };
+  });
+}
+
+async function muxAudio(payload = {}) {
+  requireToolApproval('media.generate_local');
+  const sources = audioArtifactInputs(payload);
+  const config = await localWhisperConfig();
+  if (!config.ffmpeg) throw new Error('ffmpeg is required for final audio mux jobs.');
+  const timeline = sources.map((source, index) => ({ jobId: source.job.id, cueId: source.job.cue?.id || `cue-${index + 1}`, startMs: Math.max(0, Number(payload.timeline?.find(item => String(item.jobId) === source.job.id)?.startMs ?? source.job.cue?.startMs) || 0) }));
+  const job = audioJobs.create({ kind: 'mux', provider: 'ffmpeg', sessionId: payload.sessionId, parentId: payload.parentId, inputs: sources.map(source => source.artifact.path), parameters: { timeline, sourceJobs: sources.map(source => source.job.id), format: 'wav' } });
+  const temp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'master-chief-mux-'));
+  const output = path.join(temp, 'final-mux.wav');
+  try {
+    audioJobs.update(job.id, { status: 'generating', stage: 'mux' });
+    const args = [];
+    for (const source of sources) args.push('-i', source.path);
+    const chains = timeline.map((cue, index) => `[${index}:a]adelay=${cue.startMs}|${cue.startMs}[a${index}]`);
+    const inputs = timeline.map((_cue, index) => `[a${index}]`).join('');
+    args.push('-filter_complex', `${chains.join(';')};${inputs}amix=inputs=${sources.length}:duration=longest:normalize=0[mix]`, '-map', '[mix]', '-ar', String(Math.min(96000, Math.max(8000, Number(payload.sampleRate) || 48000))), '-ac', String(Math.min(2, Math.max(1, Number(payload.channels) || 2))), '-y', output);
+    await execFileAsync(config.ffmpeg, args, { timeout: 300000, maxBuffer: 2 * 1024 * 1024 });
+    audioJobs.update(job.id, { status: 'archiving', stage: 'archive' });
+    const saved = audioJobs.addArtifact(job.id, fs.readFileSync(output), { name: payload.name || 'final-mux', extension: 'wav', mime: 'audio/wav', role: 'final-mux' });
+    return audioJobs.update(job.id, { status: 'completed', stage: 'complete', artifacts: saved.job.artifacts });
+  } catch (error) {
+    audioJobs.update(job.id, { status: 'failed', stage: 'failed', error: error.message });
+    throw error;
+  } finally { fs.rmSync(temp, { recursive: true, force: true }); }
 }
 
 async function transcribeWithWhisper(bytes, contentType) {
@@ -786,6 +871,17 @@ secureHandle('voice-self-test', async () => voiceSelfTest(await localWhisperConf
   expectedTranscript: 'Master Chief, run diagnostics.'
 }));
 secureHandle('voice-setup', async () => buildVoiceSetup(await localWhisperConfig()));
+secureHandle('audio-health', audioHealth);
+secureHandle('audio-job-list', (_event, payload) => audioJobs.list(payload?.limit));
+secureHandle('audio-job-get', (_event, payload) => audioJobs.get(payload?.id));
+secureHandle('audio-synthesize', (_event, payload) => synthesizeSpeech(payload));
+secureHandle('audio-register-job', (_event, payload) => {
+  requireToolApproval('media.generate_local');
+  const job = audioJobs.create(payload); const bytes = Buffer.from(payload?.bytes || []); if (!bytes.length) return job;
+  const saved = audioJobs.addArtifact(job.id, bytes, { name: payload?.name, extension: payload?.extension, mime: payload?.mime, role: payload?.kind });
+  return audioJobs.update(job.id, { status: 'completed', stage: 'archive', artifacts: saved.job.artifacts });
+});
+secureHandle('audio-mux', (_event, payload) => muxAudio(payload));
 secureHandle('request-microphone-access', () => { requireToolApproval('voice.transcribe_microphone'); return requestMicrophoneAccess(); });
 secureHandle('open-microphone-settings', async () => shell.openExternal(MICROPHONE_SETTINGS_URL));
 secureHandle('tool-registry', () => getToolRegistry());
@@ -898,9 +994,21 @@ secureHandle('transcribe-audio', async (_event, payload) => {
   const contentType = String(payload?.type || 'audio/webm').split(';')[0].toLowerCase();
   if (!['audio/webm', 'audio/mp4', 'audio/ogg', 'audio/wav', 'audio/x-wav'].includes(contentType)) throw new Error('Unsupported microphone audio format.');
   if (bytes.length > 12 * 1024 * 1024) throw new Error('Microphone recording is too large (12 MB limit).');
-  const localText = await transcribeWithWhisper(bytes, contentType);
-  if (localText) return localText;
-  throw new Error('Local offline transcription did not return text. Check Systems for local whisper.cpp readiness, then retry; no paid transcription provider was used.');
+  const extension = contentType === 'audio/mp4' ? 'm4a' : contentType === 'audio/ogg' ? 'ogg' : contentType.includes('wav') ? 'wav' : 'webm';
+  const job = audioJobs.create({ kind: 'transcription', provider: 'whisper.cpp', sessionId: payload?.sessionId, cueId: payload?.cueId, startMs: payload?.startMs, parameters: { contentType, language: String(payload?.language || 'en') } });
+  try {
+    audioJobs.addArtifact(job.id, bytes, { name: payload?.name || 'microphone-source', extension, mime: contentType, role: 'source-audio' });
+    audioJobs.update(job.id, { status: 'generating', stage: 'transcribe' });
+    const localText = await transcribeWithWhisper(bytes, contentType);
+    if (!localText) throw new Error('Local offline transcription did not return text. Check Systems for local whisper.cpp readiness, then retry; no paid transcription provider was used.');
+    const transcript = Buffer.from(`${localText}\n`, 'utf8');
+    const saved = audioJobs.addArtifact(job.id, transcript, { name: 'transcript', extension: 'txt', mime: 'text/plain', role: 'transcript' });
+    audioJobs.update(job.id, { status: 'completed', stage: 'complete', artifacts: saved.job.artifacts, parameters: { ...job.parameters, transcript: localText } });
+    return localText;
+  } catch (error) {
+    audioJobs.update(job.id, { status: 'failed', stage: 'failed', error: error.message });
+    throw error;
+  }
 });
 secureHandle('index-document', (_event, payload) => { requireToolApproval('files.attach_local_text'); return ragIndex.indexDocument(payload?.name, payload?.text); });
 secureHandle('remove-indexed-document', (_event, payload) => { requireToolApproval('files.attach_local_text'); return ragIndex.removeDocument(payload?.name); });

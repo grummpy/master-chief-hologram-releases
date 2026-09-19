@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.8.0
+
+- Completed local Whisper readiness discovery and exposed microphone permission, runtime, model, and ffmpeg health.
+- Added provider-neutral narration/dialogue contracts for macOS local TTS and optional ElevenLabs.
+- Added separate reversible transcription, narration, dialogue, effects, and mux job records.
+- Added immutable audio artifact hashing with cue/timing, provider/model, source, lineage, and archive metadata.
+
 ## 1.7.0 — 2026-09-19
 
 - Added Project → Subject → Reference Sheet → Shot → Variant hierarchy with schema-v1 migration.

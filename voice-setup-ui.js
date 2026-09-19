@@ -31,7 +31,15 @@ window.addEventListener('DOMContentLoaded', () => {
   button.addEventListener('click', async () => {
     button.disabled = true;
     button.textContent = 'Checking offline voice…';
-    try { showVoiceSetup(await window.masterChief.voiceSetup()); result.hidden = false; }
+    try {
+      const setup = await window.masterChief.voiceSetup();
+      showVoiceSetup(setup);
+      if (window.masterChief.audioHealth) {
+        const audio = await window.masterChief.audioHealth();
+        existing.textContent += `\nMicrophone permission: ${audio.microphone.state}\nTranscription: ${audio.transcription.ready ? 'READY' : 'NOT READY'} · ${audio.transcription.provider}\nLocal TTS: ${audio.speech.local.ready ? 'READY' : 'NOT READY'} · ${audio.speech.local.provider}\nElevenLabs: ${audio.speech.elevenlabs.configured ? 'CONFIGURED' : 'OPTIONAL / NOT CONFIGURED'}\nAudio archive: ${audio.archive}\nReversible jobs: ${audio.jobs.kinds.join(', ')}`;
+      }
+      result.hidden = false;
+    }
     catch (error) { result.textContent = `Offline voice setup check failed: ${error.message}`; result.hidden = false; }
     finally { button.disabled = false; button.textContent = 'Offline voice setup'; }
   });
