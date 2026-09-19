@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, safeStorage, shell, systemPreferences } = require('electron');
 const { execFile, spawn } = require('child_process');
 const { promisify } = require('util');
+const http = require('http');
 const path = require('path');
 const fs = require('fs');
 const envCandidates = [
@@ -50,8 +51,25 @@ function loadConnectorSettings() {
 const connectorSettings = loadConnectorSettings();
 const comfyBaseUrl = String(process.env.COMFYUI_BASE_URL || connectorSettings.comfyuiBaseUrl || '').trim();
 const generatedArtifactDir = path.join(__dirname, 'artifacts', 'generated');
+function privateHttpFetch(url, options = {}) {
+  return new Promise((resolve, reject) => {
+    const request = http.request(url, { method: options.method || 'GET', headers: options.headers || {}, signal: options.signal }, response => {
+      const chunks = [];
+      let bytes = 0;
+      response.on('data', chunk => {
+        bytes += chunk.length;
+        if (bytes > 1024 * 1024 * 1024) { request.destroy(new Error('Private worker response exceeded the 1 GB limit.')); return; }
+        chunks.push(chunk);
+      });
+      response.on('end', () => resolve(new Response(Buffer.concat(chunks), { status: response.statusCode || 500, headers: response.headers })));
+    });
+    request.on('error', reject);
+    if (options.body) request.write(options.body);
+    request.end();
+  });
+}
 let comfyClient = null;
-try { if (comfyBaseUrl) comfyClient = createComfyUiClient({ baseUrl: comfyBaseUrl, artifactDir: generatedArtifactDir }); } catch { comfyClient = null; }
+try { if (comfyBaseUrl) comfyClient = createComfyUiClient({ baseUrl: comfyBaseUrl, artifactDir: generatedArtifactDir, fetchImpl: privateHttpFetch }); } catch { comfyClient = null; }
 function approvalFile() { return path.join(app.getPath('userData'), 'tool-approvals.json'); }
 function loadToolApprovals() { if (toolApprovals) return toolApprovals; try { toolApprovals = normalizeApprovals(JSON.parse(fs.readFileSync(approvalFile(), 'utf8'))); } catch { toolApprovals = normalizeApprovals({}); } return toolApprovals; }
 function saveToolApprovals() { fs.mkdirSync(path.dirname(approvalFile()), { recursive: true }); fs.writeFileSync(approvalFile(), JSON.stringify(loadToolApprovals(), null, 2), { mode: 0o600 }); }
