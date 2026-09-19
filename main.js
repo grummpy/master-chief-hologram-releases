@@ -52,6 +52,26 @@ const connectorSettings = loadConnectorSettings();
 const comfyBaseUrl = String(process.env.COMFYUI_BASE_URL || connectorSettings.comfyuiBaseUrl || '').trim();
 const generatedArtifactDir = path.join(app.getPath('userData'), 'artifacts', 'generated');
 function generatedRelativePath(filename) { return `artifacts/generated/${path.basename(filename)}`; }
+function listGeneratedArtifacts(limit = 50) {
+  if (!fs.existsSync(generatedArtifactDir)) return [];
+  const supported = /\.(png|jpe?g|webp|gif|avif|bmp|mp4|m4v|mov|webm|ogv|mp3|wav|m4a|aac|ogg|flac)$/i;
+  return fs.readdirSync(generatedArtifactDir, { withFileTypes: true })
+    .filter(entry => entry.isFile() && supported.test(entry.name))
+    .map(entry => {
+      const filePath = path.join(generatedArtifactDir, entry.name);
+      const stat = fs.statSync(filePath);
+      return {
+        filename: entry.name,
+        path: generatedRelativePath(entry.name),
+        bytes: stat.size,
+        modifiedAt: stat.mtime.toISOString(),
+        modifiedMs: stat.mtimeMs,
+        sha256: require('crypto').createHash('sha256').update(fs.readFileSync(filePath)).digest('hex')
+      };
+    })
+    .sort((a, b) => b.modifiedMs - a.modifiedMs)
+    .slice(0, Math.min(100, Math.max(1, Number(limit) || 50)));
+}
 function resolveArtifactPath(relativePath) {
   const value = String(relativePath || '').replace(/\\/g, '/');
   if (value.startsWith('artifacts/generated/')) {
@@ -637,6 +657,7 @@ secureHandle('tool-approvals', () => ({ approvals: { ...loadToolApprovals() }, r
 secureHandle('set-tool-approval', (_event, payload) => { toolApprovals = setToolApproval(loadToolApprovals(), String(payload?.id || ''), payload?.approved); saveToolApprovals(); return { approvals: { ...toolApprovals } }; });
 secureHandle('execute-local-tool', (_event, payload) => executeLocalTool(payload?.id));
 secureHandle('generate-local-media', (_event, payload) => generateLocalMedia(payload));
+secureHandle('list-generated-media', (_event, payload) => listGeneratedArtifacts(payload?.limit));
 secureHandle('clear-creative-session', async () => {
   requireToolApproval('media.generate_local');
   if (!comfyClient) throw new Error('ComfyUI is not configured.');

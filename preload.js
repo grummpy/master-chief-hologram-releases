@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('masterChief', {
   setToolApproval: (id, approved) => ipcRenderer.invoke('set-tool-approval', { id, approved }),
   executeLocalTool: id => ipcRenderer.invoke('execute-local-tool', { id }),
   generateLocalMedia: payload => ipcRenderer.invoke('generate-local-media', payload),
+  listGeneratedMedia: limit => ipcRenderer.invoke('list-generated-media', { limit }),
   clearCreativeSession: payload => ipcRenderer.invoke('clear-creative-session', payload),
   runAgentPlan: payload => ipcRenderer.invoke('run-agent-plan', payload),
   chat: payload => ipcRenderer.invoke('chat', payload),
