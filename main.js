@@ -313,8 +313,16 @@ async function generateLocalMedia(payload) {
   const checkpoints = await comfyClient.checkpoints();
   const checkpoint = checkpoints.find(name => /juggernaut.*xl.*v9/i.test(name)) || checkpoints.find(name => /juggernaut.*xl/i.test(name)) || 'sd_xl_base_1.0.safetensors';
   const rawPrompt = String(payload?.prompt || '').replace(/^prompt\s+/i, '').trim();
-  const adherencePrompt = `Follow the requested subject, clothing, pose, setting, camera, and style exactly. ${rawPrompt}`;
-  const workflow = cloneAndFillWorkflow(template, { ...(payload || {}), prompt: adherencePrompt, sourceImage, checkpoint });
+  const adultTopless = /\b(topless|bare[- ]?breasts?|uncovered (?:breasts?|chest)|nude (?:chest|torso))\b/i.test(rawPrompt);
+  const adultDirective = adultTopless
+    ? '(clearly adult woman, age 30 or older:1.25), (topless, bare breasts, uncovered chest:1.45), preserve the requested pose and identity exactly. '
+    : '';
+  const adherencePrompt = `Follow the latest requested subject, clothing state, pose, setting, camera, and style exactly. Latest instructions override conflicting details from the source image. ${adultDirective}${rawPrompt}`;
+  const negativePrompt = [
+    String(payload?.negativePrompt || ''),
+    adultTopless ? 'bra, bikini top, swimsuit top, shirt, blouse, bodysuit covering chest, chest armor, breast covering, censored chest, strategically covered breasts' : ''
+  ].filter(Boolean).join(', ');
+  const workflow = cloneAndFillWorkflow(template, { ...(payload || {}), prompt: adherencePrompt, negativePrompt, sourceImage, checkpoint });
   const queued = await comfyClient.submit(workflow);
   auditToolEvent({ id: 'media.generate_local', outcome: 'queued', detail: `${kind}:${queued.promptId}` });
   const history = await comfyClient.wait(queued.promptId);

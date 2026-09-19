@@ -25,6 +25,12 @@ test('workflow filling changes only bounded template fields', () => {
   assert.equal(template['1'].inputs.text, '{{PROMPT}}');
 });
 
+test('revision strength supports a near-total redraw when explicitly requested', () => {
+  const template = { '1': { inputs: { denoise: '{{DENOISE}}' } } };
+  assert.equal(cloneAndFillWorkflow(template, { prompt: 'adult portrait', revisionStrength: 0.98 })['1'].inputs.denoise, 0.98);
+  assert.equal(cloneAndFillWorkflow(template, { prompt: 'adult portrait', revisionStrength: 2 })['1'].inputs.denoise, 0.99);
+});
+
 test('client uploads revision context and requests GPU cache release', async () => {
   const calls = [];
   const fetchImpl = async (url, options = {}) => {
