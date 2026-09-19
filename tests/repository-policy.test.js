@@ -11,4 +11,5 @@ test('repository requires direct owner approval for new content controls', () =>
   assert.match(policy, /prompt\s+rewriting/);
   assert.match(policy, /automatic negative-prompt injection/);
   assert.match(policy, /Provider policies remain the provider's\s+responsibility/);
+  assert.match(policy, /current baseline contains no app-owned content filter/);
 });

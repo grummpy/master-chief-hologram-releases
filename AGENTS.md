@@ -12,9 +12,9 @@ Treat creative prompts as operator-owned data. Pass permitted positive and
 negative prompts through unchanged. Provider policies remain the provider's
 responsibility.
 
-The currently committed narrow boundary is the existing baseline, not standing
-authorization to expand it. Any proposed change to that boundary requires the
-same direct approval and must be disclosed in the change summary and tests.
+The current baseline contains no app-owned content filter. That baseline must
+not be changed without the same direct approval. Any approved exception must be
+disclosed in the change summary and covered by explicit tests.
 
 This rule does not apply to non-content security controls such as credential
 protection, network-destination consent, tool authorization, filesystem path
