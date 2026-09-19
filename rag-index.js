@@ -67,7 +67,13 @@ function createRagIndex(filePath, { vectorizer = vectorize } = {}) {
     if (state.documents.length !== before) save();
     return { removed: before - state.documents.length };
   }
+  function clear() {
+    const removed = { documents: state.documents.length, chunks: state.chunks.length };
+    state = { schemaVersion: SCHEMA_VERSION, documents: [], chunks: [] };
+    save();
+    return removed;
+  }
   function context(query) { let used = 0; return search(query).map(result => `--- ${result.name} ---\n${result.content}`).filter(part => { if (used + part.length > MAX_CONTEXT_CHARS) return false; used += part.length; return true; }).join('\n\n'); }
-  return { indexDocument, removeDocument, search, context, stats: () => ({ schemaVersion: state.schemaVersion, documents: state.documents.length, chunks: state.chunks.length, retrieval: 'local-feature-vector+lexical' }) };
+  return { indexDocument, removeDocument, clear, search, context, stats: () => ({ schemaVersion: state.schemaVersion, documents: state.documents.length, chunks: state.chunks.length, retrieval: 'local-feature-vector+lexical' }) };
 }
 module.exports = { createRagIndex, vectorize, cosine, SCHEMA_VERSION };

@@ -24,7 +24,42 @@ const autocompleteList=$('autocompleteList');let autocompleteItems=[],autocomple
 $('holoStage').onclick=()=>{if(!busy)setState('listening');promptEl.focus()};promptEl.onfocus=()=>{if(!busy)setState('listening');renderAutocomplete()};promptEl.onblur=()=>{setTimeout(closeAutocomplete,120);if(!busy&&state==='listening')setState('ready')};promptEl.oninput=renderAutocomplete;sendBtn.onclick=transmit;promptEl.onkeydown=e=>{if(e.key==='ArrowDown'&&moveAutocomplete(1)){e.preventDefault();return}if(e.key==='ArrowUp'&&moveAutocomplete(-1)){e.preventDefault();return}if(e.key==='Tab'&&autocompleteItems.length){e.preventDefault();chooseAutocomplete(autocompleteIndex>=0?autocompleteIndex:0);return}if(e.key==='Escape'&&autocompleteItems.length){e.preventDefault();closeAutocomplete();return}if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&e.keyCode!==229){e.preventDefault();closeAutocomplete();transmit()}};
 let recorder=null,recordingChunks=[];const micSettingsBtn=$('micSettingsBtn');function showMicRecovery(message){micSettingsBtn.hidden=false;addMsg('system',message)}micSettingsBtn.onclick=()=>window.masterChief.openMicrophoneSettings();
 micBtn.onclick=async()=>{try{if(recorder?.state==='recording'){micBtn.disabled=true;micBtn.textContent='SAVING…';recorder.stop();return}const access=await window.masterChief.requestMicrophoneAccess();if(!access.granted){showMicRecovery(access.recovery);setState('error');return}micSettingsBtn.hidden=true;if(!navigator.mediaDevices?.getUserMedia)throw new Error('Audio capture is unavailable in this build.');const stream=await navigator.mediaDevices.getUserMedia({audio:true});recordingChunks=[];const mime=['audio/webm;codecs=opus','audio/webm','audio/mp4'].find(type=>MediaRecorder.isTypeSupported(type));recorder=mime?new MediaRecorder(stream,{mimeType:mime}):new MediaRecorder(stream);recorder.ondataavailable=e=>{if(e.data.size)recordingChunks.push(e.data)};recorder.onstop=async()=>{stream.getTracks().forEach(track=>track.stop());micBtn.setAttribute('aria-pressed','false');micBtn.setAttribute('aria-label','Start microphone recording');micBtn.textContent='MIC';micBtn.disabled=false;try{setState('thinking');addMsg('system','Transcribing command…');const blob=new Blob(recordingChunks,{type:recorder.mimeType||mime||'audio/webm'});if(blob.size<100)throw new Error('No audio was captured.');const text=await window.masterChief.transcribeAudio(await blob.arrayBuffer(),blob.type);if(!text)throw new Error('No speech was detected.');promptEl.value=`${promptEl.value.trim()}${promptEl.value.trim()?' ':''}${text}`;promptEl.focus();setState('ready');addMsg('system','Transcript inserted. Review it, then transmit.')}catch(e){setState('error');addMsg('system',`Transcription failed: ${e.message}`)}};recorder.start();micBtn.setAttribute('aria-pressed','true');micBtn.setAttribute('aria-label','Stop microphone recording');micBtn.textContent='STOP';setState('listening');addMsg('system','Microphone active. Speak your command, then press STOP.')}catch(e){micBtn.disabled=false;micBtn.setAttribute('aria-pressed','false');micBtn.setAttribute('aria-label','Start microphone recording');micBtn.textContent='MIC';if(e.name==='NotAllowedError')showMicRecovery('Microphone access was denied by Chromium. Open Microphone Settings, enable Master Chief Hologram, then retry.');else addMsg('system',`Microphone unavailable: ${e.message}`);setState('error')}};
-modelSelect.onchange=()=>{localStorage.setItem('mcPreferredProvider',modelSelect.value);renderHistory();renderHealth(health)};$('clearBtn').onclick=()=>{if(!confirm('Clear the visible conversation from local history?'))return;histories[selectedHistoryKey()]=[];save();renderHistory();setState('ready')};$('archiveBtn').onclick=async()=>{try{await window.masterChief.openMediaArchive()}catch(e){addMsg('system',`Archive unavailable: ${e.message}`)}};$('closeBtn').onclick=()=>window.masterChief.windowAction('hide');$('minBtn').onclick=()=>window.masterChief.windowAction('minimize');$('pinBtn').onclick=async e=>e.currentTarget.setAttribute('aria-pressed',String(await window.masterChief.windowAction('toggle-top')));
+modelSelect.onchange=()=>{localStorage.setItem('mcPreferredProvider',modelSelect.value);renderHistory();renderHealth(health)};
+const PRIVATE_PREFERENCE_KEYS=['mcTheme','mcVisualMode','mcPersonaView','mcPreferredProvider','mcWave'];
+function capturePrivatePreferences(){return Object.fromEntries(PRIVATE_PREFERENCE_KEYS.map(key=>[key,localStorage.getItem(key)]).filter(([,value])=>value!==null))}
+function restorePrivatePreferences(preferences){for(const [key,value] of Object.entries(preferences))localStorage.setItem(key,value)}
+async function purgePrivateActivity(includeMedia=false){
+  const warning=includeMedia
+    ? 'Permanently delete every saved conversation and every Master Chief generated image and video, including prompts, job history, and Reference Studio records? Tokens, provider settings, models, and app preferences will be preserved. This cannot be undone in the app.'
+    : 'Permanently clear every saved conversation, draft, temporary attachment index, and cached conversation trace on this Mac? Generated images and videos will be preserved. Tokens, provider settings, models, and app preferences will also be preserved.';
+  if(!confirm(warning))return;
+  const preferences=capturePrivatePreferences();
+  try{
+    Object.keys(histories).forEach(key=>delete histories[key]);
+    localStorage.clear();
+    promptEl.value='';
+    if($('positivePrompt'))$('positivePrompt').value='';
+    if($('negativePrompt'))$('negativePrompt').value='';
+    attachments.splice(0);
+    renderAttachments();
+    activeCreativeSession=null;
+    externalRouteApproved=false;
+    if(includeMedia)mediaJobs.clear();
+    await window.masterChief.clearPrivateHistory(includeMedia);
+    restorePrivatePreferences(preferences);
+    renderHistory();
+    applyPersonaView(personaView);
+    applyTheme();
+    setState('ready');
+  }catch(e){
+    restorePrivatePreferences(preferences);
+    setState('error');
+    addMsg('system',`Private-history clear failed: ${e.message}`);
+  }
+}
+$('clearBtn').onclick=()=>purgePrivateActivity(false);
+$('clearAllBtn').onclick=()=>purgePrivateActivity(true);
+$('archiveBtn').onclick=async()=>{try{await window.masterChief.openMediaArchive()}catch(e){addMsg('system',`Archive unavailable: ${e.message}`)}};$('closeBtn').onclick=()=>window.masterChief.windowAction('hide');$('minBtn').onclick=()=>window.masterChief.windowAction('minimize');$('pinBtn').onclick=async e=>e.currentTarget.setAttribute('aria-pressed',String(await window.masterChief.windowAction('toggle-top')));
 let streamNode=null,streamText='';
 if(window.masterChief.onChatEvent) window.masterChief.onChatEvent(e=>{ if(e.event==='delta'){ if(!streamNode){streamNode=document.createElement('div');streamNode.className='msg bot';chat.append(streamNode)} streamText+=e.delta;streamNode.textContent=streamText;chat.scrollTop=chat.scrollHeight; } if(e.event==='done'){streamNode=null;streamText='';} if(e.event==='cancelled'){streamNode=null;streamText='';} });
 applyPersonaView(personaView);applyTheme();renderHistory();const today=new Date().toDateString();if(localStorage.getItem('mcWave')!==today){localStorage.setItem('mcWave',today);setState('wave');setTimeout(()=>setState('idle'),1800)}refreshHealth();refreshModelCatalog();refreshToolApprovals();

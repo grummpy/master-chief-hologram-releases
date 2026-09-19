@@ -55,6 +55,7 @@ contextBridge.exposeInMainWorld('masterChief', {
   removeIndexedDocument: name => ipcRenderer.invoke('remove-indexed-document', { name }),
   searchIndex: query => ipcRenderer.invoke('search-index', { query }),
   indexStats: () => ipcRenderer.invoke('index-stats'),
+  clearPrivateHistory: includeMedia => ipcRenderer.invoke('clear-private-history', { includeMedia }),
   openArtifact: relativePath => ipcRenderer.invoke('open-artifact', relativePath),
   revealArtifact: relativePath => ipcRenderer.invoke('reveal-artifact', relativePath),
   artifactMetadata: relativePath => ipcRenderer.invoke('artifact-metadata', relativePath),

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.8.3
+
+- Clear now purges every provider conversation, drafts, temporary attachment indexes, creative-session pointers, Chromium conversation storage, and cache instead of clearing only the visible provider. Generated media stays in Archive.
+- Added Clear All for a broader permanent wipe of conversations, generated images and videos, media prompts and job lineage, and Reference Studio records.
+- Both privacy actions preserve API tokens, provider configuration, downloaded models, tool permissions, theme, view, and route preferences.
+
 ## 1.8.2
 
 - Refreshes provider health and the model catalog immediately after Hugging Face authentication succeeds.

@@ -111,7 +111,8 @@ function createReferenceStudioStore(filePath) {
   function updateShot(ids, patch) { const state = read(); const { sheet, shot } = locate(state, ids); const index = sheet.shots.findIndex(item => item.id === shot.id); sheet.shots[index] = normalizeShot({ ...shot, ...patch, id: shot.id }, shot); write(state); return sheet.shots[index]; }
   function removeShot(projectId, shotId, subjectId, sheetId) { const state = read(); const { sheet } = locate(state, { projectId, subjectId, sheetId }); if (!sheet) throw new Error('Reference sheet not found.'); sheet.shots = sheet.shots.filter(item => item.id !== shotId); write(state); return { removed: true }; }
   function clearQueue(ids) { const state = read(); const { sheet } = locate(state, ids); let cleared = 0; for (const shot of sheet.shots) if (['queued', 'failed', 'cancelled', 'recoverable'].includes(shot.status)) { shot.status = 'draft'; shot.error = ''; shot.updatedAt = iso(); cleared++; } write(state); return { cleared }; }
-  return { read, saveProject, saveSubject, saveSheet, saveView, saveShot, saveVariant, updateShot, removeShot, clearQueue };
+  function clear() { const removed = read().projects.length; write({ schemaVersion: 2, projects: [] }); return { removed }; }
+  return { read, saveProject, saveSubject, saveSheet, saveView, saveShot, saveVariant, updateShot, removeShot, clearQueue, clear };
 }
 
 module.exports = { SHOT_STATUSES, REVIEW_STATUSES, normalizeProject, normalizeSubject, normalizeSheet, normalizeView, normalizeShot, normalizeVariant, migrate, createReferenceStudioStore };

@@ -1053,6 +1053,27 @@ secureHandle('index-document', (_event, payload) => { requireToolApproval('files
 secureHandle('remove-indexed-document', (_event, payload) => { requireToolApproval('files.attach_local_text'); return ragIndex.removeDocument(payload?.name); });
 secureHandle('search-index', (_event, payload) => { requireToolApproval('files.attach_local_text'); return ragIndex.search(payload?.query, payload); });
 secureHandle('index-stats', () => ragIndex.stats());
+secureHandle('clear-private-history', async (_event, payload) => {
+  const includeMedia = Boolean(payload?.includeMedia);
+  const removedIndex = ragIndex.clear();
+  let media = { files: 0, jobs: 0, referenceProjects: 0 };
+  if (includeMedia) {
+    for (const active of activeMediaJobs.values()) { active.controller.abort(new Error('Cleared by operator.')); if (active.promptId && comfyClient) await comfyClient.cancel(active.promptId).catch(() => {}); }
+    activeMediaJobs.clear();
+    for (const queue of activeReferenceQueues.values()) queue.cancelled = true;
+    activeReferenceQueues.clear();
+    if (fs.existsSync(generatedArtifactDir)) {
+      const entries = fs.readdirSync(generatedArtifactDir, { withFileTypes: true });
+      for (const entry of entries) fs.rmSync(path.join(generatedArtifactDir, entry.name), { recursive: true, force: true });
+      media.files = entries.length;
+    }
+    media.jobs = mediaJobLedger.clear().removed;
+    media.referenceProjects = referenceStudio.clear().removed;
+  }
+  await mainWindow.webContents.session.clearCache();
+  await mainWindow.webContents.session.clearStorageData({ storages: ['localstorage', 'indexdb', 'serviceworkers', 'cachestorage'] });
+  return { cleared: true, removedIndex, media, generatedMediaPreserved: !includeMedia };
+});
 secureHandle('open-artifact', async (_event, relativePath) => {
   const artifactPath = resolveArtifactPath(relativePath);
   if (!artifactPath) throw new Error('That artifact link is unavailable.');

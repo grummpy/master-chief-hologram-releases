@@ -38,9 +38,10 @@ test('command deck exposes route residency, consent, accessible log, and respons
   assert.match(css, /@media\(prefers-reduced-motion:reduce\)/);
 });
 
-test('renderer clears the selected model history and purges temporary indexes', () => {
+test('renderer clears every model history and purges temporary indexes', () => {
   const source = read('renderer.js');
-  assert.match(source, /histories\[selectedHistoryKey\(\)\]=\[\]/);
+  assert.match(source, /Object\.keys\(histories\)\.forEach/);
+  assert.match(source, /clearPrivateHistory/);
   assert.match(source, /removeIndexedDocument\(attachment\.name\)/);
   assert.match(source, /confirmExternalRoute/);
   assert.match(source, /e\.key==='Enter'&&!e\.shiftKey&&!e\.isComposing/);

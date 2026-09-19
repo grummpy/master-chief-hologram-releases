@@ -18,6 +18,28 @@ test('G3 operator controls expose autocomplete, spellcheck, archive, and progres
   assert.match(renderer, /showGenerationStatus/);
 });
 
+test('Clear purges all conversation history and local retrieval traces', () => {
+  assert.match(renderer, /Object\.keys\(histories\)\.forEach/);
+  assert.match(renderer, /localStorage\.clear\(\)/);
+  assert.match(renderer, /clearPrivateHistory/);
+  const main = fs.readFileSync(path.join(root, 'main.js'), 'utf8');
+  assert.match(main, /clear-private-history/);
+  assert.match(main, /clearStorageData/);
+  assert.match(main, /ragIndex\.clear\(\)/);
+});
+
+test('Clear All removes generated media lineage while preserving credentials and settings', () => {
+  assert.match(html, /id="clearAllBtn"/);
+  assert.match(renderer, /purgePrivateActivity\(true\)/);
+  assert.match(renderer, /PRIVATE_PREFERENCE_KEYS/);
+  assert.match(renderer, /clearPrivateHistory\(includeMedia\)/);
+  const main = fs.readFileSync(path.join(root, 'main.js'), 'utf8');
+  assert.match(main, /mediaJobLedger\.clear\(\)/);
+  assert.match(main, /referenceStudio\.clear\(\)/);
+  assert.match(main, /fs\.rmSync\(path\.join\(generatedArtifactDir, entry\.name\)/);
+  assert.doesNotMatch(main.slice(main.indexOf("secureHandle('clear-private-history'"), main.indexOf("secureHandle('open-artifact'")), /credentials|connector-settings|tool-approvals/);
+});
+
 test('media controls expose explicit prompts, upscale, and Reference Studio', () => {
   assert.match(html, /id="positivePrompt"/);
   assert.match(html, /id="negativePrompt"/);

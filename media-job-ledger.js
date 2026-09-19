@@ -121,7 +121,8 @@ function createMediaJobLedger(filePath) {
       attempt: mode === 'retry' ? Number(source.attempt || 1) + 1 : 1
     });
   }
-  return { create, update, get, list, recoverInterrupted, fork, filePath: target };
+  function clear() { const removed = readState().jobs.length; writeState({ version: 1, jobs: [] }); return { removed }; }
+  return { create, update, get, list, recoverInterrupted, fork, clear, filePath: target };
 }
 
 module.exports = { createMediaJobLedger, ACTIVE, TERMINAL };
