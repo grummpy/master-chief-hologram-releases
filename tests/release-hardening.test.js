@@ -43,6 +43,8 @@ test('renderer clears the selected model history and purges temporary indexes', 
   assert.match(source, /histories\[selectedHistoryKey\(\)\]=\[\]/);
   assert.match(source, /removeIndexedDocument\(attachment\.name\)/);
   assert.match(source, /confirmExternalRoute/);
+  assert.match(source, /e\.key==='Enter'&&!e\.shiftKey&&!e\.isComposing/);
+  assert.match(read('index.html'), /Enter to send · Shift\+Enter for newline/);
 });
 
 test('launcher fails closed instead of installing a stale build', () => {

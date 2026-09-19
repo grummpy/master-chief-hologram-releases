@@ -16,6 +16,7 @@ Midnight Command is a private macOS command interface for local and explicitly s
 - Cancel support for ordinary provider requests and Codex child processes.
 - Static or interactive Commander Nova presentation, reduced-motion support, day/night themes, and keyboard-visible focus.
 - Professional and Personal Commander Nova views with a persistent local preference and unchanged provider/tool authority.
+- Enter transmits a command; Shift+Enter inserts a new line, with IME composition protected.
 - Atomic Desktop launcher update with tests, package inspection, and rollback.
 
 ## Run from source
@@ -64,6 +65,6 @@ npm run release:readiness
 
 `release:local` runs automated tests, asset and visual contracts, production dependency audit, packaging, and package inspection. `release:readiness` checks for an Apple Developer ID certificate. The current Desktop package is an ad-hoc-signed personal build; public distribution still requires Developer ID signing, notarization, stapling, and Gatekeeper evidence.
 
-See [release evidence](docs/RELEASE_V1.2.0.md), [local creative model guidance](docs/LOCAL_CREATIVE_MODELS.md), [system flow](docs/SYSTEM_FLOW.md), [art provenance](docs/ART_PROVENANCE.md), and [technical learning guide](docs/TECHNICAL_LEARNING_GUIDE.md).
+See [release evidence](docs/RELEASE_V1.2.0.md), [connector and agent plan](docs/CONNECTOR_AGENT_PLAN.md), [local creative model guidance](docs/LOCAL_CREATIVE_MODELS.md), [system flow](docs/SYSTEM_FLOW.md), [art provenance](docs/ART_PROVENANCE.md), and [technical learning guide](docs/TECHNICAL_LEARNING_GUIDE.md).
 
 Built for Commander grummpy · 2026
