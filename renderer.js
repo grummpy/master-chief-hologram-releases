@@ -74,7 +74,7 @@ async function runCreativeCommand(text){
   try{
     const isRevision=command==='revise';
     const prompt=guidance;
-    const negativePrompt=['minor, child, teenager, youthful appearance',explicitNegative].filter(Boolean).join(', ');
+    const negativePrompt=explicitNegative;
     const revisionStrength=isRevision?activeCreativeSession.strength:undefined;
     const result=await window.masterChief.generateLocalMedia({kind:isRevision?'image':command,prompt,sourceArtifact:isRevision?activeCreativeSession.artifact.path:undefined,sessionId:isRevision?activeCreativeSession.id:undefined,revisionStrength,negativePrompt});
     if(!result.artifacts.length)throw new Error('The workflow completed without a downloadable artifact.');

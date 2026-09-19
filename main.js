@@ -35,6 +35,7 @@ const { getConnectorRegistry } = require('./connector-registry');
 const { cloneAndFillWorkflow, createComfyUiClient } = require('./comfyui-client');
 const { runAgentPlan } = require('./agent-runner');
 const { createReferenceStudioStore } = require('./reference-studio-store');
+const { assertPermittedMediaPrompt } = require('./media-content-boundary');
 const localAiManifest = loadLocalAiManifest(path.join(__dirname, 'local-ai-manifest.json'));
 
 let mainWindow;
@@ -336,7 +337,7 @@ async function generateLocalMedia(payload) {
   const template = JSON.parse(fs.readFileSync(source, 'utf8'));
   const checkpoints = await comfyClient.checkpoints();
   const checkpoint = checkpoints.find(name => /juggernaut.*xl.*v9/i.test(name)) || checkpoints.find(name => /juggernaut.*xl/i.test(name)) || 'sd_xl_base_1.0.safetensors';
-  const rawPrompt = kind === 'upscale' ? 'Deterministic image upscale' : String(payload?.prompt || '').replace(/^prompt\s+/i, '').trim();
+  const rawPrompt = kind === 'upscale' ? 'Deterministic image upscale' : assertPermittedMediaPrompt(String(payload?.prompt || '').replace(/^prompt\s+/i, '').trim());
   const workflow = cloneAndFillWorkflow(template, {
     ...(payload || {}),
     prompt: rawPrompt,

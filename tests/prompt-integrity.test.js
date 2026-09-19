@@ -17,5 +17,5 @@ test('media backend passes operator prompts without hidden creative rewriting', 
 
 test('renderer does not inject clothing, censorship, or aesthetic negatives', () => {
   assert.doesNotMatch(renderer, /strategically covered|bikini top|malformed anatomy|watermark, blurry/);
-  assert.match(renderer, /const explicitNegative=/);
+  assert.match(renderer, /const negativePrompt=explicitNegative/);
 });
