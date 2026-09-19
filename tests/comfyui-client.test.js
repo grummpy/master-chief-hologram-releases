@@ -31,6 +31,12 @@ test('revision strength supports a near-total redraw when explicitly requested',
   assert.equal(cloneAndFillWorkflow(template, { prompt: 'adult portrait', revisionStrength: 2 })['1'].inputs.denoise, 0.99);
 });
 
+test('upscale contract clamps scale to the supported app range', () => {
+  const template = { '1': { inputs: { scale_by: '{{SCALE_BY}}' } } };
+  assert.equal(cloneAndFillWorkflow(template, { prompt: 'upscale', scaleBy: 2 })['1'].inputs.scale_by, 2);
+  assert.equal(cloneAndFillWorkflow(template, { prompt: 'upscale', scaleBy: 12 })['1'].inputs.scale_by, 4);
+});
+
 test('client uploads revision context and requests GPU cache release', async () => {
   const calls = [];
   const fetchImpl = async (url, options = {}) => {

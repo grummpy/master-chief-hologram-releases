@@ -31,6 +31,7 @@ function cloneAndFillWorkflow(template, values) {
     ['{{NEGATIVE_PROMPT}}', String(values.negativePrompt || '').slice(0, 2000)],
     ['{{SEED}}', Number.isSafeInteger(values.seed) ? values.seed : crypto.randomInt(1, 2147483646)],
     ['{{DENOISE}}', Number.isFinite(values.revisionStrength) ? Math.min(0.99, Math.max(0.2, values.revisionStrength)) : 0.68],
+    ['{{SCALE_BY}}', Number.isFinite(values.scaleBy) ? Math.min(4, Math.max(1, values.scaleBy)) : 2],
     ['{{CHECKPOINT}}', String(values.checkpoint || 'sd_xl_base_1.0.safetensors')],
     ['{{SOURCE_IMAGE}}', String(values.sourceImage || '')]
   ]);

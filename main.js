@@ -34,6 +34,7 @@ const { createLocalAiAudit } = require('./local-ai-audit');
 const { getConnectorRegistry } = require('./connector-registry');
 const { cloneAndFillWorkflow, createComfyUiClient } = require('./comfyui-client');
 const { runAgentPlan } = require('./agent-runner');
+const { createReferenceStudioStore } = require('./reference-studio-store');
 const localAiManifest = loadLocalAiManifest(path.join(__dirname, 'local-ai-manifest.json'));
 
 let mainWindow;
@@ -52,6 +53,7 @@ function loadConnectorSettings() {
 const connectorSettings = loadConnectorSettings();
 const comfyBaseUrl = String(process.env.COMFYUI_BASE_URL || connectorSettings.comfyuiBaseUrl || '').trim();
 const generatedArtifactDir = path.join(app.getPath('userData'), 'artifacts', 'generated');
+const referenceStudio = createReferenceStudioStore(path.join(app.getPath('userData'), 'reference-studio.json'));
 function generatedRelativePath(filename) { return `artifacts/generated/${path.basename(filename)}`; }
 function listGeneratedArtifacts(limit = 50) {
   if (!fs.existsSync(generatedArtifactDir)) return [];
@@ -309,8 +311,9 @@ async function providerStatus() {
 }
 
 function workflowPath(kind) {
-  if (!['image', 'image-revision', 'video'].includes(kind)) throw new Error('Media kind must be image, image revision, or video.');
+  if (!['image', 'image-revision', 'image-upscale', 'video'].includes(kind)) throw new Error('Media kind must be image, image revision, image upscale, or video.');
   if (kind === 'image-revision') return path.resolve(path.join(__dirname, 'workflows', 'image-revision-api.json'));
+  if (kind === 'image-upscale') return path.resolve(path.join(__dirname, 'workflows', 'image-upscale-api.json'));
   const configured = kind === 'image' ? process.env.COMFYUI_IMAGE_WORKFLOW : process.env.COMFYUI_VIDEO_WORKFLOW;
   return path.resolve(configured || path.join(__dirname, 'workflows', `${kind}-api.json`));
 }
@@ -321,19 +324,19 @@ async function generateLocalMedia(payload) {
   const kind = String(payload?.kind || '');
   let workflowKind = kind;
   let sourceImage = '';
-  if (kind === 'image' && payload?.sourceArtifact) {
+  if ((kind === 'image' && payload?.sourceArtifact) || kind === 'upscale') {
     const localSource = resolveArtifactPath(payload.sourceArtifact);
-    if (!localSource || !/\.(png|jpe?g|webp)$/i.test(localSource)) throw new Error('The selected revision source is unavailable or is not a supported image.');
+    if (!localSource || !/\.(png|jpe?g|webp)$/i.test(localSource)) throw new Error('The selected source is unavailable or is not a supported image.');
     const uploaded = await comfyClient.uploadImage(localSource, `mc-${Date.now()}-${path.basename(localSource)}`);
     sourceImage = uploaded.subfolder ? `${uploaded.subfolder}/${uploaded.name}` : uploaded.name;
-    workflowKind = 'image-revision';
+    workflowKind = kind === 'upscale' ? 'image-upscale' : 'image-revision';
   }
   const source = workflowPath(workflowKind);
   if (!source.startsWith(path.resolve(__dirname) + path.sep) || !fs.existsSync(source)) throw new Error(`Approved ${kind} workflow is missing. Export it in API format to workflows/${kind}-api.json.`);
   const template = JSON.parse(fs.readFileSync(source, 'utf8'));
   const checkpoints = await comfyClient.checkpoints();
   const checkpoint = checkpoints.find(name => /juggernaut.*xl.*v9/i.test(name)) || checkpoints.find(name => /juggernaut.*xl/i.test(name)) || 'sd_xl_base_1.0.safetensors';
-  const rawPrompt = String(payload?.prompt || '').replace(/^prompt\s+/i, '').trim();
+  const rawPrompt = kind === 'upscale' ? 'Deterministic image upscale' : String(payload?.prompt || '').replace(/^prompt\s+/i, '').trim();
   const adultTopless = /\b(topless|bare[- ]?breasts?|uncovered (?:breasts?|chest)|nude (?:chest|torso))\b/i.test(rawPrompt);
   const adultDirective = adultTopless
     ? '(clearly adult woman, age 30 or older:1.25), (topless, bare breasts, uncovered chest:1.45), preserve the requested pose and identity exactly. '
@@ -659,6 +662,10 @@ secureHandle('set-tool-approval', (_event, payload) => { toolApprovals = setTool
 secureHandle('execute-local-tool', (_event, payload) => executeLocalTool(payload?.id));
 secureHandle('generate-local-media', (_event, payload) => generateLocalMedia(payload));
 secureHandle('list-generated-media', (_event, payload) => listGeneratedArtifacts(payload?.limit));
+secureHandle('reference-studio-state', () => referenceStudio.read());
+secureHandle('reference-studio-save-project', (_event, payload) => referenceStudio.saveProject(payload));
+secureHandle('reference-studio-save-shot', (_event, payload) => referenceStudio.saveShot(String(payload?.projectId || ''), payload?.shot));
+secureHandle('reference-studio-remove-shot', (_event, payload) => referenceStudio.removeShot(String(payload?.projectId || ''), String(payload?.shotId || '')));
 secureHandle('open-media-archive', async () => {
   fs.mkdirSync(generatedArtifactDir, { recursive: true, mode: 0o700 });
   const result = await shell.openPath(generatedArtifactDir);
