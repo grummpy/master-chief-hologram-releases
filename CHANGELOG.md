@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.1 — 2026-09-19
+
+- Fixed `/video` contract routing so it no longer reports video as an invalid media type.
+- Added an accurate readiness response when the Windows worker lacks an approved local video workflow/model bundle.
+
 ## 1.6.0 — 2026-09-19
 
 - Added durable, recoverable ComfyUI job ledger and six-stage progress reporting.

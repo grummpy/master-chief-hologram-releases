@@ -331,8 +331,8 @@ function updateMediaJob(requestId, patch) { return emitMediaJob(mediaJobLedger.u
 function mediaContract(payload = {}) {
   const kind = String(payload.kind || 'image');
   if (kind === 'image' && payload.sourceArtifact) return 'revision';
-  if (['image', 'revision', 'rebuild', 'upscale'].includes(kind)) return kind;
-  throw new Error('Media contract must be image, revision, rebuild, or upscale.');
+  if (['image', 'revision', 'rebuild', 'upscale', 'video'].includes(kind)) return kind;
+  throw new Error('Media contract must be image, revision, rebuild, upscale, or video.');
 }
 
 async function executeMediaJob(requestId) {
@@ -351,7 +351,12 @@ async function executeMediaJob(requestId) {
       const uploaded = await comfyClient.uploadImage(localSource, `mc-${Date.now()}-${path.basename(localSource)}`);
       sourceImage = uploaded.subfolder ? `${uploaded.subfolder}/${uploaded.name}` : uploaded.name;
     }
-    const definition = payload.workflowId ? workflowRegistry.get(payload.workflowId) : workflowRegistry.forKind(contract);
+    let definition;
+    try { definition = payload.workflowId ? workflowRegistry.get(payload.workflowId) : workflowRegistry.forKind(contract); }
+    catch (error) {
+      if (contract === 'video') throw new Error('Video generation is not ready on the Windows worker. No approved local video workflow and model bundle is installed yet. Install and verify an AMD-compatible video model, text encoder, VAE, and API workflow before using /video. Image generation remains available.');
+      throw error;
+    }
     if (definition.contract !== contract) throw new Error(`Workflow ${definition.id} does not support the ${contract} contract.`);
     const template = JSON.parse(fs.readFileSync(definition.file, 'utf8'));
     const checkpoints = definition.modelFamily === 'pixel' ? [] : await comfyClient.checkpoints();
@@ -722,7 +727,7 @@ secureHandle('generate-local-media', (_event, payload) => generateLocalMedia(pay
 secureHandle('list-generated-media', (_event, payload) => listGeneratedArtifacts(payload?.limit));
 secureHandle('media-job-list', (_event, payload) => mediaJobLedger.list(payload?.limit));
 secureHandle('media-job-get', (_event, payload) => mediaJobLedger.get(payload?.requestId));
-secureHandle('media-catalog', async () => ({ checkpoints: comfyClient ? await comfyClient.checkpoints() : [], workflows: workflowRegistry.list() }));
+secureHandle('media-catalog', async () => ({ checkpoints: comfyClient ? await comfyClient.checkpoints() : [], workflows: workflowRegistry.list(), capabilities: { image: true, revision: true, rebuild: true, upscale: true, video: workflowRegistry.list().some(item => item.contract === 'video' && item.enabled !== false) }, videoReadiness: workflowRegistry.list().some(item => item.contract === 'video' && item.enabled !== false) ? 'ready' : 'missing approved AMD workflow and model bundle' }));
 secureHandle('media-job-cancel', async (_event, payload) => {
   requireToolApproval('media.generate_local');
   const requestId = String(payload?.requestId || '');

@@ -30,3 +30,11 @@ test('image workflow receives the recorded operator parameters', () => {
   assert.equal(result['6'].inputs.text, 'verbatim positive');
   assert.equal(result['7'].inputs.text, 'verbatim negative');
 });
+
+test('main process recognizes video and reports its gated readiness precisely', () => {
+  const fs = require('node:fs');
+  const main = fs.readFileSync(path.resolve(__dirname, '..', 'main.js'), 'utf8');
+  assert.match(main, /\['image', 'revision', 'rebuild', 'upscale', 'video'\]/);
+  assert.match(main, /Video generation is not ready on the Windows worker/);
+  assert.doesNotMatch(main, /Media contract must be image, revision, rebuild, or upscale\./);
+});
