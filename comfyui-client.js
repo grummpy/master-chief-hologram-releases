@@ -31,6 +31,7 @@ function cloneAndFillWorkflow(template, values) {
     ['{{NEGATIVE_PROMPT}}', String(values.negativePrompt || '').slice(0, 2000)],
     ['{{SEED}}', Number.isSafeInteger(values.seed) ? values.seed : crypto.randomInt(1, 2147483646)],
     ['{{DENOISE}}', Number.isFinite(values.revisionStrength) ? Math.min(0.9, Math.max(0.2, values.revisionStrength)) : 0.68],
+    ['{{CHECKPOINT}}', String(values.checkpoint || 'sd_xl_base_1.0.safetensors')],
     ['{{SOURCE_IMAGE}}', String(values.sourceImage || '')]
   ]);
   function replace(value) {
@@ -67,6 +68,11 @@ function createComfyUiClient({ baseUrl, fetchImpl = fetch, artifactDir, timeoutM
       } catch (error) {
         return { state: 'error', label: 'ComfyUI · worker unavailable', detail: error.message };
       }
+    },
+    async checkpoints() {
+      const response = await request('/models/checkpoints', {}, 10000);
+      const body = await response.json();
+      return Array.isArray(body) ? body.map(String) : [];
     },
     async submit(workflow, clientId = crypto.randomUUID()) {
       const response = await request('/prompt', {

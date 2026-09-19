@@ -14,7 +14,7 @@
       "latent_image": ["10", 0]
     }
   },
-  "4": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": "sd_xl_base_1.0.safetensors" } },
+  "4": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": "{{CHECKPOINT}}" } },
   "6": { "class_type": "CLIPTextEncode", "inputs": { "text": "{{PROMPT}}", "clip": ["4", 1] } },
   "7": { "class_type": "CLIPTextEncode", "inputs": { "text": "{{NEGATIVE_PROMPT}}", "clip": ["4", 1] } },
   "8": { "class_type": "VAEDecode", "inputs": { "samples": ["3", 0], "vae": ["4", 2] } },

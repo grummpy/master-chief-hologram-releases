@@ -310,7 +310,11 @@ async function generateLocalMedia(payload) {
   const source = workflowPath(workflowKind);
   if (!source.startsWith(path.resolve(__dirname) + path.sep) || !fs.existsSync(source)) throw new Error(`Approved ${kind} workflow is missing. Export it in API format to workflows/${kind}-api.json.`);
   const template = JSON.parse(fs.readFileSync(source, 'utf8'));
-  const workflow = cloneAndFillWorkflow(template, { ...(payload || {}), sourceImage });
+  const checkpoints = await comfyClient.checkpoints();
+  const checkpoint = checkpoints.find(name => /juggernaut.*xl.*v9/i.test(name)) || checkpoints.find(name => /juggernaut.*xl/i.test(name)) || 'sd_xl_base_1.0.safetensors';
+  const rawPrompt = String(payload?.prompt || '').replace(/^prompt\s+/i, '').trim();
+  const adherencePrompt = `Follow the requested subject, clothing, pose, setting, camera, and style exactly. ${rawPrompt}`;
+  const workflow = cloneAndFillWorkflow(template, { ...(payload || {}), prompt: adherencePrompt, sourceImage, checkpoint });
   const queued = await comfyClient.submit(workflow);
   auditToolEvent({ id: 'media.generate_local', outcome: 'queued', detail: `${kind}:${queued.promptId}` });
   const history = await comfyClient.wait(queued.promptId);
