@@ -74,6 +74,6 @@ npm run release:readiness
 
 `release:local` runs automated tests, asset and visual contracts, production dependency audit, packaging, and package inspection. `release:readiness` checks for an Apple Developer ID certificate. The current Desktop package is an ad-hoc-signed personal build; public distribution still requires Developer ID signing, notarization, stapling, and Gatekeeper evidence.
 
-See [release evidence](docs/RELEASE_V1.2.0.md), [connector and agent plan](docs/CONNECTOR_AGENT_PLAN.md), [local creative model guidance](docs/LOCAL_CREATIVE_MODELS.md), [system flow](docs/SYSTEM_FLOW.md), [art provenance](docs/ART_PROVENANCE.md), and [technical learning guide](docs/TECHNICAL_LEARNING_GUIDE.md).
+See the [Windows remote operator runbook](docs/WINDOWS_INSTALL_SEQUENCE.md), [complete capability overhaul plan](docs/MASTER_CHIEF_COMPLETE_OVERHAUL_PLAN.md), [release evidence](docs/RELEASE_V1.2.0.md), [connector and agent plan](docs/CONNECTOR_AGENT_PLAN.md), [local creative model guidance](docs/LOCAL_CREATIVE_MODELS.md), [system flow](docs/SYSTEM_FLOW.md), [art provenance](docs/ART_PROVENANCE.md), and [technical learning guide](docs/TECHNICAL_LEARNING_GUIDE.md).
 
 Built for Commander grummpy · 2026
