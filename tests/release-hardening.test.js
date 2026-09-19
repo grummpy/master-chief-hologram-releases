@@ -48,3 +48,11 @@ test('launcher fails closed instead of installing a stale build', () => {
   assert.match(source, /"\$NPM_BIN" run inspect:mac/);
   assert.match(source, /PREVIOUS_BUNDLE/);
 });
+
+test('packaging removes broad transport and unused hardware permissions', () => {
+  const source = read('scripts/after-pack.js');
+  assert.match(source, /NSAllowsArbitraryLoads.*NO/);
+  assert.match(source, /NSCameraUsageDescription/);
+  assert.match(source, /NSBluetoothAlwaysUsageDescription/);
+  assert.match(read('package.json'), /"afterPack": "scripts\/after-pack\.js"/);
+});

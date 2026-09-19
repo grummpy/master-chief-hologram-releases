@@ -45,7 +45,7 @@
 
 | Check | Result |
 |---|---|
-| Node automated suite | PASS — 33/33 |
+| Node automated suite | PASS — 34/34 |
 | Asset validator | PASS |
 | Midnight Command visual contract | PASS — 15 approved assets |
 | Production dependency audit | PASS — 0 known vulnerabilities |
@@ -54,6 +54,7 @@
 | Git whitespace check | PASS |
 | arm64 Electron package | PASS |
 | ASAR/package inspection | PASS — v1.1.0, license and required modules present |
+| Packaged transport/permissions | PASS — arbitrary loads disabled; unused camera/Bluetooth usage keys removed |
 | Packaged Desktop launch | PASS — version 1.1.0 observed in the real runtime |
 | Desktop replacement | PASS — `/Users/daddy/Desktop/Master Chief Hologram.app` |
 | Developer ID / notarization | BLOCKED — no Developer ID Application certificate installed |

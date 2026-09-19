@@ -31,6 +31,7 @@
   "build": {
     "appId": "com.grummpy.master-chief-hologram",
     "productName": "Master Chief Hologram",
+    "afterPack": "scripts/after-pack.js",
     "asar": true,
     "files": [
       "security.js",
