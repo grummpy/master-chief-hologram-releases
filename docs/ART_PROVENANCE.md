@@ -30,6 +30,12 @@ Runtime scene: `three-scene.js`
 
 The reference panel is an original project-generated adult futuristic female command-officer portrait, recorded in `assets/visual-state-manifest.json`. In v1.1.0 it is the primary in-app Commander Nova portrait and the texture used by the optional interactive scene. It does not represent a third-party character, franchise armor, or celebrity likeness.
 
+Personal view: `assets/characters/commander-nova-personal-v1.png`
+
+The v1.2.0 Personal view is an AI-generated, identity-preserving variation created with the built-in image-generation service from the approved reference panel. It depicts the same fictional adult Commander Nova, age 28+, in a fully opaque, off-the-shoulder futuristic evening bodysuit, thigh-high boots, and cyan holographic wrap. The production prompt required complete intimate coverage, no nudity, no sexual act, no fetish equipment, no weapons, no logos, no celebrity likeness, and no franchise elements. SHA-256 and native dimensions are recorded in `assets/visual-state-manifest.json`.
+
+The Personal artwork changes presentation only. It does not change the active model, system prompt, tool permissions, cloud-consent flow, or Master Chief/Gov Army operating boundaries.
+
 The interactive companion is a local WebGL plane using the approved Commander Nova portrait, rendered with Three.js 0.180.0 (`assets/vendor/three.module.min.js`, MIT). It is intentionally labeled Interactive/Static rather than 3D. It is not a downloaded mesh or final GLB character. The scene has a user-controlled static fallback, honors reduced-motion preferences, and performs no network asset fetches.
 
 ## Acceptance checks

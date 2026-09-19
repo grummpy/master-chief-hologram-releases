@@ -1,6 +1,6 @@
 # Master Chief Hologram — Midnight Command
 
-Current local release: **1.1.0**
+Current local release: **1.2.0**
 
 Midnight Command is a private macOS command interface for local and explicitly selected cloud AI routes. Commander Nova is the original in-app command operator; the navy-and-gold mascot remains the launcher seal and Master Chief orchestration identity.
 
@@ -15,6 +15,7 @@ Midnight Command is a private macOS command interface for local and explicitly s
 - Offline whisper.cpp detection with a Finder-safe absolute ffmpeg runtime path.
 - Cancel support for ordinary provider requests and Codex child processes.
 - Static or interactive Commander Nova presentation, reduced-motion support, day/night themes, and keyboard-visible focus.
+- Professional and Personal Commander Nova views with a persistent local preference and unchanged provider/tool authority.
 - Atomic Desktop launcher update with tests, package inspection, and rollback.
 
 ## Run from source
@@ -41,6 +42,7 @@ Install and start Ollama, then install a model appropriate for the machine:
 brew install ollama
 ollama serve
 ollama pull qwen2.5:0.5b
+ollama pull dolphin3:8b
 ```
 
 The app discovers local Ollama model names. `OLLAMA_BASE_URL` can target an approved private-LAN worker. No model weights are stored in this repository.
@@ -62,6 +64,6 @@ npm run release:readiness
 
 `release:local` runs automated tests, asset and visual contracts, production dependency audit, packaging, and package inspection. `release:readiness` checks for an Apple Developer ID certificate. The current Desktop package is an ad-hoc-signed personal build; public distribution still requires Developer ID signing, notarization, stapling, and Gatekeeper evidence.
 
-See [release evidence](docs/RELEASE_V1.1.0.md), [system flow](docs/SYSTEM_FLOW.md), [art provenance](docs/ART_PROVENANCE.md), and [technical learning guide](docs/TECHNICAL_LEARNING_GUIDE.md).
+See [release evidence](docs/RELEASE_V1.2.0.md), [local creative model guidance](docs/LOCAL_CREATIVE_MODELS.md), [system flow](docs/SYSTEM_FLOW.md), [art provenance](docs/ART_PROVENANCE.md), and [technical learning guide](docs/TECHNICAL_LEARNING_GUIDE.md).
 
 Built for Commander grummpy · 2026

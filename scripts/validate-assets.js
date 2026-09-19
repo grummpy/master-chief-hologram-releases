@@ -6,6 +6,8 @@ const root = path.resolve(__dirname, '..');
 const required = [
   ['assets/icon.png', 'png'],
   ['assets/master-chief-hologram-v1.png', 'png'],
+  ['assets/characters/command-officer-reference-v1.png', 'png'],
+  ['assets/characters/commander-nova-personal-v1.png', 'png'],
   ['assets/hologram-placeholder.svg', 'svg'],
 ];
 

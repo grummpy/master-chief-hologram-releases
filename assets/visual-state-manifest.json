@@ -91,6 +91,12 @@
       "sha256": "16a3baad76f9bc61bbae113cc267815518aeff8e467a2f532544c61d76cffd23",
       "width": 1024,
       "height": 1536
+    },
+    {
+      "path": "assets/characters/commander-nova-personal-v1.png",
+      "sha256": "ba2018f58fc0929491a0c2bab66a11edc8afe2143b2673ab4e38bb1e3c046cad",
+      "width": 1024,
+      "height": 1536
     }
   ]
 }

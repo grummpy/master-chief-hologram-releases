@@ -25,6 +25,17 @@
       "distribution": "not bundled",
       "licenseReview": "required before redistribution",
       "provenance": "installed locally by the owner through Ollama"
+    },
+    {
+      "id": "dolphin3:8b",
+      "runtime": "ollama",
+      "tier": "creative-local",
+      "eligibleTasks": ["creative writing", "private ideation", "general conversation", "coding assistance"],
+      "enabled": true,
+      "distribution": "not bundled",
+      "licenseReview": "required before redistribution",
+      "alignmentProfile": "owner-steerable; application permissions remain enforced outside the model",
+      "provenance": "Ollama library model by Cognitive Computations; installed locally by the owner"
     }
   ]
 }

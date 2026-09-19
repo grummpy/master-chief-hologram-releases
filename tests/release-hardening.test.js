@@ -30,6 +30,10 @@ test('command deck exposes route residency, consent, accessible log, and respons
   assert.match(html, /id="externalConsent"/);
   assert.match(html, /role="log"/);
   assert.match(html, /Commander Nova/);
+  assert.match(html, /id="professionalViewBtn"/);
+  assert.match(html, /id="personalViewBtn"/);
+  assert.match(read('renderer.js'), /mcPersonaView/);
+  assert.match(read('renderer.js'), /application permissions remain enforced|permissions, and safety controls stay unchanged/);
   assert.match(css, /\.utility-actions\{display:flex;flex-wrap:wrap/);
   assert.match(css, /@media\(prefers-reduced-motion:reduce\)/);
 });

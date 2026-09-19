@@ -3,7 +3,8 @@ import * as THREE from './assets/vendor/three.module.min.js';
 const canvas = document.getElementById('threeScene');
 const stage = document.getElementById('holoStage');
 let enabled = false, state = 'idle', pointerX = 0, pointerY = 0;
-let renderer, scene, camera, mascot, halo, clock;
+let renderer, scene, camera, mascot, halo, clock, persona = 'professional';
+const textures = {};
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
 function setEnabled(value) {
@@ -20,9 +21,11 @@ function init() {
     camera = new THREE.PerspectiveCamera(34, 1, .1, 100);
     camera.position.z = 4.4;
     clock = new THREE.Clock();
-    const texture = new THREE.TextureLoader().load('./assets/characters/command-officer-reference-v1.png', undefined, undefined, () => setEnabled(false));
-    texture.colorSpace = THREE.SRGBColorSpace;
-    mascot = new THREE.Mesh(new THREE.PlaneGeometry(2.45, 2.45), new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: .92, depthWrite: false }));
+    const loader = new THREE.TextureLoader();
+    textures.professional = loader.load('./assets/characters/command-officer-reference-v1.png', undefined, undefined, () => setEnabled(false));
+    textures.personal = loader.load('./assets/characters/commander-nova-personal-v1.png', undefined, undefined, () => setEnabled(false));
+    Object.values(textures).forEach(texture => { texture.colorSpace = THREE.SRGBColorSpace; });
+    mascot = new THREE.Mesh(new THREE.PlaneGeometry(2.45, 2.45), new THREE.MeshBasicMaterial({ map: textures.professional, transparent: true, opacity: .92, depthWrite: false }));
     halo = new THREE.Mesh(new THREE.RingGeometry(1.24, 1.28, 64), new THREE.MeshBasicMaterial({ color: 0x34dfff, transparent: true, opacity: .28, side: THREE.DoubleSide }));
     halo.position.z = -.08;
     scene.add(halo, mascot);
@@ -55,6 +58,6 @@ function render() {
   renderer.render(scene, camera);
 }
 
-window.masterChiefThreeD = { setState: value => { state = value; }, setEnabled };
+window.masterChiefThreeD = { setState: value => { state = value; }, setEnabled, setPersona: value => { persona = value === 'personal' ? 'personal' : 'professional'; if (mascot && textures[persona]) { mascot.material.map = textures[persona]; mascot.material.needsUpdate = true; } } };
 init();
 window.dispatchEvent(new Event('master-chief-three-ready'));

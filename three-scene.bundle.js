@@ -9863,6 +9863,8 @@
   var mascot;
   var halo;
   var clock;
+  var persona = "professional";
+  var textures = {};
   var reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   function setEnabled(value) {
     enabled = Boolean(value && renderer && mascot);
@@ -9877,9 +9879,13 @@
       camera = new Kn(34, 1, 0.1, 100);
       camera.position.z = 4.4;
       clock = new uu();
-      const texture = new Tc().load("./assets/characters/command-officer-reference-v1.png", void 0, void 0, () => setEnabled(false));
-      texture.colorSpace = Ze;
-      mascot = new Dn(new _l(2.45, 2.45), new sn({ map: texture, transparent: true, opacity: 0.92, depthWrite: false }));
+      const loader = new Tc();
+      textures.professional = loader.load("./assets/characters/command-officer-reference-v1.png", void 0, void 0, () => setEnabled(false));
+      textures.personal = loader.load("./assets/characters/commander-nova-personal-v1.png", void 0, void 0, () => setEnabled(false));
+      Object.values(textures).forEach((texture) => {
+        texture.colorSpace = Ze;
+      });
+      mascot = new Dn(new _l(2.45, 2.45), new sn({ map: textures.professional, transparent: true, opacity: 0.92, depthWrite: false }));
       halo = new Dn(new Al(1.24, 1.28, 64), new sn({ color: 3465215, transparent: true, opacity: 0.28, side: p }));
       halo.position.z = -0.08;
       scene.add(halo, mascot);
@@ -9923,7 +9929,13 @@
   }
   window.masterChiefThreeD = { setState: (value) => {
     state = value;
-  }, setEnabled };
+  }, setEnabled, setPersona: (value) => {
+    persona = value === "personal" ? "personal" : "professional";
+    if (mascot && textures[persona]) {
+      mascot.material.map = textures[persona];
+      mascot.material.needsUpdate = true;
+    }
+  } };
   init();
   window.dispatchEvent(new Event("master-chief-three-ready"));
 })();
