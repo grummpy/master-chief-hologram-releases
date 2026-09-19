@@ -15,12 +15,13 @@ test('ComfyUI accepts only private HTTP worker URLs', () => {
 });
 
 test('workflow filling changes only bounded template fields', () => {
-  const template = { '1': { class_type: 'Text', inputs: { text: '{{PROMPT}}', negative: '{{NEGATIVE_PROMPT}}', seed: '{{SEED}}', image: '{{SOURCE_IMAGE}}' } } };
-  const output = cloneAndFillWorkflow(template, { prompt: 'navy "commander"', negativePrompt: 'blur', seed: 42, sourceImage: 'revision.png' });
+  const template = { '1': { class_type: 'Text', inputs: { text: '{{PROMPT}}', negative: '{{NEGATIVE_PROMPT}}', seed: '{{SEED}}', image: '{{SOURCE_IMAGE}}', denoise: '{{DENOISE}}' } } };
+  const output = cloneAndFillWorkflow(template, { prompt: 'navy "commander"', negativePrompt: 'blur', seed: 42, sourceImage: 'revision.png', revisionStrength: 0.84 });
   assert.equal(output['1'].inputs.text, 'navy "commander"');
   assert.equal(output['1'].inputs.negative, 'blur');
   assert.equal(output['1'].inputs.seed, 42);
   assert.equal(output['1'].inputs.image, 'revision.png');
+  assert.equal(output['1'].inputs.denoise, 0.84);
   assert.equal(template['1'].inputs.text, '{{PROMPT}}');
 });
 

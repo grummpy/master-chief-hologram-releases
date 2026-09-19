@@ -30,6 +30,7 @@ function cloneAndFillWorkflow(template, values) {
     ['{{PROMPT}}', assertPrompt(values.prompt)],
     ['{{NEGATIVE_PROMPT}}', String(values.negativePrompt || '').slice(0, 2000)],
     ['{{SEED}}', Number.isSafeInteger(values.seed) ? values.seed : crypto.randomInt(1, 2147483646)],
+    ['{{DENOISE}}', Number.isFinite(values.revisionStrength) ? Math.min(0.9, Math.max(0.2, values.revisionStrength)) : 0.68],
     ['{{SOURCE_IMAGE}}', String(values.sourceImage || '')]
   ]);
   function replace(value) {

@@ -7,7 +7,7 @@
       "cfg": 6.5,
       "sampler_name": "dpmpp_2m",
       "scheduler": "karras",
-      "denoise": 0.42,
+      "denoise": "{{DENOISE}}",
       "model": ["4", 0],
       "positive": ["6", 0],
       "negative": ["7", 0],
