@@ -59,6 +59,7 @@ const referenceStudio = createReferenceStudioStore(path.join(app.getPath('userDa
 const mediaJobLedger = createMediaJobLedger(path.join(app.getPath('userData'), 'media-jobs.json'));
 const workflowRegistry = createWorkflowRegistry(__dirname);
 const activeMediaJobs = new Map();
+const activeReferenceQueues = new Map();
 mediaJobLedger.recoverInterrupted();
 function generatedRelativePath(filename) { return `artifacts/generated/${path.basename(filename)}`; }
 function listGeneratedArtifacts(limit = 50) {
@@ -418,6 +419,74 @@ async function generateLocalMedia(payload) {
   return executeMediaJob(created.job.requestId);
 }
 
+function emitReferenceQueue(event) {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('reference-queue-event', event);
+}
+
+function referenceLocation(ids) {
+  const state = referenceStudio.read();
+  const project = state.projects.find(item => item.id === ids.projectId);
+  const subject = project?.subjects.find(item => item.id === ids.subjectId);
+  const sheet = subject?.referenceSheets.find(item => item.id === ids.sheetId);
+  const shot = sheet?.shots.find(item => item.id === ids.shotId);
+  if (!project || !subject || !sheet || (ids.shotId && !shot)) throw new Error('Reference Studio selection is unavailable.');
+  return { project, subject, sheet, shot };
+}
+
+function effectiveShotPrompt(subject, sheet, shot) {
+  return [shot.positivePrompt, shot.pose && `Pose: ${shot.pose}`, shot.environment && `Environment: ${shot.environment}`, shot.camera && `Camera: ${shot.camera}`, shot.lighting && `Lighting: ${shot.lighting}`, subject.appearanceNotes && `Appearance notes: ${subject.appearanceNotes}`, sheet.appearanceNotes && `Reference-sheet notes: ${sheet.appearanceNotes}`, subject.palette && `Palette: ${subject.palette}`, sheet.palette && `Sheet palette: ${sheet.palette}`, subject.continuityLocks && `Continuity locks: ${subject.continuityLocks}`, sheet.continuityLocks && `Sheet continuity locks: ${sheet.continuityLocks}`, shot.continuityLocks && `Shot continuity locks: ${shot.continuityLocks}`].filter(Boolean).join('\n');
+}
+
+async function executeReferenceShot(ids, queue) {
+  const { subject, sheet, shot } = referenceLocation(ids);
+  if (queue.cancelled) return;
+  referenceStudio.updateShot(ids, { status: 'running', error: '' });
+  emitReferenceQueue({ type: 'shot', ...ids, status: 'running' });
+  const requestId = require('crypto').randomUUID();
+  queue.requestIds.add(requestId);
+  try {
+    const sourceArtifact = shot.referenceArtifact || sheet.approvedViews.find(view => view.status === 'approved')?.artifact || '';
+    const result = await generateLocalMedia({
+      kind: sourceArtifact ? 'revision' : 'image', requestId, sessionId: queue.id,
+      prompt: effectiveShotPrompt(subject, sheet, shot), negativePrompt: shot.negativePrompt,
+      sourceArtifact: sourceArtifact || undefined, parentRevision: sourceArtifact || undefined,
+      checkpoint: shot.model || undefined, workflowId: shot.workflow || undefined,
+      denoise: shot.denoise, revisionStrength: shot.denoise, references: sourceArtifact ? [sourceArtifact] : []
+    });
+    let parentVariantId = '';
+    for (const artifact of result.artifacts) {
+      const variant = referenceStudio.saveVariant(ids, { artifact: artifact.path, sha256: artifact.sha256, requestId: result.requestId, status: 'candidate', parentVariantId, branchLabel: `Render ${new Date().toLocaleString()}` });
+      parentVariantId = variant.id;
+    }
+    referenceStudio.updateShot(ids, { status: 'complete', requestId: result.requestId, error: '' });
+    emitReferenceQueue({ type: 'shot', ...ids, status: 'complete', requestId: result.requestId, artifacts: result.artifacts });
+  } catch (error) {
+    const status = queue.cancelled || /cancel/i.test(error.message) ? 'cancelled' : 'failed';
+    referenceStudio.updateShot(ids, { status, requestId, error: error.message });
+    emitReferenceQueue({ type: 'shot', ...ids, status, error: error.message });
+  } finally { queue.requestIds.delete(requestId); }
+}
+
+async function runReferenceQueue(payload) {
+  requireToolApproval('media.generate_local');
+  const ids = { projectId: String(payload?.projectId || ''), subjectId: String(payload?.subjectId || ''), sheetId: String(payload?.sheetId || '') };
+  const { sheet } = referenceLocation(ids);
+  const selected = payload?.shotId ? sheet.shots.filter(shot => shot.id === payload.shotId) : sheet.shots.filter(shot => ['queued', 'recoverable'].includes(shot.status));
+  if (!selected.length) return { queueId: null, completed: 0, message: 'No queued or recoverable shots are waiting.' };
+  const concurrency = Math.min(3, Math.max(1, Number(payload?.concurrency) || 1));
+  const queue = { id: require('crypto').randomUUID(), cancelled: false, requestIds: new Set() };
+  activeReferenceQueues.set(queue.id, queue);
+  emitReferenceQueue({ type: 'queue', queueId: queue.id, status: 'running', total: selected.length, concurrency });
+  let cursor = 0;
+  async function worker() { while (!queue.cancelled) { const shot = selected[cursor++]; if (!shot) break; await executeReferenceShot({ ...ids, shotId: shot.id }, queue); } }
+  try {
+    await Promise.all(Array.from({ length: Math.min(concurrency, selected.length) }, worker));
+    const completed = selected.filter(shot => referenceLocation({ ...ids, shotId: shot.id }).shot.status === 'complete').length;
+    emitReferenceQueue({ type: 'queue', queueId: queue.id, status: queue.cancelled ? 'cancelled' : 'complete', completed, total: selected.length });
+    return { queueId: queue.id, completed, total: selected.length, cancelled: queue.cancelled };
+  } finally { activeReferenceQueues.delete(queue.id); }
+}
+
 async function executeAgentTool(id, input) {
   if (id === 'diagnostics.local_runtime' || id === 'diagnostics.git_status') return executeLocalTool(id);
   if (id === 'media.generate_local') return generateLocalMedia(input);
@@ -765,8 +834,40 @@ secureHandle('media-job-resume', async (_event, payload) => {
 });
 secureHandle('reference-studio-state', () => referenceStudio.read());
 secureHandle('reference-studio-save-project', (_event, payload) => referenceStudio.saveProject(payload));
-secureHandle('reference-studio-save-shot', (_event, payload) => referenceStudio.saveShot(String(payload?.projectId || ''), payload?.shot));
-secureHandle('reference-studio-remove-shot', (_event, payload) => referenceStudio.removeShot(String(payload?.projectId || ''), String(payload?.shotId || '')));
+secureHandle('reference-studio-save-subject', (_event, payload) => referenceStudio.saveSubject(String(payload?.projectId || ''), payload?.subject));
+secureHandle('reference-studio-save-sheet', (_event, payload) => referenceStudio.saveSheet(String(payload?.projectId || ''), String(payload?.subjectId || ''), payload?.sheet));
+secureHandle('reference-studio-save-view', (_event, payload) => referenceStudio.saveView(payload, payload?.view));
+secureHandle('reference-studio-save-shot', (_event, payload) => referenceStudio.saveShot(String(payload?.projectId || ''), payload?.shot, String(payload?.subjectId || ''), String(payload?.sheetId || '')));
+secureHandle('reference-studio-save-variant', (_event, payload) => referenceStudio.saveVariant(payload, payload?.variant));
+secureHandle('reference-studio-remove-shot', (_event, payload) => referenceStudio.removeShot(String(payload?.projectId || ''), String(payload?.shotId || ''), String(payload?.subjectId || ''), String(payload?.sheetId || '')));
+secureHandle('reference-studio-run-queue', (_event, payload) => runReferenceQueue(payload));
+secureHandle('reference-studio-cancel-queue', async (_event, payload) => {
+  const queue = activeReferenceQueues.get(String(payload?.queueId || ''));
+  if (!queue) return { cancelled: false };
+  queue.cancelled = true;
+  for (const requestId of queue.requestIds) {
+    const active = activeMediaJobs.get(requestId); if (active) { active.controller.abort(new Error('Reference queue cancelled by operator.')); if (active.promptId) await comfyClient.cancel(active.promptId); }
+  }
+  return { cancelled: true };
+});
+secureHandle('reference-studio-clear-queue', (_event, payload) => referenceStudio.clearQueue(payload));
+secureHandle('reference-studio-import-reference', (_event, payload) => {
+  requireToolApproval('media.generate_local');
+  const bytes = Buffer.from(payload?.bytes || []);
+  const extension = path.extname(String(payload?.name || '')).toLowerCase();
+  if (!['.png', '.jpg', '.jpeg', '.webp'].includes(extension)) throw new Error('Reference images must be PNG, JPEG, or WebP.');
+  if (!bytes.length || bytes.length > 25 * 1024 * 1024) throw new Error('Reference image must be between 1 byte and 25 MB.');
+  fs.mkdirSync(generatedArtifactDir, { recursive: true, mode: 0o700 });
+  const hash = require('crypto').createHash('sha256').update(bytes).digest('hex');
+  const filename = `reference-${hash.slice(0, 16)}${extension === '.jpeg' ? '.jpg' : extension}`;
+  fs.writeFileSync(path.join(generatedArtifactDir, filename), bytes, { mode: 0o600 });
+  return { artifact: generatedRelativePath(filename), filename, sha256: hash };
+});
+secureHandle('reference-studio-close-runtime', async (_event, payload) => {
+  const cleared = referenceStudio.clearQueue(payload);
+  if (comfyClient) await comfyClient.freeMemory();
+  return { ...cleared, gpuMemoryReleased: Boolean(comfyClient), archivalLineagePreserved: true };
+});
 secureHandle('open-media-archive', async () => {
   fs.mkdirSync(generatedArtifactDir, { recursive: true, mode: 0o700 });
   const result = await shell.openPath(generatedArtifactDir);

@@ -4,90 +4,114 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-const SHOT_STATUSES = new Set(['draft', 'queued', 'running', 'complete', 'failed']);
+const SHOT_STATUSES = new Set(['draft', 'queued', 'running', 'complete', 'failed', 'cancelled', 'recoverable']);
+const REVIEW_STATUSES = new Set(['candidate', 'approved', 'rejected']);
+const iso = () => new Date().toISOString();
+const id = value => cleanText(value, 100) || crypto.randomUUID();
+function cleanText(value, max = 4000) { return String(value || '').trim().slice(0, max); }
+function number(value, fallback, min = 0, max = 1) { const parsed = Number(value); return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback; }
 
-function cleanText(value, max = 4000) {
-  return String(value || '').trim().slice(0, max);
+function normalizeVariant(input = {}, existing = {}) {
+  return {
+    id: id(input.id || existing.id),
+    artifact: cleanText(input.artifact ?? existing.artifact, 1000),
+    sha256: cleanText(input.sha256 ?? existing.sha256, 64),
+    requestId: cleanText(input.requestId ?? existing.requestId, 100),
+    status: REVIEW_STATUSES.has(input.status) ? input.status : (existing.status || 'candidate'),
+    annotation: cleanText(input.annotation ?? existing.annotation, 2000),
+    parentVariantId: cleanText(input.parentVariantId ?? existing.parentVariantId, 100),
+    branchLabel: cleanText(input.branchLabel ?? existing.branchLabel, 160),
+    createdAt: existing.createdAt || iso(), updatedAt: iso()
+  };
 }
 
 function normalizeShot(input = {}, existing = {}) {
   const status = SHOT_STATUSES.has(input.status) ? input.status : (existing.status || 'draft');
   return {
-    id: cleanText(input.id || existing.id, 100) || crypto.randomUUID(),
+    id: id(input.id || existing.id),
     title: cleanText(input.title ?? existing.title, 160) || 'Untitled shot',
     positivePrompt: cleanText(input.positivePrompt ?? existing.positivePrompt),
-    negativePrompt: cleanText(input.negativePrompt ?? existing.negativePrompt, 2000),
+    negativePrompt: cleanText(input.negativePrompt ?? existing.negativePrompt),
     referenceArtifact: cleanText(input.referenceArtifact ?? existing.referenceArtifact, 1000),
-    status,
-    createdAt: existing.createdAt || new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    pose: cleanText(input.pose ?? existing.pose, 1000), environment: cleanText(input.environment ?? existing.environment, 1000),
+    camera: cleanText(input.camera ?? existing.camera, 1000), lighting: cleanText(input.lighting ?? existing.lighting, 1000),
+    model: cleanText(input.model ?? existing.model, 500), workflow: cleanText(input.workflow ?? existing.workflow, 200),
+    continuityLocks: cleanText(input.continuityLocks ?? existing.continuityLocks, 2000),
+    referenceStrength: number(input.referenceStrength ?? existing.referenceStrength, .75),
+    denoise: number(input.denoise ?? existing.denoise, .84, .2, .99),
+    status, requestId: cleanText(input.requestId ?? existing.requestId, 100),
+    error: cleanText(input.error ?? existing.error, 1000),
+    variants: Array.isArray(existing.variants) ? existing.variants : [],
+    createdAt: existing.createdAt || iso(), updatedAt: iso()
+  };
+}
+
+function normalizeView(input = {}, existing = {}) {
+  return {
+    id: id(input.id || existing.id), artifact: cleanText(input.artifact ?? existing.artifact, 1000),
+    label: cleanText(input.label ?? existing.label, 160) || 'Reference view',
+    view: cleanText(input.view ?? existing.view, 100), status: REVIEW_STATUSES.has(input.status) ? input.status : (existing.status || 'candidate'),
+    annotation: cleanText(input.annotation ?? existing.annotation, 2000), parentViewId: cleanText(input.parentViewId ?? existing.parentViewId, 100),
+    createdAt: existing.createdAt || iso(), updatedAt: iso()
+  };
+}
+
+function normalizeSheet(input = {}, existing = {}) {
+  return {
+    id: id(input.id || existing.id), title: cleanText(input.title ?? existing.title, 160) || 'Primary reference sheet',
+    appearanceNotes: cleanText(input.appearanceNotes ?? existing.appearanceNotes), palette: cleanText(input.palette ?? existing.palette, 2000),
+    continuityLocks: cleanText(input.continuityLocks ?? existing.continuityLocks),
+    approvedViews: Array.isArray(existing.approvedViews) ? existing.approvedViews : [], shots: Array.isArray(existing.shots) ? existing.shots : [],
+    createdAt: existing.createdAt || iso(), updatedAt: iso()
+  };
+}
+
+function normalizeSubject(input = {}, existing = {}) {
+  return {
+    id: id(input.id || existing.id), name: cleanText(input.name ?? existing.name, 160) || 'Commander Nova',
+    appearanceNotes: cleanText(input.appearanceNotes ?? existing.appearanceNotes), palette: cleanText(input.palette ?? existing.palette, 2000),
+    continuityLocks: cleanText(input.continuityLocks ?? input.identityLock ?? existing.continuityLocks ?? existing.identityLock),
+    referenceSheets: Array.isArray(existing.referenceSheets) ? existing.referenceSheets : [], createdAt: existing.createdAt || iso(), updatedAt: iso()
   };
 }
 
 function normalizeProject(input = {}, existing = {}) {
-  const shots = Array.isArray(existing.shots) ? existing.shots : [];
-  return {
-    schemaVersion: 1,
-    id: cleanText(input.id || existing.id, 100) || crypto.randomUUID(),
-    title: cleanText(input.title ?? existing.title, 160) || 'Commander Nova project',
-    subject: {
-      name: cleanText(input.subject?.name ?? existing.subject?.name, 160) || 'Commander Nova',
-      identityLock: cleanText(input.subject?.identityLock ?? existing.subject?.identityLock)
-    },
-    shots,
-    createdAt: existing.createdAt || new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  };
+  return { schemaVersion: 2, id: id(input.id || existing.id), title: cleanText(input.title ?? existing.title, 160) || 'Commander Nova project', subjects: Array.isArray(existing.subjects) ? existing.subjects : [], createdAt: existing.createdAt || iso(), updatedAt: iso() };
+}
+
+function migrate(state) {
+  if (state?.schemaVersion === 2 && Array.isArray(state.projects)) return state;
+  const projects = Array.isArray(state?.projects) ? state.projects.map(old => {
+    const project = normalizeProject(old, {});
+    const subject = normalizeSubject({ id: `${project.id}-subject`, name: old.subject?.name, continuityLocks: old.subject?.identityLock }, {});
+    const sheet = normalizeSheet({ id: `${project.id}-sheet`, title: 'Migrated reference sheet', continuityLocks: old.subject?.identityLock }, {});
+    sheet.shots = (old.shots || []).map(shot => normalizeShot(shot, {}));
+    subject.referenceSheets = [sheet]; project.subjects = [subject]; return project;
+  }) : [];
+  return { schemaVersion: 2, projects };
 }
 
 function createReferenceStudioStore(filePath) {
   const target = path.resolve(filePath);
-  function read() {
-    try {
-      const value = JSON.parse(fs.readFileSync(target, 'utf8'));
-      return value && value.schemaVersion === 1 && Array.isArray(value.projects) ? value : { schemaVersion: 1, projects: [] };
-    } catch { return { schemaVersion: 1, projects: [] }; }
+  function read() { try { return migrate(JSON.parse(fs.readFileSync(target, 'utf8'))); } catch { return { schemaVersion: 2, projects: [] }; } }
+  function write(state) { fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 }); const temp = `${target}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`; fs.writeFileSync(temp, JSON.stringify(state, null, 2), { mode: 0o600 }); fs.renameSync(temp, target); return state; }
+  function locate(state, ids = {}) {
+    const project = state.projects.find(item => item.id === ids.projectId); if (!project) throw new Error('Reference Studio project not found.');
+    const subject = ids.subjectId ? project.subjects.find(item => item.id === ids.subjectId) : project.subjects[0]; if (ids.subjectId && !subject) throw new Error('Reference Studio subject not found.');
+    const sheet = ids.sheetId && subject ? subject.referenceSheets.find(item => item.id === ids.sheetId) : subject?.referenceSheets[0]; if (ids.sheetId && !sheet) throw new Error('Reference sheet not found.');
+    const shot = ids.shotId && sheet ? sheet.shots.find(item => item.id === ids.shotId) : null; if (ids.shotId && !shot) throw new Error('Reference Studio shot not found.');
+    return { project, subject, sheet, shot };
   }
-  function write(state) {
-    fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
-    const temporary = `${target}.${process.pid}.tmp`;
-    fs.writeFileSync(temporary, JSON.stringify(state, null, 2), { mode: 0o600 });
-    fs.renameSync(temporary, target);
-    return state;
-  }
-  function saveProject(input) {
-    const state = read();
-    const index = state.projects.findIndex(item => item.id === input?.id);
-    const existing = index >= 0 ? state.projects[index] : {};
-    const project = normalizeProject(input, existing);
-    if (index >= 0) state.projects[index] = project;
-    else state.projects.push(project);
-    write(state);
-    return project;
-  }
-  function saveShot(projectId, input) {
-    const state = read();
-    const projectIndex = state.projects.findIndex(item => item.id === projectId);
-    if (projectIndex < 0) throw new Error('Reference Studio project not found.');
-    const project = state.projects[projectIndex];
-    const shotIndex = project.shots.findIndex(item => item.id === input?.id);
-    const shot = normalizeShot(input, shotIndex >= 0 ? project.shots[shotIndex] : {});
-    if (shotIndex >= 0) project.shots[shotIndex] = shot;
-    else project.shots.push(shot);
-    project.updatedAt = new Date().toISOString();
-    write(state);
-    return shot;
-  }
-  function removeShot(projectId, shotId) {
-    const state = read();
-    const project = state.projects.find(item => item.id === projectId);
-    if (!project) throw new Error('Reference Studio project not found.');
-    project.shots = project.shots.filter(item => item.id !== shotId);
-    project.updatedAt = new Date().toISOString();
-    write(state);
-    return { removed: true };
-  }
-  return { read, saveProject, saveShot, removeShot };
+  function saveProject(input) { const state = read(); const index = state.projects.findIndex(item => item.id === input?.id); const project = normalizeProject(input, index >= 0 ? state.projects[index] : {}); if (index >= 0) state.projects[index] = project; else state.projects.push(project); write(state); return project; }
+  function saveSubject(projectId, input) { const state = read(); const { project } = locate(state, { projectId }); const index = project.subjects.findIndex(item => item.id === input?.id); const subject = normalizeSubject(input, index >= 0 ? project.subjects[index] : {}); if (index >= 0) project.subjects[index] = subject; else project.subjects.push(subject); project.updatedAt = iso(); write(state); return subject; }
+  function saveSheet(projectId, subjectId, input) { const state = read(); const { project, subject } = locate(state, { projectId, subjectId }); const index = subject.referenceSheets.findIndex(item => item.id === input?.id); const sheet = normalizeSheet(input, index >= 0 ? subject.referenceSheets[index] : {}); if (index >= 0) subject.referenceSheets[index] = sheet; else subject.referenceSheets.push(sheet); subject.updatedAt = project.updatedAt = iso(); write(state); return sheet; }
+  function saveView(ids, input) { const state = read(); const { sheet } = locate(state, ids); const index = sheet.approvedViews.findIndex(item => item.id === input?.id); const view = normalizeView(input, index >= 0 ? sheet.approvedViews[index] : {}); if (index >= 0) sheet.approvedViews[index] = view; else sheet.approvedViews.push(view); sheet.updatedAt = iso(); write(state); return view; }
+  function saveShot(projectId, input, subjectId, sheetId) { const state = read(); const located = locate(state, { projectId, subjectId, sheetId }); const sheet = located.sheet; if (!sheet) throw new Error('Reference sheet not found.'); const index = sheet.shots.findIndex(item => item.id === input?.id); const shot = normalizeShot(input, index >= 0 ? sheet.shots[index] : {}); if (index >= 0) sheet.shots[index] = shot; else sheet.shots.push(shot); sheet.updatedAt = located.project.updatedAt = iso(); write(state); return shot; }
+  function saveVariant(ids, input) { const state = read(); const { shot } = locate(state, ids); const index = shot.variants.findIndex(item => item.id === input?.id); const variant = normalizeVariant(input, index >= 0 ? shot.variants[index] : {}); if (variant.status === 'approved') shot.variants = shot.variants.map(item => ({ ...item, status: item.id === variant.id ? 'approved' : item.status === 'approved' ? 'candidate' : item.status })); if (index >= 0) shot.variants[index] = variant; else shot.variants.push(variant); shot.updatedAt = iso(); write(state); return variant; }
+  function updateShot(ids, patch) { const state = read(); const { sheet, shot } = locate(state, ids); const index = sheet.shots.findIndex(item => item.id === shot.id); sheet.shots[index] = normalizeShot({ ...shot, ...patch, id: shot.id }, shot); write(state); return sheet.shots[index]; }
+  function removeShot(projectId, shotId, subjectId, sheetId) { const state = read(); const { sheet } = locate(state, { projectId, subjectId, sheetId }); if (!sheet) throw new Error('Reference sheet not found.'); sheet.shots = sheet.shots.filter(item => item.id !== shotId); write(state); return { removed: true }; }
+  function clearQueue(ids) { const state = read(); const { sheet } = locate(state, ids); let cleared = 0; for (const shot of sheet.shots) if (['queued', 'failed', 'cancelled', 'recoverable'].includes(shot.status)) { shot.status = 'draft'; shot.error = ''; shot.updatedAt = iso(); cleared++; } write(state); return { cleared }; }
+  return { read, saveProject, saveSubject, saveSheet, saveView, saveShot, saveVariant, updateShot, removeShot, clearQueue };
 }
 
-module.exports = { SHOT_STATUSES, normalizeProject, normalizeShot, createReferenceStudioStore };
+module.exports = { SHOT_STATUSES, REVIEW_STATUSES, normalizeProject, normalizeSubject, normalizeSheet, normalizeView, normalizeShot, normalizeVariant, migrate, createReferenceStudioStore };

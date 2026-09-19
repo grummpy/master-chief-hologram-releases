@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.7.0 — 2026-09-19
+
+- Added Project → Subject → Reference Sheet → Shot → Variant hierarchy with schema-v1 migration.
+- Added contact sheets, drag/drop imports, annotations, branching, promotion/rejection, and A/B or four-up comparison.
+- Added executable multi-shot queues with concurrency, per-shot state, retry, cancel, resume, and persistent variants.
+- Added continuity metadata, reference strength, denoise, live model/workflow selection, queue clearing, session closing, and VRAM release.
+- Kept IP-Adapter and ControlNet visibly gated pending AMD node/model/license/workflow verification.
+
 ## 1.6.1 — 2026-09-19
 
 - Fixed `/video` contract routing so it no longer reports video as an invalid media type.

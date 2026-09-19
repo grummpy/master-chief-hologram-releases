@@ -7,30 +7,64 @@ const path = require('node:path');
 const test = require('node:test');
 const { createReferenceStudioStore } = require('../reference-studio-store');
 
-test('Reference Studio persists identity data and a multi-shot queue atomically', () => {
+function fixture(store) {
+  const project = store.saveProject({ title: 'Nova continuity' });
+  const subject = store.saveSubject(project.id, { name: 'Commander Nova', appearanceNotes: 'silver hair', palette: 'cyan and midnight blue', continuityLocks: 'blue eyes and stable proportions' });
+  const sheet = store.saveSheet(project.id, subject.id, { title: 'Hero sheet', continuityLocks: 'same face and armor geometry' });
+  return { project, subject, sheet };
+}
+
+test('Reference Studio persists the complete hierarchy and review state atomically', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-reference-'));
   try {
     const store = createReferenceStudioStore(path.join(root, 'reference-studio.json'));
-    const project = store.saveProject({ title: 'Nova continuity', subject: { name: 'Commander Nova', identityLock: 'silver hair and blue eyes' } });
-    const first = store.saveShot(project.id, { title: 'Establishing', positivePrompt: 'bridge wide shot', negativePrompt: 'blur', status: 'queued' });
-    store.saveShot(project.id, { title: 'Close-up', positivePrompt: 'portrait', referenceArtifact: 'artifacts/generated/nova.png', status: 'queued' });
+    const { project, subject, sheet } = fixture(store);
+    const view = store.saveView({ projectId: project.id, subjectId: subject.id, sheetId: sheet.id }, { artifact: 'artifacts/generated/nova.png', label: 'front', status: 'approved', annotation: 'primary face view' });
+    const shot = store.saveShot(project.id, { title: 'Bridge', positivePrompt: 'bridge wide shot', negativePrompt: 'blur', pose: 'saluting', environment: 'bridge', camera: '35mm', lighting: 'cyan rim', model: 'model.safetensors', workflow: 'sdxl-revision-v1', referenceStrength: .8, denoise: .72, status: 'queued' }, subject.id, sheet.id);
+    const variant = store.saveVariant({ projectId: project.id, subjectId: subject.id, sheetId: sheet.id, shotId: shot.id }, { artifact: 'artifacts/generated/variant.png', requestId: 'request-1', status: 'approved', parentVariantId: '', annotation: 'best face' });
     const state = store.read();
-    assert.equal(state.schemaVersion, 1);
-    assert.deepEqual(state.projects[0].subject, { name: 'Commander Nova', identityLock: 'silver hair and blue eyes' });
-    assert.equal(state.projects[0].shots.length, 2);
-    assert.equal(state.projects[0].shots[0].status, 'queued');
-    store.removeShot(project.id, first.id);
-    assert.equal(store.read().projects[0].shots.length, 1);
+    assert.equal(state.schemaVersion, 2);
+    assert.equal(state.projects[0].subjects[0].referenceSheets[0].approvedViews[0].id, view.id);
+    assert.equal(state.projects[0].subjects[0].referenceSheets[0].shots[0].variants[0].id, variant.id);
+    assert.equal(state.projects[0].subjects[0].referenceSheets[0].shots[0].camera, '35mm');
+    assert.equal(state.projects[0].subjects[0].referenceSheets[0].shots[0].denoise, .72);
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
-test('Reference Studio rejects unknown projects and normalizes invalid status', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-reference-'));
+test('schema v1 projects migrate without losing subject or shot data', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-reference-migrate-'));
+  const file = path.join(root, 'reference-studio.json');
+  try {
+    fs.writeFileSync(file, JSON.stringify({ schemaVersion: 1, projects: [{ id: 'p1', title: 'Legacy', subject: { name: 'Nova', identityLock: 'same eyes' }, shots: [{ id: 'shot1', title: 'Legacy shot', positivePrompt: 'portrait', status: 'queued' }] }] }));
+    const state = createReferenceStudioStore(file).read();
+    assert.equal(state.schemaVersion, 2);
+    assert.equal(state.projects[0].subjects[0].name, 'Nova');
+    assert.equal(state.projects[0].subjects[0].continuityLocks, 'same eyes');
+    assert.equal(state.projects[0].subjects[0].referenceSheets[0].shots[0].positivePrompt, 'portrait');
+    assert.equal(createReferenceStudioStore(file).read().projects[0].subjects[0].id, state.projects[0].subjects[0].id, 'migration IDs must be stable across reads');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('queue states clear safely while completed variants and lineage remain', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-reference-queue-'));
   try {
     const store = createReferenceStudioStore(path.join(root, 'reference-studio.json'));
-    assert.throws(() => store.saveShot('missing', { positivePrompt: 'test' }), /not found/);
-    const project = store.saveProject({});
-    const shot = store.saveShot(project.id, { positivePrompt: 'test', status: 'invented' });
-    assert.equal(shot.status, 'draft');
+    const { project, subject, sheet } = fixture(store);
+    const complete = store.saveShot(project.id, { positivePrompt: 'complete', status: 'complete' }, subject.id, sheet.id);
+    store.saveVariant({ projectId: project.id, subjectId: subject.id, sheetId: sheet.id, shotId: complete.id }, { artifact: 'artifacts/generated/kept.png', status: 'approved', requestId: 'kept-request' });
+    store.saveShot(project.id, { positivePrompt: 'pending', status: 'queued' }, subject.id, sheet.id);
+    const cleared = store.clearQueue({ projectId: project.id, subjectId: subject.id, sheetId: sheet.id });
+    assert.equal(cleared.cleared, 1);
+    const shots = store.read().projects[0].subjects[0].referenceSheets[0].shots;
+    assert.equal(shots.find(item => item.id === complete.id).variants[0].requestId, 'kept-request');
+    assert.equal(shots.find(item => item.status === 'draft').positivePrompt, 'pending');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('Reference Studio rejects unknown hierarchy IDs', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-reference-invalid-'));
+  try {
+    const store = createReferenceStudioStore(path.join(root, 'reference-studio.json'));
+    assert.throws(() => store.saveSubject('missing', {}), /project not found/);
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
