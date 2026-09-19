@@ -15,12 +15,33 @@ test('ComfyUI accepts only private HTTP worker URLs', () => {
 });
 
 test('workflow filling changes only bounded template fields', () => {
-  const template = { '1': { class_type: 'Text', inputs: { text: '{{PROMPT}}', negative: '{{NEGATIVE_PROMPT}}', seed: '{{SEED}}' } } };
-  const output = cloneAndFillWorkflow(template, { prompt: 'navy "commander"', negativePrompt: 'blur', seed: 42 });
+  const template = { '1': { class_type: 'Text', inputs: { text: '{{PROMPT}}', negative: '{{NEGATIVE_PROMPT}}', seed: '{{SEED}}', image: '{{SOURCE_IMAGE}}' } } };
+  const output = cloneAndFillWorkflow(template, { prompt: 'navy "commander"', negativePrompt: 'blur', seed: 42, sourceImage: 'revision.png' });
   assert.equal(output['1'].inputs.text, 'navy "commander"');
   assert.equal(output['1'].inputs.negative, 'blur');
   assert.equal(output['1'].inputs.seed, 42);
+  assert.equal(output['1'].inputs.image, 'revision.png');
   assert.equal(template['1'].inputs.text, '{{PROMPT}}');
+});
+
+test('client uploads revision context and requests GPU cache release', async () => {
+  const calls = [];
+  const fetchImpl = async (url, options = {}) => {
+    calls.push({ url, options });
+    if (url.endsWith('/upload/image')) return new Response(JSON.stringify({ name: 'revision.png', type: 'input' }), { status: 200 });
+    if (url.endsWith('/free')) return new Response('{}', { status: 200 });
+    return new Response('', { status: 404 });
+  };
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-comfy-session-'));
+  const source = path.join(root, 'source.png');
+  fs.writeFileSync(source, 'fixture-image');
+  try {
+    const client = createComfyUiClient({ baseUrl: 'http://127.0.0.1:8188', artifactDir: root, fetchImpl, timeoutMs: 1000 });
+    assert.equal((await client.uploadImage(source)).name, 'revision.png');
+    assert.equal(await client.freeMemory(), true);
+    assert.match(calls[0].options.headers['Content-Type'], /^multipart\/form-data; boundary=/);
+    assert.deepEqual(JSON.parse(calls[1].options.body), { unload_models: true, free_memory: true });
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
 test('client queues, polls, and hashes a fixture artifact', async () => {

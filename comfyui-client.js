@@ -29,7 +29,8 @@ function cloneAndFillWorkflow(template, values) {
   const replacements = new Map([
     ['{{PROMPT}}', assertPrompt(values.prompt)],
     ['{{NEGATIVE_PROMPT}}', String(values.negativePrompt || '').slice(0, 2000)],
-    ['{{SEED}}', Number.isSafeInteger(values.seed) ? values.seed : crypto.randomInt(1, 2147483646)]
+    ['{{SEED}}', Number.isSafeInteger(values.seed) ? values.seed : crypto.randomInt(1, 2147483646)],
+    ['{{SOURCE_IMAGE}}', String(values.sourceImage || '')]
   ]);
   function replace(value) {
     if (typeof value === 'string' && replacements.has(value)) return replacements.get(value);
@@ -89,7 +90,7 @@ function createComfyUiClient({ baseUrl, fetchImpl = fetch, artifactDir, timeoutM
       fs.mkdirSync(outputRoot, { recursive: true, mode: 0o700 });
       const artifacts = [];
       for (const output of Object.values(history.outputs || {})) {
-        const files = [...(output.images || []), ...(output.gifs || []), ...(output.videos || [])];
+        const files = [...(output.images || []), ...(output.gifs || []), ...(output.videos || []), ...(output.audio || []), ...(output.audios || [])];
         for (const item of files) {
           const params = new URLSearchParams({ filename: item.filename, subfolder: item.subfolder || '', type: item.type || 'output' });
           const response = await request(`/view?${params.toString()}`, {}, 120000);
@@ -102,6 +103,23 @@ function createComfyUiClient({ baseUrl, fetchImpl = fetch, artifactDir, timeoutM
         }
       }
       return artifacts;
+    },
+    async uploadImage(filePath, filename = path.basename(filePath)) {
+      const bytes = fs.readFileSync(filePath);
+      if (!bytes.length || bytes.length > 100 * 1024 * 1024) throw new Error('Revision source must be between 1 byte and 100 MB.');
+      const safeName = safeOutputName(filename);
+      const boundary = `----MasterChief${crypto.randomBytes(12).toString('hex')}`;
+      const head = Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="image"; filename="${safeName}"\r\nContent-Type: application/octet-stream\r\n\r\n`);
+      const fields = Buffer.from(`\r\n--${boundary}\r\nContent-Disposition: form-data; name="type"\r\n\r\ninput\r\n--${boundary}\r\nContent-Disposition: form-data; name="overwrite"\r\n\r\ntrue\r\n--${boundary}--\r\n`);
+      const body = Buffer.concat([head, bytes, fields]);
+      const response = await request('/upload/image', { method: 'POST', headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}`, 'Content-Length': String(body.length) }, body }, 120000);
+      const result = await response.json();
+      if (!result.name) throw new Error('ComfyUI did not accept the revision source image.');
+      return result;
+    },
+    async freeMemory() {
+      await request('/free', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ unload_models: true, free_memory: true }) }, 30000);
+      return true;
     }
   };
 }

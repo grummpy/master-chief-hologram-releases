@@ -50,7 +50,19 @@ function loadConnectorSettings() {
 }
 const connectorSettings = loadConnectorSettings();
 const comfyBaseUrl = String(process.env.COMFYUI_BASE_URL || connectorSettings.comfyuiBaseUrl || '').trim();
-const generatedArtifactDir = path.join(__dirname, 'artifacts', 'generated');
+const generatedArtifactDir = path.join(app.getPath('userData'), 'artifacts', 'generated');
+function generatedRelativePath(filename) { return `artifacts/generated/${path.basename(filename)}`; }
+function resolveArtifactPath(relativePath) {
+  const value = String(relativePath || '').replace(/\\/g, '/');
+  if (value.startsWith('artifacts/generated/')) {
+    const target = path.resolve(generatedArtifactDir, value.slice('artifacts/generated/'.length));
+    if (target.startsWith(`${path.resolve(generatedArtifactDir)}${path.sep}`) && fs.existsSync(target)) return target;
+    const legacy = safeArtifactPath(__dirname, value);
+    return legacy && fs.existsSync(legacy) ? legacy : null;
+  }
+  const target = safeArtifactPath(__dirname, value);
+  return target && fs.existsSync(target) ? target : null;
+}
 function privateHttpFetch(url, options = {}) {
   return new Promise((resolve, reject) => {
     const request = http.request(url, { method: options.method || 'GET', headers: options.headers || {}, signal: options.signal }, response => {
@@ -276,7 +288,8 @@ async function providerStatus() {
 }
 
 function workflowPath(kind) {
-  if (!['image', 'video'].includes(kind)) throw new Error('Media kind must be image or video.');
+  if (!['image', 'image-revision', 'video'].includes(kind)) throw new Error('Media kind must be image, image revision, or video.');
+  if (kind === 'image-revision') return path.resolve(path.join(__dirname, 'workflows', 'image-revision-api.json'));
   const configured = kind === 'image' ? process.env.COMFYUI_IMAGE_WORKFLOW : process.env.COMFYUI_VIDEO_WORKFLOW;
   return path.resolve(configured || path.join(__dirname, 'workflows', `${kind}-api.json`));
 }
@@ -285,16 +298,25 @@ async function generateLocalMedia(payload) {
   requireToolApproval('media.generate_local');
   if (!comfyClient) throw new Error('ComfyUI is not configured. Add its private-LAN URL to COMFYUI_BASE_URL.');
   const kind = String(payload?.kind || '');
-  const source = workflowPath(kind);
+  let workflowKind = kind;
+  let sourceImage = '';
+  if (kind === 'image' && payload?.sourceArtifact) {
+    const localSource = resolveArtifactPath(payload.sourceArtifact);
+    if (!localSource || !/\.(png|jpe?g|webp)$/i.test(localSource)) throw new Error('The selected revision source is unavailable or is not a supported image.');
+    const uploaded = await comfyClient.uploadImage(localSource, `mc-${Date.now()}-${path.basename(localSource)}`);
+    sourceImage = uploaded.subfolder ? `${uploaded.subfolder}/${uploaded.name}` : uploaded.name;
+    workflowKind = 'image-revision';
+  }
+  const source = workflowPath(workflowKind);
   if (!source.startsWith(path.resolve(__dirname) + path.sep) || !fs.existsSync(source)) throw new Error(`Approved ${kind} workflow is missing. Export it in API format to workflows/${kind}-api.json.`);
   const template = JSON.parse(fs.readFileSync(source, 'utf8'));
-  const workflow = cloneAndFillWorkflow(template, payload || {});
+  const workflow = cloneAndFillWorkflow(template, { ...(payload || {}), sourceImage });
   const queued = await comfyClient.submit(workflow);
   auditToolEvent({ id: 'media.generate_local', outcome: 'queued', detail: `${kind}:${queued.promptId}` });
   const history = await comfyClient.wait(queued.promptId);
   const artifacts = await comfyClient.download(history, queued.promptId);
   auditToolEvent({ id: 'media.generate_local', outcome: 'success', detail: `${kind}:${artifacts.length} artifact(s)` });
-  return { kind, promptId: queued.promptId, artifacts: artifacts.map(item => ({ ...item, path: path.relative(__dirname, item.path) })) };
+  return { kind, promptId: queued.promptId, sessionId: String(payload?.sessionId || require('crypto').randomUUID()), revised: workflowKind === 'image-revision', artifacts: artifacts.map(item => ({ ...item, path: generatedRelativePath(item.filename) })) };
 }
 
 async function executeAgentTool(id, input) {
@@ -603,6 +625,13 @@ secureHandle('tool-approvals', () => ({ approvals: { ...loadToolApprovals() }, r
 secureHandle('set-tool-approval', (_event, payload) => { toolApprovals = setToolApproval(loadToolApprovals(), String(payload?.id || ''), payload?.approved); saveToolApprovals(); return { approvals: { ...toolApprovals } }; });
 secureHandle('execute-local-tool', (_event, payload) => executeLocalTool(payload?.id));
 secureHandle('generate-local-media', (_event, payload) => generateLocalMedia(payload));
+secureHandle('clear-creative-session', async () => {
+  requireToolApproval('media.generate_local');
+  if (!comfyClient) throw new Error('ComfyUI is not configured.');
+  await comfyClient.freeMemory();
+  auditToolEvent({ id: 'media.generate_local', outcome: 'session-cleared', detail: 'ComfyUI models unloaded and cache release requested' });
+  return { cleared: true, localArtifactsPreserved: true, gpuMemoryReleased: true };
+});
 secureHandle('run-agent-plan', (_event, payload) => {
   requireToolApproval('agents.run_bounded_plan');
   return runAgentPlan(payload, {
@@ -629,25 +658,25 @@ secureHandle('remove-indexed-document', (_event, payload) => { requireToolApprov
 secureHandle('search-index', (_event, payload) => { requireToolApproval('files.attach_local_text'); return ragIndex.search(payload?.query, payload); });
 secureHandle('index-stats', () => ragIndex.stats());
 secureHandle('open-artifact', async (_event, relativePath) => {
-  const artifactPath = safeArtifactPath(__dirname, relativePath);
-  if (!artifactPath || !fs.existsSync(artifactPath)) throw new Error('That artifact link is unavailable.');
+  const artifactPath = resolveArtifactPath(relativePath);
+  if (!artifactPath) throw new Error('That artifact link is unavailable.');
   const result = await shell.openPath(artifactPath);
   if (result) throw new Error('The artifact could not be opened.');
   return true;
 });
 secureHandle('preview-artifact', (_event, relativePath) => {
-  const artifactPath = safeArtifactPath(__dirname, relativePath);
-  if (!artifactPath || !fs.existsSync(artifactPath)) throw new Error('That artifact preview is unavailable.');
+  const artifactPath = resolveArtifactPath(relativePath);
+  if (!artifactPath) throw new Error('That artifact preview is unavailable.');
   const stat = fs.statSync(artifactPath);
   if (stat.size > 80 * 1024 * 1024) throw new Error('Artifact is too large for inline preview; use Save As or Open instead.');
   const extension = path.extname(artifactPath).toLowerCase();
-  const mime = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.mp4': 'video/mp4', '.webm': 'video/webm', '.mp3': 'audio/mpeg', '.wav': 'audio/wav' }[extension];
-  if (!mime) throw new Error('This media type cannot be previewed inline.');
-  return { mime, dataUrl: `data:${mime};base64,${fs.readFileSync(artifactPath).toString('base64')}` };
+  const mime = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.avif': 'image/avif', '.bmp': 'image/bmp', '.svg': 'image/svg+xml', '.mp4': 'video/mp4', '.m4v': 'video/x-m4v', '.mov': 'video/quicktime', '.webm': 'video/webm', '.ogv': 'video/ogg', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.ogg': 'audio/ogg', '.flac': 'audio/flac' }[extension];
+  if (!mime) return { mime: 'application/octet-stream', previewable: false };
+  return { mime, previewable: true, dataUrl: `data:${mime};base64,${fs.readFileSync(artifactPath).toString('base64')}` };
 });
 secureHandle('save-artifact-as', async (_event, relativePath) => {
-  const artifactPath = safeArtifactPath(__dirname, relativePath);
-  if (!artifactPath || !fs.existsSync(artifactPath)) throw new Error('That artifact is unavailable.');
+  const artifactPath = resolveArtifactPath(relativePath);
+  if (!artifactPath) throw new Error('That artifact is unavailable.');
   const result = await dialog.showSaveDialog(mainWindow, { defaultPath: path.join(app.getPath('downloads'), path.basename(artifactPath)) });
   if (result.canceled || !result.filePath) return { saved: false };
   fs.copyFileSync(artifactPath, result.filePath);

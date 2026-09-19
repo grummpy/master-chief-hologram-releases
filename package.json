@@ -1,6 +1,6 @@
 {
   "name": "master-chief-hologram",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Desktop holographic Master Chief AI companion – multi-model prompt runner",
   "main": "main.js",
   "scripts": {
@@ -62,8 +62,8 @@
       "index.html",
       "styles.css",
       "package.json",
-      "assets/**/*"
-      ,"workflows/**/*"
+      "assets/**/*",
+      "workflows/**/*"
     ],
     "mac": {
       "hardenedRuntime": true,
