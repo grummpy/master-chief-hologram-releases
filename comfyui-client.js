@@ -26,15 +26,18 @@ function assertPrompt(value) {
 }
 
 function cloneAndFillWorkflow(template, values) {
-  const serialized = JSON.stringify(template);
-  const replacements = {
-    '{{PROMPT}}': assertPrompt(values.prompt),
-    '{{NEGATIVE_PROMPT}}': String(values.negativePrompt || '').slice(0, 2000),
-    '{{SEED}}': String(Number.isSafeInteger(values.seed) ? values.seed : crypto.randomInt(1, 2147483646))
-  };
-  let output = serialized;
-  for (const [token, value] of Object.entries(replacements)) output = output.split(token).join(value.replaceAll('\\', '\\\\').replaceAll('"', '\\"'));
-  const workflow = JSON.parse(output);
+  const replacements = new Map([
+    ['{{PROMPT}}', assertPrompt(values.prompt)],
+    ['{{NEGATIVE_PROMPT}}', String(values.negativePrompt || '').slice(0, 2000)],
+    ['{{SEED}}', Number.isSafeInteger(values.seed) ? values.seed : crypto.randomInt(1, 2147483646)]
+  ]);
+  function replace(value) {
+    if (typeof value === 'string' && replacements.has(value)) return replacements.get(value);
+    if (Array.isArray(value)) return value.map(replace);
+    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, replace(item)]));
+    return value;
+  }
+  const workflow = replace(template);
   if (!workflow || typeof workflow !== 'object' || Array.isArray(workflow)) throw new Error('Workflow template must be a ComfyUI API-format object.');
   return workflow;
 }

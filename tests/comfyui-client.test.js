@@ -19,7 +19,7 @@ test('workflow filling changes only bounded template fields', () => {
   const output = cloneAndFillWorkflow(template, { prompt: 'navy "commander"', negativePrompt: 'blur', seed: 42 });
   assert.equal(output['1'].inputs.text, 'navy "commander"');
   assert.equal(output['1'].inputs.negative, 'blur');
-  assert.equal(output['1'].inputs.seed, '42');
+  assert.equal(output['1'].inputs.seed, 42);
   assert.equal(template['1'].inputs.text, '{{PROMPT}}');
 });
 

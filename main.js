@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, safeStorage, shell, systemPreferences } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, dialog, nativeImage, safeStorage, shell, systemPreferences } = require('electron');
 const { execFile, spawn } = require('child_process');
 const { promisify } = require('util');
 const http = require('http');
@@ -157,6 +157,15 @@ function createWindow() {
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWindow.webContents.on('will-navigate', event => event.preventDefault());
+  mainWindow.webContents.on('context-menu', (_event, params) => {
+    const template = [];
+    if (params.isEditable) template.push(
+      { role: 'undo' }, { role: 'redo' }, { type: 'separator' },
+      { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }
+    );
+    else template.push({ role: 'copy', enabled: Boolean(params.selectionText) }, { role: 'selectAll' });
+    Menu.buildFromTemplate(template).popup({ window: mainWindow });
+  });
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
@@ -625,6 +634,24 @@ secureHandle('open-artifact', async (_event, relativePath) => {
   const result = await shell.openPath(artifactPath);
   if (result) throw new Error('The artifact could not be opened.');
   return true;
+});
+secureHandle('preview-artifact', (_event, relativePath) => {
+  const artifactPath = safeArtifactPath(__dirname, relativePath);
+  if (!artifactPath || !fs.existsSync(artifactPath)) throw new Error('That artifact preview is unavailable.');
+  const stat = fs.statSync(artifactPath);
+  if (stat.size > 80 * 1024 * 1024) throw new Error('Artifact is too large for inline preview; use Save As or Open instead.');
+  const extension = path.extname(artifactPath).toLowerCase();
+  const mime = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.mp4': 'video/mp4', '.webm': 'video/webm', '.mp3': 'audio/mpeg', '.wav': 'audio/wav' }[extension];
+  if (!mime) throw new Error('This media type cannot be previewed inline.');
+  return { mime, dataUrl: `data:${mime};base64,${fs.readFileSync(artifactPath).toString('base64')}` };
+});
+secureHandle('save-artifact-as', async (_event, relativePath) => {
+  const artifactPath = safeArtifactPath(__dirname, relativePath);
+  if (!artifactPath || !fs.existsSync(artifactPath)) throw new Error('That artifact is unavailable.');
+  const result = await dialog.showSaveDialog(mainWindow, { defaultPath: path.join(app.getPath('downloads'), path.basename(artifactPath)) });
+  if (result.canceled || !result.filePath) return { saved: false };
+  fs.copyFileSync(artifactPath, result.filePath);
+  return { saved: true, path: result.filePath };
 });
 secureHandle('window-action', (_event, action) => {
   if (action === 'minimize') mainWindow?.minimize();
