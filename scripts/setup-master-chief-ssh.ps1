@@ -6,12 +6,23 @@ $publicKey = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID6BmwFw/hZ0W8m6aZ95dZVVUsNIQu
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $principal = [Security.Principal.WindowsPrincipal]::new($identity)
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-  throw 'Open PowerShell with Run as administrator, then rerun this script.'
+  $arguments = @(
+    '-NoProfile',
+    '-ExecutionPolicy', 'Bypass',
+    '-File', ('"{0}"' -f $PSCommandPath)
+  )
+  Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList $arguments -Wait
+  exit $LASTEXITCODE
 }
 
-$capability = Get-WindowsCapability -Online | Where-Object Name -like 'OpenSSH.Server*' | Select-Object -First 1
-if (-not $capability -or $capability.State -ne 'Installed') {
-  Add-WindowsCapability -Online -Name 'OpenSSH.Server~~~~0.0.1.0' | Out-Null
+$capabilityName = 'OpenSSH.Server~~~~0.0.1.0'
+$capability = Get-WindowsCapability -Online -Name $capabilityName
+if ($capability.State -ne 'Installed') {
+  Add-WindowsCapability -Online -Name $capabilityName | Out-Null
+  $capability = Get-WindowsCapability -Online -Name $capabilityName
+}
+if ($capability.State -ne 'Installed') {
+  throw "OpenSSH Server did not install successfully. Current state: $($capability.State)"
 }
 
 Set-Service -Name sshd -StartupType Automatic
@@ -32,7 +43,12 @@ Get-NetFirewallRule -DisplayName 'Master Chief SSH from Mac' -ErrorAction Silent
 New-NetFirewallRule -DisplayName 'Master Chief SSH from Mac' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 22 -RemoteAddress $controllerIp -Profile Any | Out-Null
 
 Restart-Service sshd
+if ((Get-Service sshd).Status -ne 'Running') {
+  throw 'The sshd service is installed but is not running.'
+}
 Write-Host 'Master Chief SSH is installed as an automatic Windows background service.'
 Write-Host "Authorized controller: $controllerIp"
 Write-Host "Windows user: $env:USERNAME"
+Get-Service sshd | Format-List Status, StartType
+Get-NetTCPConnection -LocalPort 22 -State Listen | Format-Table -AutoSize
 Write-Host 'You may close PowerShell. The SSH service will continue in the background and start with Windows.'
