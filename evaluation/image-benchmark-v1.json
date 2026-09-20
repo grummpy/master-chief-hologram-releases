@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "gate": { "minimumWeightedScore": 90, "durabilityJobs": 20, "requireVisibleRevisionChange": true, "allowLostOutputs": false },
+  "dimensions": [
+    { "id": "prompt", "label": "Prompt adherence", "weight": 20 },
+    { "id": "identity", "label": "Identity continuity", "weight": 15 },
+    { "id": "composition", "label": "Composition and camera", "weight": 15 },
+    { "id": "anatomy", "label": "Anatomy, hands, and pose", "weight": 15 },
+    { "id": "lighting", "label": "Lighting and color", "weight": 10 },
+    { "id": "technical", "label": "Technical defects and artifacts", "weight": 10 },
+    { "id": "lineage", "label": "Reproducibility and lineage", "weight": 10 },
+    { "id": "operator", "label": "Operator control and recovery", "weight": 5 }
+  ],
+  "cases": [
+    { "id": "portrait", "contract": "image", "goal": "single adult portrait and lighting" },
+    { "id": "full-body", "contract": "image", "goal": "full-body framing and anatomy" },
+    { "id": "pose", "contract": "control", "goal": "prepared pose-map adherence" },
+    { "id": "hands", "contract": "image", "goal": "visible hands and fingers" },
+    { "id": "two-subjects", "contract": "image", "goal": "two distinct adult subjects" },
+    { "id": "identity", "contract": "hybridid", "goal": "face and appearance continuity" },
+    { "id": "lighting-change", "contract": "revision", "goal": "relight while preserving subject" },
+    { "id": "major-rebuild", "contract": "rebuild", "goal": "major visible change with lineage" },
+    { "id": "text-rendering", "contract": "image", "goal": "legible requested text" },
+    { "id": "inpaint", "contract": "inpaint", "goal": "masked-region-only change", "blockedUntilWorkflowReady": true },
+    { "id": "depth", "contract": "depth", "goal": "spatial layout preservation", "blockedUntilWorkflowReady": true },
+    { "id": "upscale", "contract": "upscale", "goal": "detail gain without identity drift" }
+  ]
+}

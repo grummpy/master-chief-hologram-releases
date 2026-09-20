@@ -145,6 +145,16 @@ test('blank media seed remains random instead of becoming seed zero', () => {
   assert.doesNotMatch(renderer, /const value=Number\(\$\(id\)\?\.value\)/);
 });
 
+test('major revision overrides conservative panel denoise and retains source lineage', () => {
+  const renderer = fs.readFileSync(path.join(root, 'renderer.js'), 'utf8');
+  const main = fs.readFileSync(path.join(root, 'main.js'), 'utf8');
+  assert.match(renderer, /parameters\.denoise=revisionStrength/);
+  assert.match(renderer, /sourceArtifact:isRevision\?activeCreativeSession\.artifact\.path/);
+  assert.match(renderer, /contract==='rebuild'\)parameters\.seed=undefined/);
+  assert.match(main, /requireChanged: \['revision', 'rebuild'\]\.includes\(contract\)/);
+  assert.match(fs.readFileSync(path.join(root, 'image-output-validator.js'), 'utf8'), /ComfyUI returned the unchanged source image/);
+});
+
 test('Reference Studio exposes hierarchy, review, comparison, queue, and runtime controls', () => {
   for (const id of ['mediaWorkflow','mediaEngineHint','referenceProjectSelect','referenceSubjectSelect','referenceSheetSelect','referenceContactSheet','referenceComparison','runReferenceQueue','cancelReferenceQueue','resumeReferenceQueue','clearReferenceQueue','closeReferenceRuntime','openComfyDesignStudio','shotReferenceStrength','shotDenoise','shotReferenceMode','clearActiveReference','newCleanReferenceDraft','identityLockPreset','sceneCoachAdvice','referencePreflight','referencePreflightPrompt','referencePreflightNegative','shotSeed','shotSampler','shotScheduler','shotSteps','shotCfg','shotWidth','shotHeight','shotBatch','exploreFourVariants','shotControlMode','shotControlnet','shotControlStrength','shotControlStart','shotControlEnd']) assert.match(html, new RegExp(`id="${id}"`));
   assert.match(referenceStudio, /button\.id='extractPoseMap'/);
@@ -161,6 +171,7 @@ test('Reference Studio exposes hierarchy, review, comparison, queue, and runtime
   assert.match(client, /poseExtractorNodes/);
   assert.match(client, /qwenImage21/);
   assert.match(referenceStudio, /Qwen-Image 2\.1 engine support detected/);
+  for (const id of ['shotIdentityReference','shotStyleReference','shotPoseReference','shotCompositionReference','shotDepthReference','shotLightingReference']) assert.match(referenceStudio, new RegExp(id));
 });
 
 test('live pose extractor gate produces an auditable prepared map', () => {

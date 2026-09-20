@@ -1,6 +1,6 @@
 {
   "name": "master-chief-hologram",
-  "version": "1.33.0",
+  "version": "1.34.0",
   "description": "Desktop holographic Master Chief AI companion – multi-model prompt runner",
   "main": "main.js",
   "scripts": {
@@ -16,15 +16,15 @@
     "test": "node --test tests/*.test.js",
     "test:assets": "node scripts/validate-assets.js",
     "test:visual": "node scripts/validate-visual-regression.js",
-    "test:comfy-live": "node scripts/live-comfy-acceptance.js 20"
-    ,"test:comfy-fidelity": "node scripts/comfy-prompt-fidelity.js"
-    ,"test:comfy-openpose": "node scripts/live-openpose-readiness.js"
-    ,"test:comfy-pose-extractor": "node scripts/live-pose-extractor-readiness.js"
-    ,"test:comfy-faceid": "node scripts/live-faceid-readiness.js"
-    ,"test:comfy-structure": "node scripts/live-structure-controls-readiness.js"
-    ,"test:comfy-remacri": "node scripts/live-remacri-readiness.js"
-    ,"test:comfy-detail": "node scripts/live-detail-controls-readiness.js"
-    ,"test:comfy-identity": "node scripts/live-identity-benchmark.js"
+    "test:comfy-live": "node scripts/live-comfy-acceptance.js 20",
+    "test:comfy-fidelity": "node scripts/comfy-prompt-fidelity.js",
+    "test:comfy-openpose": "node scripts/live-openpose-readiness.js",
+    "test:comfy-pose-extractor": "node scripts/live-pose-extractor-readiness.js",
+    "test:comfy-faceid": "node scripts/live-faceid-readiness.js",
+    "test:comfy-structure": "node scripts/live-structure-controls-readiness.js",
+    "test:comfy-remacri": "node scripts/live-remacri-readiness.js",
+    "test:comfy-detail": "node scripts/live-detail-controls-readiness.js",
+    "test:comfy-identity": "node scripts/live-identity-benchmark.js"
   },
   "dependencies": {
     "docx": "^9.5.1",
@@ -82,6 +82,8 @@
       "operational-readiness.js",
       "comfyui-client.js",
       "media-job-ledger.js",
+      "image-output-validator.js",
+      "image-benchmark.js",
       "workflow-registry.js",
       "png-workflow-metadata.js",
       "reference-studio-store.js",
@@ -99,7 +101,8 @@
       "styles.css",
       "package.json",
       "assets/**/*",
-      "workflows/**/*"
+      "workflows/**/*",
+      "evaluation/**/*"
     ],
     "mac": {
       "hardenedRuntime": true,

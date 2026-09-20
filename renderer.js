@@ -151,7 +151,14 @@ async function runCreativeCommand(text){
     const revisionStrength=isRevision?activeCreativeSession.strength:undefined;
     const requestId=crypto.randomUUID();activeMediaRequestId=requestId;$('cancelMediaBtn').hidden=false;
     const contract=isRevision?(activeCreativeSession.contract||'revision'):command;
-    const result=await window.masterChief.generateLocalMedia({kind:contract,requestId,prompt,sourceArtifact:contract==='revision'?activeCreativeSession.artifact.path:undefined,sessionId:isRevision?activeCreativeSession.id:undefined,parentRequestId:isRevision?activeCreativeSession.requestId:undefined,parentRevision:isRevision?activeCreativeSession.artifact.path:undefined,revisionStrength,negativePrompt,...mediaParameters()});
+    const parameters=mediaParameters();
+    // Revision intent must win over the general media panel. Previously the
+    // panel's denoise value was spread after revisionStrength, so a "major
+    // change" could quietly run with the conservative value and reproduce the
+    // source. Rebuild also retains its source solely for lineage/duplicate
+    // validation even though its graph starts from fresh noise.
+    if(isRevision){parameters.denoise=revisionStrength;parameters.revisionStrength=revisionStrength;if(contract==='rebuild')parameters.seed=undefined}
+    const result=await window.masterChief.generateLocalMedia({kind:contract,requestId,prompt,sourceArtifact:isRevision?activeCreativeSession.artifact.path:undefined,sessionId:isRevision?activeCreativeSession.id:undefined,parentRequestId:isRevision?activeCreativeSession.requestId:undefined,parentRevision:isRevision?activeCreativeSession.artifact.path:undefined,negativePrompt,...parameters});
     await consumeMediaResult(result,result.revised?'REVISION':contract==='rebuild'?'REBUILD':'MEDIA');
   }catch(e){setState('error');addMsg('system',`Creative job unavailable: ${e.message}`)}finally{setBusy(false)}
   return true

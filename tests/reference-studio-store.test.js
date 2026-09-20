@@ -45,6 +45,16 @@ test('clean generation mode prevents approved reference fallback', () => {
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
+test('dedicated identity style pose composition depth and lighting references persist', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-reference-roles-'));
+  try {
+    const store = createReferenceStudioStore(path.join(root, 'studio.json'));
+    const project = store.saveProject({ title: 'Roles' }); const subject = store.saveSubject(project.id, { name: 'Adult subject' }); const sheet = store.saveSheet(project.id, subject.id, { title: 'Sheet' });
+    const shot = store.saveShot(project.id, { identityReference: 'identity.png', styleReference: 'style.png', poseReference: 'pose.png', compositionReference: 'composition.png', depthReference: 'depth.png', lightingReference: 'lighting.png' }, subject.id, sheet.id);
+    assert.deepEqual([shot.identityReference, shot.styleReference, shot.poseReference, shot.compositionReference, shot.depthReference, shot.lightingReference], ['identity.png','style.png','pose.png','composition.png','depth.png','lighting.png']);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
 test('advanced identity and structure modes survive durable queue storage', () => {
   const target = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'reference-controls-')), 'reference.json');
   const store = createReferenceStudioStore(target);

@@ -18,6 +18,17 @@
   const shotActions = get('clearActiveReference')?.parentElement;
   if (shotActions && !get('extractPoseMap')) { const button=document.createElement('button'); button.id='extractPoseMap'; button.type='button'; button.textContent='Extract pose map'; shotActions.prepend(button); }
   const advancedGrid = get('shotControlEnd')?.parentElement?.parentElement;
+  const referenceModeLabel = get('shotReferenceMode')?.parentElement;
+  const referenceRoleIds = ['shotIdentityReference','shotStyleReference','shotPoseReference','shotCompositionReference','shotDepthReference','shotLightingReference'];
+  if (referenceModeLabel && !get(referenceRoleIds[0])) {
+    const roles = document.createElement('details'); roles.className = 'reference-role-slots';
+    const summary = document.createElement('summary'); summary.textContent = 'Dedicated reference roles'; roles.append(summary);
+    for (const [id, label] of [['shotIdentityReference','Identity'],['shotStyleReference','Style'],['shotPoseReference','Pose'],['shotCompositionReference','Composition'],['shotDepthReference','Depth'],['shotLightingReference','Lighting']]) {
+      const wrap = document.createElement('label'); wrap.textContent = `${label} reference`;
+      const select = document.createElement('select'); select.id = id; select.append(new Option('Not assigned', '')); wrap.append(select); roles.append(wrap);
+    }
+    referenceModeLabel.after(roles);
+  }
   for (const [id, label, min, max, step, value] of [['shotFaceIdV2Strength','FaceID v2 strength',-1,5,.05,1],['shotFaceIdLoraStrength','FaceID LoRA strength',0,1,.05,.6]]) if (!get(id) && advancedGrid) { const wrap=document.createElement('label'); wrap.textContent=label; const input=document.createElement('input'); Object.assign(input,{id,type:'number',min:String(min),max:String(max),step:String(step),value:String(value)}); wrap.append(input); advancedGrid.append(wrap); }
   for (const [id, label, min, max, step, value] of [['shotCannyLow','Canny low threshold',.01,.99,.01,.35],['shotCannyHigh','Canny high threshold',.01,.99,.01,.75],['shotInstantIdControlStrength','InstantID keypoint strength',0,10,.05,.8],['shotInstantIdNoise','InstantID identity noise',0,1,.1,0]]) if (!get(id) && advancedGrid) { const wrap=document.createElement('label'); wrap.textContent=label; const input=document.createElement('input'); Object.assign(input,{id,type:'number',min:String(min),max:String(max),step:String(step),value:String(value)}); wrap.append(input); advancedGrid.append(wrap); }
   const ids = shotId => ({ projectId: project?.id, subjectId: subject?.id, sheetId: sheet?.id, ...(shotId ? { shotId } : {}) });
@@ -36,6 +47,7 @@
       seed: get('shotSeed').value ? Number(get('shotSeed').value) : null, sampler: get('shotSampler').value, scheduler: get('shotScheduler').value,
       steps: Number(get('shotSteps').value), cfg: Number(get('shotCfg').value), width: Number(get('shotWidth').value), height: Number(get('shotHeight').value), batch: Number(get('shotBatch').value),
       continuityLocks: get('shotContinuityLocks').value, status: 'queued'
+      ,identityReference: selectValue('shotIdentityReference'), styleReference: selectValue('shotStyleReference'), poseReference: selectValue('shotPoseReference'), compositionReference: selectValue('shotCompositionReference'), depthReference: selectValue('shotDepthReference'), lightingReference: selectValue('shotLightingReference')
     };
   }
 
@@ -77,6 +89,7 @@
   function resetShotEditor({ cleanReference = false } = {}) {
     shotTextFields.forEach(id => { get(id).value = ''; });
     get('shotReferenceArtifact').value = '';
+    referenceRoleIds.forEach(id => { if (get(id)) get(id).value = ''; });
     get('shotControlMode').value = 'revision';
     get('shotWorkflow').value = '';
     get('shotModel').value = '';
@@ -99,6 +112,7 @@
     get('shotPositive').value = shot.positivePrompt || '';
     get('shotNegative').value = shot.negativePrompt || '';
     get('shotReferenceArtifact').value = shot.referenceArtifact || '';
+    for (const [id, field] of [['shotIdentityReference','identityReference'],['shotStyleReference','styleReference'],['shotPoseReference','poseReference'],['shotCompositionReference','compositionReference'],['shotDepthReference','depthReference'],['shotLightingReference','lightingReference']]) if (get(id)) get(id).value = shot[field] || '';
     get('shotControlMode').value = shot.controlMode || 'revision';
     get('shotPose').value = shot.pose || '';
     get('shotEnvironment').value = shot.environment || '';
@@ -210,8 +224,8 @@
   async function loadArtifacts() {
     const [artifacts, catalog] = await Promise.all([window.masterChief.listGeneratedMedia(200), window.masterChief.getMediaCatalog()]);
     liveCatalog = catalog;
-    const select = get('shotReferenceArtifact'), prior = select.value;
-    select.replaceChildren(new Option('Choose an artifact', ''), ...artifacts.filter(item => /\.(png|jpe?g|webp)$/i.test(item.filename)).map(item => new Option(item.filename, item.path))); select.value = prior;
+    const imageArtifacts = artifacts.filter(item => /\.(png|jpe?g|webp)$/i.test(item.filename));
+    for (const id of ['shotReferenceArtifact', ...referenceRoleIds]) { const select = get(id); if (!select) continue; const prior = select.value; select.replaceChildren(new Option(id === 'shotReferenceArtifact' ? 'Choose an artifact' : 'Not assigned', ''), ...imageArtifacts.map(item => new Option(item.filename, item.path))); if ([...select.options].some(option => option.value === prior)) select.value = prior; }
     const model = get('shotModel'), selectedModel = model.value; model.replaceChildren(new Option('Automatic installed checkpoint', ''), ...catalog.checkpoints.map(name => new Option(name, name))); model.value = [...model.options].some(option => option.value === selectedModel) ? selectedModel : '';
     const workflow = get('shotWorkflow'), selectedWorkflow = workflow.value; workflow.replaceChildren(new Option('Automatic compatible workflow', ''), ...catalog.workflows.filter(item => ['image', 'revision', 'control', 'faceid', 'canny', 'depth', 'instantid', 'hybridid', 'tile', 'poselora'].includes(item.contract)).map(item => { const option = new Option(`${item.id} · ${item.version}${item.readiness === 'ready' ? ' · ready' : ' · blocked'}`, item.id); option.disabled = item.readiness !== 'ready'; option.title = item.readiness === 'ready' ? 'All required nodes and models were detected.' : `Missing: ${[...(item.missingNodes || []), ...(item.missingModels || [])].join(', ')}`; return option; })); workflow.value = [...workflow.options].some(option => option.value === selectedWorkflow && !option.disabled) ? selectedWorkflow : '';
     const controlnet = get('shotControlnet'), selectedControlnet = controlnet.value; controlnet.replaceChildren(...catalog.controlnets.map(name => new Option(name, name))); controlnet.value = [...controlnet.options].some(option => option.value === selectedControlnet) ? selectedControlnet : (catalog.controlnets.find(name => /openposexl2/i.test(name)) || catalog.controlnets[0] || '');

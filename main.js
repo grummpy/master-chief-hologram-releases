@@ -38,6 +38,7 @@ const { runAgentPlan } = require('./agent-runner');
 const { createReferenceStudioStore } = require('./reference-studio-store');
 const { createMediaJobLedger } = require('./media-job-ledger');
 const { createWorkflowRegistry, evaluateWorkflowReadiness } = require('./workflow-registry');
+const { validateImageOutputs } = require('./image-output-validator');
 const { normalizeSpeechContract, createAudioJobStore } = require('./audio-production');
 const { requestedPages, createDocxArtifact } = require('./document-generator');
 const { ingestAttachment } = require('./file-ingestion');
@@ -563,10 +564,12 @@ async function executeMediaJob(requestId) {
   try {
     updateMediaJob(requestId, { status: 'loading', stage: 'load', progress: 10 });
     let sourceImage = '';
+    let sourceSha256 = null;
     let safeUpscale = null;
-    if (['revision', 'upscale', 'control', 'faceid', 'canny', 'depth', 'instantid', 'hybridid', 'tile', 'poselora', 'posemap'].includes(contract)) {
+    if (payload.sourceArtifact && ['revision', 'rebuild', 'upscale', 'control', 'faceid', 'canny', 'depth', 'instantid', 'hybridid', 'tile', 'poselora', 'posemap'].includes(contract)) {
       const localSource = resolveArtifactPath(payload.sourceArtifact);
       if (!localSource || !/\.(png|jpe?g|webp)$/i.test(localSource)) throw new Error('The selected source is unavailable or is not a supported image.');
+      sourceSha256 = require('crypto').createHash('sha256').update(fs.readFileSync(localSource)).digest('hex');
       if (contract === 'upscale' && ['ultrasharp-upscale-v1', 'remacri-upscale-v1'].includes(payload.workflowId)) {
         const size = nativeImage.createFromPath(localSource).getSize();
         safeUpscale = safeUltraSharpPlan(size.width, size.height);
@@ -583,8 +586,10 @@ async function executeMediaJob(requestId) {
           }
         }
       }
-      const uploaded = await comfyClient.uploadImage(localSource, `mc-${Date.now()}-${path.basename(localSource)}`);
-      sourceImage = uploaded.subfolder ? `${uploaded.subfolder}/${uploaded.name}` : uploaded.name;
+      if (contract !== 'rebuild') {
+        const uploaded = await comfyClient.uploadImage(localSource, `mc-${Date.now()}-${path.basename(localSource)}`);
+        sourceImage = uploaded.subfolder ? `${uploaded.subfolder}/${uploaded.name}` : uploaded.name;
+      }
     }
     let definition;
     const externalVaeWorkflow = payload.vae && ['image', 'revision', 'rebuild'].includes(contract) ? `sdxl-${contract}-external-vae-v1` : '';
@@ -654,9 +659,13 @@ async function executeMediaJob(requestId) {
     updateMediaJob(requestId, { status: 'transferring', stage: 'transfer', progress: 82 });
     const downloaded = await comfyClient.download(history, queued.promptId, { signal: controller.signal });
     if (controller.signal.aborted) throw controller.signal.reason || new Error('Media job cancelled.');
-    const artifacts = downloaded.map(item => ({ ...item, path: generatedRelativePath(item.filename), requestId }));
+    let artifacts = downloaded.map(item => ({ ...item, path: generatedRelativePath(item.filename), requestId }));
     if (!artifacts.length) throw new Error('The workflow completed without a downloadable artifact.');
     if (artifacts.some(item => !item.filename.startsWith(`${queued.promptId}-`))) throw new Error('Stale ComfyUI output was rejected because it did not match the current prompt ID.');
+    if (contract !== 'video') artifacts = validateImageOutputs(artifacts.map(item => ({ ...item, path: resolveArtifactPath(item.path) })), {
+      sourceSha256, requireChanged: ['revision', 'rebuild'].includes(contract),
+      imageSize: file => nativeImage.createFromPath(file).getSize()
+    }).map(item => ({ ...item, path: generatedRelativePath(item.filename) }));
     updateMediaJob(requestId, { status: 'archiving', stage: 'archive', progress: 95, artifacts });
     const completed = updateMediaJob(requestId, { status: 'completed', stage: 'complete', progress: 100, artifacts });
     auditToolEvent({ id: 'media.generate_local', outcome: 'success', detail: `${contract}:${artifacts.length} artifact(s)` });
@@ -707,6 +716,8 @@ function effectiveShotPrompt(subject, sheet, shot) {
 
 function resolveShotSource(sheet, shot) {
   if (shot.referenceMode === 'none') return '';
+  const roleSource = ({ faceid: shot.identityReference, instantid: shot.identityReference, hybridid: shot.identityReference, pose: shot.poseReference, poselora: shot.poseReference, depth: shot.depthReference || shot.compositionReference, canny: shot.compositionReference, tile: shot.compositionReference }[shot.controlMode]);
+  if (roleSource) return roleSource;
   if (shot.referenceMode === 'selected') return shot.referenceArtifact || '';
   return sheet.approvedViews.find(view => view.status === 'approved')?.artifact || '';
 }
