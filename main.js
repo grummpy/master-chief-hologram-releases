@@ -77,6 +77,8 @@ function huggingFaceConfig() {
 const comfyBaseUrl = String(process.env.COMFYUI_BASE_URL || connectorSettings.comfyuiBaseUrl || '').trim();
 const generatedArtifactDir = path.join(app.getPath('userData'), 'artifacts', 'generated');
 const documentArtifactDir = path.join(app.getPath('userData'), 'artifacts', 'documents');
+const desktopProjectDir = path.join(app.getPath('desktop'), 'master-chief-hologram');
+const sourceProjectDir = fs.existsSync(path.join(desktopProjectDir, '.git')) ? desktopProjectDir : __dirname;
 const referenceStudio = createReferenceStudioStore(path.join(app.getPath('userData'), 'reference-studio.json'));
 const mediaJobLedger = createMediaJobLedger(path.join(app.getPath('userData'), 'media-jobs.json'));
 const audioArchiveRoot = path.join(app.getPath('userData'), 'audio', 'archive');
@@ -190,7 +192,7 @@ function requireToolApproval(id) {
   }
 }
 const ragIndex = createRagIndex(path.join(app.getPath('userData'), 'local-index.json'));
-const localTools = createLocalToolExecutor({ appVersion: APP_VERSION, projectDir: __dirname, artifactDirs: [generatedArtifactDir, documentArtifactDir], execFile: execFileAsync });
+const localTools = createLocalToolExecutor({ appVersion: APP_VERSION, projectDir: sourceProjectDir, artifactDirs: [generatedArtifactDir, documentArtifactDir], execFile: execFileAsync });
 const localAiAudit = createLocalAiAudit(path.join(app.getPath('userData'), 'local-ai-audit.jsonl'));
 function toolAuditFile() { return path.join(app.getPath('userData'), 'tool-audit.jsonl'); }
 function microphoneStatus() { try { return process.platform === 'darwin' ? systemPreferences.getMediaAccessStatus('microphone') : 'granted'; } catch { return 'unknown'; } }
@@ -770,7 +772,7 @@ async function chatFetch(url, options = {}, timeoutMs = 300000) {
 
 function runCodex(args) {
   return new Promise((resolve, reject) => {
-    const child = spawn(CODEX_BIN, args, { cwd: __dirname, stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(CODEX_BIN, args, { cwd: sourceProjectDir, stdio: ['pipe', 'pipe', 'pipe'] });
     activeChild = child;
     let stdout = '';
     let stderr = '';
@@ -805,7 +807,7 @@ async function callCodex({ messages, masterMode }) {
   try {
     await runCodex([
       'exec', '--ephemeral', '--skip-git-repo-check',
-      '--sandbox', masterMode ? 'workspace-write' : 'read-only', '--cd', __dirname,
+      '--sandbox', masterMode ? 'workspace-write' : 'read-only', '--cd', sourceProjectDir,
       '--output-last-message', outputFile, prompt
     ]);
     const reply = fs.readFileSync(outputFile, 'utf8').trim();

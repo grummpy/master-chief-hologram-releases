@@ -14,6 +14,13 @@ test('protected capabilities are enforced in the main process', () => {
   assert.match(source, /function trustedIpc\(event\)/);
 });
 
+test('packaged repository tools resolve the Desktop source checkout', () => {
+  const source = read('main.js');
+  assert.match(source, /desktopProjectDir\s*=\s*path\.join\(app\.getPath\('desktop'\),\s*'master-chief-hologram'\)/);
+  assert.match(source, /projectDir:\s*sourceProjectDir/);
+  assert.match(source, /'--cd',\s*sourceProjectDir/);
+});
+
 test('provider chat requests use cancellable request paths', () => {
   const source = read('main.js');
   assert.match(source, /async function chatFetch/);

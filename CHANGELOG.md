@@ -12,6 +12,7 @@
 - Added strongest-tool-model selection so local agent work prefers Qwen3 8B over micro models once installed.
 - Added a bounded local code loop: exact one-match repository patches with before/after hashes plus a fixed `npm test` command.
 - Added cost class directly to the provider selector and one-time cloud-send confirmation.
+- Corrected packaged-app repository routing so local Git, edit, test, and explicitly selected Codex work target the Desktop source repository rather than the read-only app bundle.
 
 ## 1.10.1
 
