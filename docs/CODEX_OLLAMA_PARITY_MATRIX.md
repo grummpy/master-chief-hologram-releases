@@ -14,7 +14,7 @@ Master Chief uses Ollama as its local reasoning engine. Ollama alone is not equi
 | Web research | Not yet available to local Ollama | Requires a dedicated search/fetch connector with citations and network permission |
 | General code editing and command execution | Not yet available to local Ollama | Requires workspace-scoped patch and process tools, review, timeouts, and rollback |
 | Browser and native application control | Not yet available | Requires a computer-use connector and explicit per-action authorization |
-| External app connectors | Partial | ComfyUI and ElevenLabs are registered; broad Codex-style connectors need individual adapters and credentials |
+| External app connectors | Partial | Ollama, Codex, Hugging Face, OpenAI, xAI, GitHub, ComfyUI, and ElevenLabs are cataloged with live setup state and cost class. Cloud providers run only when explicitly selected. |
 | Scheduled reminders and monitoring | Not yet available | Requires a durable scheduler and notification service |
 | Multi-agent / task orchestration | Partial | Bounded sequential plans exist; there is no independent worker/task runtime yet |
 | Security and audit evidence | Available for registered tools | Main-process enforcement, explicit approvals, bounded inputs, and audit events |
@@ -26,8 +26,8 @@ A capability is reported as available only when an end-to-end test proves that M
 ## Next implementation gates
 
 1. Workspace-scoped patch/read/test tools with diffs, rollback, and approval.
-2. Web search and page retrieval with citations, allowlisted protocols, and provenance.
-3. Artifact creation tools callable inside the Ollama tool loop rather than only slash-command routes.
+2. A no-provider-charge web research path, preferably a local SearXNG instance, with citations, allowlisted protocols, and provenance.
+3. Broaden artifact creation acceptance tests inside the Ollama tool loop.
 4. Scheduler/notification jobs with pause, cancel, history, and restart recovery.
-5. Connector SDK for browser/app services, each with a typed contract and least-privilege credentials.
+5. Connector SDK for browser/app services, each with a typed contract, visible cost class, explicit route selection, and least-privilege credentials.
 6. A stronger tool-calling local model, validated by live multi-step acceptance tests.

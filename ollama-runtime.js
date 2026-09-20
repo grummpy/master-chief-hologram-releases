@@ -5,7 +5,7 @@ const MODES = Object.freeze({
   precise: { temperature: 0.15, top_p: 0.8, system: 'Prioritize correctness, explicit assumptions, and concise verification. Say when information is uncertain.' },
   creative: { temperature: 0.9, top_p: 0.95, system: 'Explore distinctive possibilities while keeping the result coherent and usable.' },
   coding: { temperature: 0.2, top_p: 0.85, system: 'Act as a careful software engineer. Inspect before changing, preserve existing behavior, provide runnable code, and identify verification.' },
-  agent: { temperature: 0.2, top_p: 0.8, system: 'You are in a bounded tool loop. Use an available tool only when it materially helps, inspect before concluding, and summarize tool evidence.' }
+  agent: { temperature: 0.2, top_p: 0.8, system: 'You are in a bounded local tool loop. Use an available tool only when it materially helps, inspect before concluding, and summarize tool evidence. Local agent mode must not invoke a paid or cloud provider; cloud providers run only when the operator explicitly selects that provider in the interface.' }
 });
 
 function boundedNumber(value, fallback, min, max) {
@@ -54,6 +54,9 @@ const AGENT_TOOLS = Object.freeze([
   Object.freeze({ alias: 'project_list_files', id: 'project.list_files', description: 'List files inside the Master Chief project.', properties: { directory: { type: 'string', description: 'Project-relative directory, or . for the project root.' } } }),
   Object.freeze({ alias: 'project_read_text_file', id: 'project.read_text_file', description: 'Read a bounded text file inside the Master Chief project.', properties: { path: { type: 'string', description: 'Project-relative text file path.' } }, required: ['path'] }),
   Object.freeze({ alias: 'artifacts_list', id: 'artifacts.list', description: 'List generated documents, spreadsheets, presentations, code, and media artifacts.' })
+  ,Object.freeze({ alias: 'knowledge_search_local', id: 'knowledge.search_local', description: 'Search text extracted from files the operator attached to Master Chief.', properties: { query: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 5 } }, required: ['query'] })
+  ,Object.freeze({ alias: 'connectors_status', id: 'connectors.status', description: 'Inspect the live setup and health state of registered connectors.' })
+  ,Object.freeze({ alias: 'artifacts_create', id: 'artifacts.create', description: 'Create a finished downloadable artifact.', properties: { kind: { type: 'string', enum: ['document', 'spreadsheet', 'presentation', 'python', 'r', 'sql'] }, request: { type: 'string' } }, required: ['kind', 'request'] })
 ]);
 function agentToolSchemas() { return AGENT_TOOLS.map(tool => ({ type: 'function', function: { name: tool.alias, description: tool.description, parameters: { type: 'object', properties: tool.properties || {}, required: tool.required || [] } } })); }
 function resolveAgentTool(alias) { return AGENT_TOOLS.find(tool => tool.alias === alias)?.id || null; }

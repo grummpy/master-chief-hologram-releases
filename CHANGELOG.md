@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.11.0
+
+- Expanded the Ollama agent with local attachment search, connector diagnostics, and downloadable artifact creation.
+- Added a live connector catalog for Ollama, Codex, Hugging Face, OpenAI, xAI, GitHub, ComfyUI, and ElevenLabs.
+- Added visible connector cost classes and kept the automatic Ollama agent loop local-only and provider-charge-free.
+- Increased bounded local tool-loop depth from four to eight turns for multi-step work.
+
 ## 1.10.1
 
 - Added a truthful Codex-to-Ollama capability parity matrix.

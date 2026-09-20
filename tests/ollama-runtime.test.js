@@ -35,5 +35,9 @@ test('model cards merge installed capabilities with running memory state', () =>
 test('agent exposes only explicitly mapped local tools', () => {
   assert.equal(resolveAgentTool('diagnostics_local_runtime'), 'diagnostics.local_runtime');
   assert.equal(resolveAgentTool('shell'), null);
-  assert.deepEqual(agentToolSchemas().map(item => item.function.name), ['diagnostics_local_runtime', 'diagnostics_git_status', 'project_list_files', 'project_read_text_file', 'artifacts_list']);
+  assert.deepEqual(agentToolSchemas().map(item => item.function.name), [
+    'diagnostics_local_runtime', 'diagnostics_git_status', 'project_list_files', 'project_read_text_file', 'artifacts_list',
+    'knowledge_search_local', 'connectors_status', 'artifacts_create'
+  ]);
+  assert.equal(resolveAgentTool('research_web_codex'), null);
 });

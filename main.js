@@ -32,7 +32,7 @@ const { voiceSelfTest } = require('./voice-diagnostics');
 const { discoverModels, buildVoiceSetup } = require('./voice-installation');
 const { loadLocalAiManifest, primaryInstalledModel } = require('./local-ai-manifest');
 const { createLocalAiAudit } = require('./local-ai-audit');
-const { getConnectorRegistry } = require('./connector-registry');
+const { withConnectorState } = require('./connector-registry');
 const { cloneAndFillWorkflow, createComfyUiClient } = require('./comfyui-client');
 const { runAgentPlan } = require('./agent-runner');
 const { createReferenceStudioStore } = require('./reference-studio-store');
@@ -550,8 +550,32 @@ async function runReferenceQueue(payload) {
   } finally { activeReferenceQueues.delete(queue.id); }
 }
 
-async function executeAgentTool(id, input) {
-  if (id === 'diagnostics.local_runtime' || id === 'diagnostics.git_status') return executeLocalTool(id);
+async function connectorStatus() {
+  const providers = await providerStatus();
+  const comfy = comfyClient ? await comfyClient.health() : { state: 'missing', label: 'ComfyUI · worker not configured' };
+  const states = {
+    'ollama.local': providers.ollama, 'codex.desktop': providers.codex, 'huggingface.inference': providers.huggingface,
+    'openai.responses': providers.openai, 'xai.grok': providers.grok, 'github.account': providers.github,
+    'comfyui.local': comfy, 'elevenlabs.tts': providers.audio
+  };
+  return { connectors: withConnectorState(states), comfyui: comfy };
+}
+
+async function executeAgentTool(id, input, context = {}) {
+  if (localTools.ids.includes(id)) return executeLocalTool(id, input);
+  if (id === 'knowledge.search_local') {
+    requireToolApproval(id); const results = ragIndex.search(String(input?.query || ''), { limit: input?.limit });
+    return { tool: id, result: { results }, summary: `Found ${results.length} matching local passages.` };
+  }
+  if (id === 'connectors.status') {
+    const result = await connectorStatus(); const ready = result.connectors.filter(item => item.status?.state === 'ready').length;
+    return { tool: id, result, summary: `${ready} of ${result.connectors.length} connectors are ready.` };
+  }
+  if (id === 'artifacts.create') {
+    requireToolApproval(id); const kind = String(input?.kind || ''); const request = String(input?.request || '');
+    const result = kind === 'document' ? await createDocument({ request, provider: 'ollama', model: context.model, masterMode: true }) : await createProductivityArtifact({ kind, request, model: context.model });
+    return { tool: id, result, summary: `Created ${kind} artifact ${result.filename}.` };
+  }
   if (id === 'media.generate_local') return generateLocalMedia(input);
   throw new Error('Agent tool is not allowlisted.');
 }
@@ -913,7 +937,7 @@ async function runOllamaAgent(payload = {}) {
   if (!selected) throw new Error('No installed Ollama model advertises tool-calling capability.');
   const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, ''); const settings = normalizeOllamaOptions({ ...(payload.ollama || {}), mode: 'agent', stream: false });
   const messages = [{ role: 'system', content: ollamaSystemPrompt({ masterMode: true, mode: 'agent' }) }, { role: 'user', content: objective }]; const trace = [];
-  for (let turn = 0; turn < 4; turn++) {
+  for (let turn = 0; turn < 8; turn++) {
     const response = await fetch(`${base}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: selected.name, messages, tools: agentToolSchemas(), stream: false, options: settings.options, keep_alive: settings.keep_alive }) });
     const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error || `Ollama agent error ${response.status}`);
     const message = body.message || {}; messages.push(message);
@@ -921,11 +945,11 @@ async function runOllamaAgent(payload = {}) {
     if (!calls.length) return { reply: message.content || 'The local agent completed without a text response.', model: selected.name, trace, metrics: ollamaMetrics(body) };
     for (const call of calls) {
       const alias = call.function?.name; const id = resolveAgentTool(alias); if (!id) throw new Error(`Ollama requested an unavailable tool: ${alias || 'unknown'}.`);
-      const result = await executeLocalTool(id, call.function?.arguments || {}); trace.push({ turn: turn + 1, tool: id, summary: result.summary });
+      const result = await executeAgentTool(id, call.function?.arguments || {}, { model: selected.name }); trace.push({ turn: turn + 1, tool: id, summary: result.summary });
       messages.push({ role: 'tool', tool_name: alias, content: JSON.stringify(result.result) });
     }
   }
-  throw new Error('Ollama agent reached its four-turn limit before producing a final answer.');
+  throw new Error('Ollama agent reached its eight-turn limit before producing a final answer.');
 }
 
 async function callHuggingFace({ messages, masterMode, model: requestedModel }) {
@@ -1042,7 +1066,7 @@ secureHandle('ollama-evaluation-status', () => { try { return JSON.parse(fs.read
 secureHandle('create-document', (_event, payload) => createDocument(payload));
 secureHandle('create-productivity-artifact', (_event, payload) => createProductivityArtifact(payload));
 secureHandle('ingest-attachment', (_event, payload) => ingestAttachment(payload));
-secureHandle('connector-status', async () => ({ connectors: getConnectorRegistry(), comfyui: comfyClient ? await comfyClient.health() : { state: 'missing', label: 'ComfyUI · worker not configured' } }));
+secureHandle('connector-status', connectorStatus);
 secureHandle('voice-self-test', async () => voiceSelfTest(await localWhisperConfig(), {
   name: 'command-reference.webm',
   contentType: 'audio/webm;codecs=opus',
@@ -1161,7 +1185,7 @@ secureHandle('clear-creative-session', async () => {
 secureHandle('run-agent-plan', (_event, payload) => {
   requireToolApproval('agents.run_bounded_plan');
   return runAgentPlan(payload, {
-    knownTools: ['diagnostics.local_runtime', 'diagnostics.git_status', 'media.generate_local'],
+    knownTools: [...localTools.ids, 'knowledge.search_local', 'connectors.status', 'artifacts.create', 'media.generate_local'],
     approved: id => isToolApproved(loadToolApprovals(), id),
     execute: executeAgentTool
   });
