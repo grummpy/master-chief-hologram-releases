@@ -15,10 +15,11 @@
     "launch:mac": "zsh scripts/launch-mac.sh",
     "test": "node --test tests/*.test.js",
     "test:assets": "node scripts/validate-assets.js",
-    "test:visual": "node scripts/validate-visual-regression.js"
-    ,"test:comfy-live": "node scripts/live-comfy-acceptance.js 20"
+    "test:visual": "node scripts/validate-visual-regression.js",
+    "test:comfy-live": "node scripts/live-comfy-acceptance.js 20"
   },
   "dependencies": {
+    "docx": "^9.5.1",
     "dotenv": "^16.4.5",
     "three": "^0.180.0"
   },
@@ -45,6 +46,7 @@
       "voice-setup-ui.js",
       "huggingface-setup.js",
       "audio-production.js",
+      "document-generator.js",
       "microphone-access.js",
       "autocomplete.js",
       "local-routing.js",

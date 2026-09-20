@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('masterChief', {
   getOllamaRuntime: () => ipcRenderer.invoke('ollama-runtime'),
   unloadOllamaModel: model => ipcRenderer.invoke('ollama-unload', { model }),
   runOllamaAgent: payload => ipcRenderer.invoke('ollama-agent', payload),
+  createDocument: payload => ipcRenderer.invoke('create-document', payload),
   getConnectorStatus: () => ipcRenderer.invoke('connector-status'),
   voiceSelfTest: () => ipcRenderer.invoke('voice-self-test'),
   voiceSetup: () => ipcRenderer.invoke('voice-setup'),

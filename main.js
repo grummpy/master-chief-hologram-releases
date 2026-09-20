@@ -39,6 +39,7 @@ const { createReferenceStudioStore } = require('./reference-studio-store');
 const { createMediaJobLedger } = require('./media-job-ledger');
 const { createWorkflowRegistry } = require('./workflow-registry');
 const { normalizeSpeechContract, createAudioJobStore } = require('./audio-production');
+const { requestedPages, createDocxArtifact } = require('./document-generator');
 const localAiManifest = loadLocalAiManifest(path.join(__dirname, 'local-ai-manifest.json'));
 
 let mainWindow;
@@ -70,6 +71,7 @@ function huggingFaceConfig() {
 }
 const comfyBaseUrl = String(process.env.COMFYUI_BASE_URL || connectorSettings.comfyuiBaseUrl || '').trim();
 const generatedArtifactDir = path.join(app.getPath('userData'), 'artifacts', 'generated');
+const documentArtifactDir = path.join(app.getPath('userData'), 'artifacts', 'documents');
 const referenceStudio = createReferenceStudioStore(path.join(app.getPath('userData'), 'reference-studio.json'));
 const mediaJobLedger = createMediaJobLedger(path.join(app.getPath('userData'), 'media-jobs.json'));
 const audioArchiveRoot = path.join(app.getPath('userData'), 'audio', 'archive');
@@ -106,6 +108,10 @@ function listGeneratedArtifacts(limit = 50) {
 }
 function resolveArtifactPath(relativePath) {
   const value = String(relativePath || '').replace(/\\/g, '/');
+  if (value.startsWith('artifacts/documents/')) {
+    const target = path.resolve(documentArtifactDir, value.slice('artifacts/documents/'.length));
+    return target.startsWith(`${path.resolve(documentArtifactDir)}${path.sep}`) && fs.existsSync(target) ? target : null;
+  }
   if (value.startsWith('artifacts/generated/')) {
     const target = path.resolve(generatedArtifactDir, value.slice('artifacts/generated/'.length));
     if (target.startsWith(`${path.resolve(generatedArtifactDir)}${path.sep}`) && fs.existsSync(target)) return target;
@@ -919,6 +925,24 @@ async function routeChat(payload) {
   }
 }
 
+async function createDocument(payload = {}) {
+  requireToolApproval('chat.send_to_configured_provider');
+  const request = String(payload.request || '').replace(/^\/document\s*/i, '').trim();
+  if (!request || request.length > 12000) throw new Error('Document request is empty or too long.');
+  const pages = requestedPages(request);
+  const capabilityFacts = 'Verified Master Chief Hologram capabilities: local Ollama chat with model and generation controls; bounded local agent diagnostics; explicit cloud-provider routing; local ComfyUI image, revision, rebuild, upscale, and gated video workflows; downloadable media with hashes and job lineage; Reference Studio projects, subjects, sheets, shots, and variants; local attachments and retrieval; microphone transcription readiness; reversible audio jobs; provider and connector health; privacy controls that clear conversations and optional generated media.';
+  const generationRequest = `Create the finished Word-report content requested below. Do not ask questions, describe what you plan to do, or address the user conversationally. Return only clean Markdown ready for document formatting. Use a title, short executive summary, descriptive headings, concise paragraphs, and useful bullets. Target ${pages} page${pages === 1 ? '' : 's'} at approximately ${pages * 650} words. Put the literal line [PAGE BREAK] between each requested page. Do not claim capabilities outside the verified facts when the request concerns this application.\n\nVERIFIED APPLICATION FACTS\n${capabilityFacts}\n\nUSER DOCUMENT REQUEST\n${request}`;
+  const chatPayload = validateChatPayload({
+    provider: payload.provider || 'ollama', model: payload.model,
+    messages: [{ role: 'user', content: generationRequest }], masterMode: Boolean(payload.masterMode),
+    stream: false, ollama: { ...(payload.ollama || {}), stream: false, format: 'text', maxTokens: Math.max(1600, pages * 1000) }
+  });
+  const generated = await routeChat(chatPayload);
+  const title = request.match(/(?:about|on)\s+(.+?)(?:[.?!]|$)/i)?.[1] || 'Master Chief Report';
+  const artifact = await createDocxArtifact({ outputDir: documentArtifactDir, title, markdown: generated.reply, pages });
+  return { ...artifact, path: `artifacts/documents/${artifact.filename}`, pages, providerLabel: generated.label };
+}
+
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
@@ -974,6 +998,7 @@ secureHandle('model-catalog', modelCatalog);
 secureHandle('ollama-runtime', ollamaRuntime);
 secureHandle('ollama-unload', (_event, payload) => unloadOllamaModel(payload?.model));
 secureHandle('ollama-agent', (_event, payload) => runOllamaAgent(payload));
+secureHandle('create-document', (_event, payload) => createDocument(payload));
 secureHandle('connector-status', async () => ({ connectors: getConnectorRegistry(), comfyui: comfyClient ? await comfyClient.health() : { state: 'missing', label: 'ComfyUI · worker not configured' } }));
 secureHandle('voice-self-test', async () => voiceSelfTest(await localWhisperConfig(), {
   name: 'command-reference.webm',

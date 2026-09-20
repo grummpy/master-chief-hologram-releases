@@ -4,7 +4,7 @@
   root.masterChiefAutocomplete = api;
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   const commands = Object.freeze([
-    '/image ', '/video ', '/revise ', '/agent diagnostics',
+    '/image ', '/video ', '/revise ', '/document ', '/agent diagnostics',
     '@master-chief ', '@papm ', '@jarvis ', '@imagination ',
     '@prompt-engineering ', '@chief-ux ', '@captain-intelligence ',
     '@comfyui-command-stack ', '@comfyui-workflow-engineer ',

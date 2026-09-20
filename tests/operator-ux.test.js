@@ -67,3 +67,14 @@ test('Ollama Command Center exposes native generation and agent controls', () =>
   assert.match(renderer, /stream:p==='ollama'/);
   assert.match(renderer, /renderOllamaMetrics/);
 });
+
+test('explicit report requests create downloadable Word artifacts', () => {
+  assert.match(renderer, /function isDocumentRequest/);
+  assert.match(renderer, /window\.masterChief\.createDocument/);
+  assert.match(renderer, /Open Word document/);
+  const preload = fs.readFileSync(path.join(root, 'preload.js'), 'utf8');
+  const main = fs.readFileSync(path.join(root, 'main.js'), 'utf8');
+  assert.match(preload, /create-document/);
+  assert.match(main, /secureHandle\('create-document'/);
+  assert.ok(fs.existsSync(path.join(root, 'document-generator.js')));
+});
