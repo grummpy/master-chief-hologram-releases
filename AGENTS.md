@@ -16,6 +16,13 @@ The current baseline contains no app-owned content filter. That baseline must
 not be changed without the same direct approval. Any approved exception must be
 disclosed in the change summary and covered by explicit tests.
 
+This approval requirement covers every content-related system instruction,
+classifier, routing rule, retry instruction, or model-behavior directive,
+including language intended to permit, encourage, discourage, restrict, or
+refuse content. Do not infer approval from a troubleshooting request. Before
+editing or deploying any such instruction, show the owner the exact proposed
+text and obtain explicit approval for that exact change.
+
 This rule does not apply to non-content security controls such as credential
 protection, network-destination consent, tool authorization, filesystem path
 containment, dependency security, or operating-system permissions.

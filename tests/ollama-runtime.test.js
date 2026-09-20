@@ -32,8 +32,6 @@ test('ComfyUI prompt architect has a strict positive and negative contract', () 
   assert.match(prompt, /POSITIVE PROMPT:/);
   assert.match(prompt, /NEGATIVE PROMPT:/);
   assert.match(prompt, /instead of asking vague follow-up questions/);
-  assert.match(prompt, /negative prompt must contain only rendering defects/);
-  assert.match(prompt, /never add nudity/);
 });
 
 test('Ollama system profiles require evidence and do not invent actions', () => {
@@ -42,8 +40,6 @@ test('Ollama system profiles require evidence and do not invent actions', () => 
   assert.match(prompt, /Produce the finished deliverable now/);
   assert.match(prompt, /TASK MODE: CODING/);
   assert.match(prompt, /Inspect before changing/);
-  assert.match(prompt, /lawful consensual creative requests/);
-  assert.match(prompt, /without moralizing/);
 });
 
 test('model cards merge installed capabilities with running memory state', () => {
