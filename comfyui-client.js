@@ -44,6 +44,9 @@ function cloneAndFillWorkflow(template, values) {
     ['{{DIFFUSION_MODEL}}', String(values.diffusionModel || 'flux1-dev-fp8.safetensors')],
     ['{{CLIP_L}}', String(values.clipL || 'clip_l.safetensors')],
     ['{{T5XXL}}', String(values.t5xxl || 't5xxl_fp8_e4m3fn.safetensors')],
+    ['{{VIDEO_MODEL}}', String(values.videoModel || 'wan2.1_t2v_1.3B_fp16.safetensors')],
+    ['{{VIDEO_TEXT_ENCODER}}', String(values.videoTextEncoder || 'umt5_xxl_fp8_e4m3fn_scaled.safetensors')],
+    ['{{VIDEO_VAE}}', String(values.videoVae || 'wan_2.1_vae.safetensors')],
     ['{{UPSCALER}}', String(values.upscaler || '4x-UltraSharp.pth')],
     ['{{CONTROLNET}}', String(values.controlnet || 'OpenPoseXL2.safetensors')],
     ['{{CONTROL_STRENGTH}}', Number.isFinite(values.controlStrength) ? Math.min(2, Math.max(0, values.controlStrength)) : 1],
@@ -63,7 +66,9 @@ function cloneAndFillWorkflow(template, values) {
     ['{{SCHEDULER}}', String(values.scheduler || 'karras')],
     ['{{WIDTH}}', Number.isFinite(values.width) ? Math.min(2048, Math.max(256, Math.round(values.width / 8) * 8)) : 768],
     ['{{HEIGHT}}', Number.isFinite(values.height) ? Math.min(2048, Math.max(256, Math.round(values.height / 8) * 8)) : 1024],
-    ['{{BATCH}}', Number.isFinite(values.batch) ? Math.min(8, Math.max(1, Math.round(values.batch))) : 1]
+    ['{{BATCH}}', Number.isFinite(values.batch) ? Math.min(8, Math.max(1, Math.round(values.batch))) : 1],
+    ['{{FRAME_COUNT}}', Number.isFinite(values.frameCount) ? Math.min(81, Math.max(9, Math.round((values.frameCount - 1) / 4) * 4 + 1)) : 33],
+    ['{{FPS}}', Number.isFinite(values.fps) ? Math.min(30, Math.max(6, Math.round(values.fps))) : 16]
   ]);
   function replace(value) {
     if (typeof value === 'string' && replacements.has(value)) return replacements.get(value);

@@ -90,7 +90,7 @@ function showGenerationStatus(label,progress=0){const box=$('generationStatus'),
 function updateMediaStatus(job){if(!job?.requestId)return;mediaJobs.set(job.requestId,job);if(job.requestId!==activeMediaRequestId&&!['recoverable','failed'].includes(job.status))return;const box=$('generationStatus'),bar=$('generationProgress'),text=$('generationStatusText');box.hidden=false;bar.value=Number(job.progress)||0;text.textContent=`${stageLabels[job.stage]||job.stage} · ${job.progress||0}%`;const cancellable=['queued','loading','generating','saving','transferring','archiving'].includes(job.status);$('cancelMediaBtn').hidden=!cancellable;if(['completed','cancelled'].includes(job.status))setTimeout(()=>{if(activeMediaRequestId===job.requestId){activeMediaRequestId=null;hideGenerationStatus()}},1200)}
 if(window.masterChief.onMediaJobEvent)window.masterChief.onMediaJobEvent(({job})=>updateMediaStatus(job));
 $('cancelMediaBtn').onclick=async()=>{if(!activeMediaRequestId)return;if(!window.confirm('Cancel the active media job? Any in-progress generation on the Windows worker will stop.'))return;try{await window.masterChief.cancelMediaJob(activeMediaRequestId);addMsg('system','Media job cancelled by operator. Use Resume on its job card to run it again.')}catch(e){addMsg('system',`Cancel failed: ${e.message}`)}};
-function mediaParameters(){const number=id=>{const raw=$(id)?.value;if(raw===undefined||raw===null||raw==='')return undefined;const value=Number(raw);return Number.isFinite(value)?value:undefined};const seed=number('mediaSeed');return{workflowId:$('mediaWorkflow')?.value||undefined,checkpoint:$('mediaCheckpoint')?.value||undefined,vae:$('mediaVae')?.value||undefined,seed:Number.isSafeInteger(seed)?seed:undefined,sampler:$('mediaSampler')?.value,scheduler:$('mediaScheduler')?.value,steps:number('mediaSteps'),cfg:number('mediaCfg'),width:number('mediaWidth'),height:number('mediaHeight'),batch:number('mediaBatch'),denoise:number('mediaDenoise')}}
+function mediaParameters(){const number=id=>{const raw=$(id)?.value;if(raw===undefined||raw===null||raw==='')return undefined;const value=Number(raw);return Number.isFinite(value)?value:undefined};const seed=number('mediaSeed');return{workflowId:$('mediaWorkflow')?.value||undefined,checkpoint:$('mediaCheckpoint')?.value||undefined,vae:$('mediaVae')?.value||undefined,seed:Number.isSafeInteger(seed)?seed:undefined,sampler:$('mediaSampler')?.value,scheduler:$('mediaScheduler')?.value,steps:number('mediaSteps'),cfg:number('mediaCfg'),width:number('mediaWidth'),height:number('mediaHeight'),batch:number('mediaBatch'),denoise:number('mediaDenoise'),frameCount:number('mediaFrameCount'),fps:number('mediaFps')}}
 function updateMediaEngineHint(){const flux=$('mediaWorkflow')?.value==='flux1-dev-fp8-image-v1';$('mediaEngineHint').textContent=flux?'FLUX.1 Dev FP8 runs locally in one-image safe mode. It uses the positive prompt and records—but does not apply—the negative prompt. GPU and RAM reserves are checked before queueing.':'Prompts are sent exactly as shown. These controls are recorded with every job.'}
 async function refreshMediaCatalog(){try{const catalog=await window.masterChief.getMediaCatalog();const workflow=$('mediaWorkflow'),selectedWorkflow=workflow.value;workflow.replaceChildren(new Option('SDXL · automatic reliable default',''),...catalog.workflows.filter(item=>item.contract==='image'&&item.id!=='sdxl-image-v1').map(item=>{const option=new Option(`${item.id} · ${item.readiness}`,item.id);option.disabled=item.readiness!=='ready';option.title=option.disabled?`Missing: ${[...(item.missingNodes||[]),...(item.missingModels||[])].join(', ')}`:item.capabilities.join(' · ');return option}));if([...workflow.options].some(option=>option.value===selectedWorkflow&&!option.disabled))workflow.value=selectedWorkflow;workflow.onchange=()=>{const flux=workflow.value==='flux1-dev-fp8-image-v1';if(flux){$('mediaSampler').value='euler';$('mediaScheduler').value='simple';$('mediaSteps').value='20';$('mediaCfg').value='3.5';$('mediaBatch').value='1'}updateMediaEngineHint()};updateMediaEngineHint();const select=$('mediaCheckpoint'),selected=select.value;select.replaceChildren(new Option('Automatic best installed',''),...catalog.checkpoints.map(name=>new Option(name,name)));if([...select.options].some(option=>option.value===selected))select.value=selected;const vae=$('mediaVae'),selectedVae=vae.value;vae.replaceChildren(new Option('Checkpoint default',''),...catalog.vaes.map(name=>new Option(name,name)));if([...vae.options].some(option=>option.value===selectedVae))vae.value=selectedVae}catch{/* Worker health panel owns connectivity errors. */}}
 if($('mediaWorkflow'))$('mediaWorkflow').addEventListener('change',()=>{const flux=$('mediaWorkflow').value==='flux1-dev-fp8-image-v1';if(flux){$('mediaCheckpoint').value='';$('mediaVae').value='ae.safetensors'}else if($('mediaVae').value==='ae.safetensors')$('mediaVae').value=''})
@@ -99,7 +99,7 @@ function loadCreativeSession(){try{const value=JSON.parse(localStorage.getItem(C
 function applyRecoveredMediaSettings(value){
   const settings=value?.recoverableSettings||value?.embedded?.settings;
   if(!settings)throw new Error('No recoverable job or embedded ComfyUI settings were found.');
-  const fields={positivePrompt:settings.prompt||settings.positivePrompt,negativePrompt:settings.negativePrompt,mediaCheckpoint:settings.checkpoint,mediaVae:settings.vae,mediaSeed:settings.seed,mediaSampler:settings.sampler,mediaScheduler:settings.scheduler,mediaSteps:settings.steps,mediaCfg:settings.cfg,mediaWidth:settings.width,mediaHeight:settings.height,mediaBatch:settings.batch,mediaDenoise:settings.denoise??settings.revisionStrength};
+  const fields={positivePrompt:settings.prompt||settings.positivePrompt,negativePrompt:settings.negativePrompt,mediaCheckpoint:settings.checkpoint,mediaVae:settings.vae,mediaSeed:settings.seed,mediaSampler:settings.sampler,mediaScheduler:settings.scheduler,mediaSteps:settings.steps,mediaCfg:settings.cfg,mediaWidth:settings.width,mediaHeight:settings.height,mediaBatch:settings.batch,mediaDenoise:settings.denoise??settings.revisionStrength,mediaFrameCount:settings.frameCount,mediaFps:settings.fps};
   for(const [id,setting] of Object.entries(fields)){const input=$(id);if(input&&setting!==undefined&&setting!==null&&String(setting)!=='')input.value=String(setting)}
   addMsg('system',`Exact generation settings reopened from ${value.job?'durable job lineage':'embedded PNG metadata'}. Review the visible positive/negative prompts and controls before generating.`);
   $('positivePrompt')?.focus();
@@ -152,6 +152,21 @@ async function runCreativeCommand(text){
     const requestId=crypto.randomUUID();activeMediaRequestId=requestId;$('cancelMediaBtn').hidden=false;
     const contract=isRevision?(activeCreativeSession.contract||'revision'):command;
     const parameters=mediaParameters();
+    if(command==='video'){
+      parameters.workflowId=undefined;
+      parameters.checkpoint=undefined;
+      parameters.vae=undefined;
+      parameters.width=Math.min(Number(parameters.width)||848,848);
+      parameters.height=Math.min(Number(parameters.height)||480,480);
+      if(parameters.width*parameters.height>407040){parameters.width=848;parameters.height=480}
+      parameters.batch=1;
+      parameters.frameCount=Math.min(Number(parameters.frameCount)||33,33);
+      parameters.fps=Math.min(Number(parameters.fps)||16,30);
+      parameters.steps=Math.min(Number(parameters.steps)||20,30);
+      parameters.cfg=Math.min(Number(parameters.cfg)||6,8);
+      parameters.sampler='uni_pc';
+      parameters.scheduler='simple';
+    }
     // Revision intent must win over the general media panel. Previously the
     // panel's denoise value was spread after revisionStrength, so a "major
     // change" could quietly run with the conservative value and reproduce the

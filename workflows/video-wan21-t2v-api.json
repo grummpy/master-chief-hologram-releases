@@ -1,0 +1,13 @@
+{
+  "1": { "class_type": "UNETLoader", "inputs": { "unet_name": "{{VIDEO_MODEL}}", "weight_dtype": "default" } },
+  "2": { "class_type": "CLIPLoader", "inputs": { "clip_name": "{{VIDEO_TEXT_ENCODER}}", "type": "wan", "device": "default" } },
+  "3": { "class_type": "VAELoader", "inputs": { "vae_name": "{{VIDEO_VAE}}" } },
+  "4": { "class_type": "CLIPTextEncode", "inputs": { "text": "{{PROMPT}}", "clip": ["2", 0] } },
+  "5": { "class_type": "CLIPTextEncode", "inputs": { "text": "{{NEGATIVE_PROMPT}}", "clip": ["2", 0] } },
+  "6": { "class_type": "EmptyHunyuanLatentVideo", "inputs": { "width": "{{WIDTH}}", "height": "{{HEIGHT}}", "length": "{{FRAME_COUNT}}", "batch_size": 1 } },
+  "7": { "class_type": "ModelSamplingSD3", "inputs": { "model": ["1", 0], "shift": 8.0 } },
+  "8": { "class_type": "KSampler", "inputs": { "model": ["7", 0], "seed": "{{SEED}}", "steps": "{{STEPS}}", "cfg": "{{CFG}}", "sampler_name": "{{SAMPLER}}", "scheduler": "{{SCHEDULER}}", "positive": ["4", 0], "negative": ["5", 0], "latent_image": ["6", 0], "denoise": 1.0 } },
+  "9": { "class_type": "VAEDecode", "inputs": { "samples": ["8", 0], "vae": ["3", 0] } },
+  "10": { "class_type": "CreateVideo", "inputs": { "images": ["9", 0], "fps": "{{FPS}}" } },
+  "11": { "class_type": "SaveVideo", "inputs": { "video": ["10", 0], "filename_prefix": "MasterChiefVideo", "format": "mp4", "codec": "h264" } }
+}

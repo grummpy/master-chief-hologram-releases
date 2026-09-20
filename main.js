@@ -610,12 +610,30 @@ async function executeMediaJob(requestId) {
       const refreshed = await comfyClient.runtimeStatus();
       if (!refreshed.devices[0] || refreshed.devices[0].vramTotal < 15 * 1024 * 1024 * 1024 || refreshed.system.ramFree < 6 * 1024 * 1024 * 1024) throw new Error('FLUX safe mode requires a 15 GB GPU and 6 GB of free system RAM after cache release. Close memory-heavy applications and retry.');
     }
+    if (definition.modelFamily === 'wan-video') {
+      const width = Number(payload.width || 848);
+      const height = Number(payload.height || 480);
+      const frameCount = Number(payload.frameCount || 33);
+      if (Number(payload.batch || 1) !== 1) throw new Error('WAN video safe mode allows one clip per job on this GPU. Duplicate the job for another variant.');
+      if (width * height > 407040 || width > 848 || height > 848) throw new Error('WAN video safe mode is limited to 407,040 pixels per frame (for example 848×480). Reduce the width or height and retry.');
+      if (frameCount > 33) throw new Error('WAN video safe mode currently allows at most 33 frames per job. Extend the clip in a later job.');
+      let runtime = await comfyClient.runtimeStatus();
+      if (runtime.queue.running || runtime.queue.pending) throw new Error('WAN video waits for an idle GPU. Finish or cancel the current ComfyUI job first.');
+      await comfyClient.freeMemory();
+      runtime = await comfyClient.runtimeStatus();
+      const device = runtime.devices[0];
+      if (!device || device.vramTotal < 15 * 1024 * 1024 * 1024 || runtime.system.ramFree < 6 * 1024 * 1024 * 1024) throw new Error('WAN video safe mode requires a 15 GB GPU and 6 GB of free system RAM after cache release. Close memory-heavy applications and retry.');
+    }
     const template = JSON.parse(fs.readFileSync(definition.file, 'utf8'));
     const checkpoints = definition.modelFamily === 'sdxl' ? readyCheckpoints(await comfyClient.checkpoints()) : [];
     if (payload.checkpoint && UNREADY_CHECKPOINTS.has(String(payload.checkpoint))) throw new Error('That checkpoint is still downloading or has not passed the local readiness gate.');
     const selectedCheckpoint = payload.checkpoint || checkpoints.find(name => /juggernaut.*xl.*v9/i.test(name)) || checkpoints.find(name => /juggernaut.*xl/i.test(name)) || checkpoints.find(name => /sd.?xl/i.test(name));
     if (definition.modelFamily === 'sdxl' && (!selectedCheckpoint || !checkpoints.includes(selectedCheckpoint))) throw new Error('The selected checkpoint is not installed on the live ComfyUI worker.');
-    if (payload.vae && !(await comfyClient.modelNames('vae')).includes(payload.vae)) throw new Error('The selected VAE is not installed on the live ComfyUI worker.');
+    if (payload.vae && definition.modelFamily !== 'wan-video' && !(await comfyClient.modelNames('vae')).includes(payload.vae)) throw new Error('The selected VAE is not installed on the live ComfyUI worker.');
+    if (definition.modelFamily === 'wan-video') {
+      const [diffusionModels, textEncoders, vaes] = await Promise.all([comfyClient.modelNames('diffusion_models'), comfyClient.modelNames('text_encoders'), comfyClient.modelNames('vae')]);
+      if (!diffusionModels.includes('wan2.1_t2v_1.3B_fp16.safetensors') || !textEncoders.includes('umt5_xxl_fp8_e4m3fn_scaled.safetensors') || !vaes.includes('wan_2.1_vae.safetensors')) throw new Error('WAN 2.1 video models are not fully installed on the live Windows worker.');
+    }
     if (definition.modelFamily === 'upscale-model' && !(await comfyClient.modelNames('upscale_models')).includes(payload.upscaler)) throw new Error('The selected upscale model is not installed on the live ComfyUI worker.');
     const selectedControlnet = payload.controlnet || 'OpenPoseXL2.safetensors';
     if (definition.contract === 'control' && !(await comfyClient.modelNames('controlnet')).includes(selectedControlnet)) throw new Error('The selected ControlNet model is not installed on the live ComfyUI worker.');
@@ -631,6 +649,9 @@ async function executeMediaJob(requestId) {
       diffusionModel: payload.diffusionModel,
       clipL: payload.clipL,
       t5xxl: payload.t5xxl,
+      videoModel: payload.videoModel,
+      videoTextEncoder: payload.videoTextEncoder,
+      videoVae: payload.videoVae,
       upscaler: payload.upscaler,
       controlnet: selectedControlnet,
       controlStrength: payload.controlStrength,
@@ -646,7 +667,7 @@ async function executeMediaJob(requestId) {
     });
     updateMediaJob(requestId, {
       workflow: { id: definition.id, version: definition.version, sha256: definition.sha256, modelFamily: definition.modelFamily },
-      parameters: { ...payload, seed, checkpoint: selectedCheckpoint || null, vae: payload.vae || (definition.modelFamily === 'flux' ? 'ae.safetensors' : null), diffusionModel: payload.diffusionModel || (definition.modelFamily === 'flux' ? 'flux1-dev-fp8.safetensors' : null), clipL: payload.clipL || (definition.modelFamily === 'flux' ? 'clip_l.safetensors' : null), t5xxl: payload.t5xxl || (definition.modelFamily === 'flux' ? 't5xxl_fp8_e4m3fn.safetensors' : null), negativePromptApplied: definition.modelFamily !== 'flux', upscaler: payload.upscaler || null, workflowId: definition.id, safeUpscale },
+      parameters: { ...payload, seed, checkpoint: selectedCheckpoint || null, vae: payload.vae || (definition.modelFamily === 'flux' ? 'ae.safetensors' : definition.modelFamily === 'wan-video' ? 'wan_2.1_vae.safetensors' : null), diffusionModel: payload.diffusionModel || (definition.modelFamily === 'flux' ? 'flux1-dev-fp8.safetensors' : null), clipL: payload.clipL || (definition.modelFamily === 'flux' ? 'clip_l.safetensors' : null), t5xxl: payload.t5xxl || (definition.modelFamily === 'flux' ? 't5xxl_fp8_e4m3fn.safetensors' : null), videoModel: payload.videoModel || (definition.modelFamily === 'wan-video' ? 'wan2.1_t2v_1.3B_fp16.safetensors' : null), videoTextEncoder: payload.videoTextEncoder || (definition.modelFamily === 'wan-video' ? 'umt5_xxl_fp8_e4m3fn_scaled.safetensors' : null), negativePromptApplied: definition.modelFamily !== 'flux', upscaler: payload.upscaler || null, workflowId: definition.id, safeUpscale },
       status: 'generating', stage: 'generate', progress: 30
     });
     const queued = await comfyClient.submit(workflow, requestId);
@@ -679,7 +700,7 @@ async function executeMediaJob(requestId) {
     throw wrapped;
   } finally {
     activeMediaJobs.delete(requestId);
-    if (['ultrasharp-upscale-v1', 'remacri-upscale-v1'].includes(payload.workflowId)) await comfyClient.freeMemory().catch(() => null);
+    if (['ultrasharp-upscale-v1', 'remacri-upscale-v1'].includes(payload.workflowId) || contract === 'video') await comfyClient.freeMemory().catch(() => null);
   }
 }
 

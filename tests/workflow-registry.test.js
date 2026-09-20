@@ -86,6 +86,19 @@ test('workflow readiness requires every declared node and model', () => {
   assert.deepEqual(result[1].missingModels, ['upscaler:missing.pth']);
 });
 
+test('WAN 2.1 video workflow binds bounded motion controls and official model bundle', () => {
+  const root = path.resolve(__dirname, '..');
+  const registry = createWorkflowRegistry(root);
+  const definition = registry.get('wan21-t2v-1.3b-v1');
+  const result = cloneAndFillWorkflow(require(definition.file), { prompt: 'cinematic ocean motion', negativePrompt: 'flicker', seed: 7, steps: 20, cfg: 6, sampler: 'uni_pc', scheduler: 'simple', width: 848, height: 480, frameCount: 33, fps: 16 });
+  assert.equal(result['1'].inputs.unet_name, 'wan2.1_t2v_1.3B_fp16.safetensors');
+  assert.equal(result['2'].inputs.clip_name, 'umt5_xxl_fp8_e4m3fn_scaled.safetensors');
+  assert.equal(result['3'].inputs.vae_name, 'wan_2.1_vae.safetensors');
+  assert.equal(result['6'].inputs.length, 33);
+  assert.equal(result['10'].inputs.fps, 16);
+  assert.equal(result['11'].inputs.format, 'mp4');
+});
+
 test('FaceID workflow binds identity controls without rewriting prompts', () => {
   const registry = createWorkflowRegistry(path.resolve(__dirname, '..'));
   const definition = registry.get('sdxl-faceid-plus-v2');
