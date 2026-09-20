@@ -1150,7 +1150,7 @@ async function callOllama({ messages, masterMode, model: requestedModel, ollama:
   const model = requestedModel || process.env.OLLAMA_MODEL || 'llama3.2';
   const settings = normalizeOllamaOptions(requestedOptions);
   const special = intent === 'comfy-prompt' ? comfyPromptSystemPrompt() : ollamaSystemPrompt({ masterMode, mode: settings.mode });
-  const payload = { model, messages: [{ role: 'system', content: `${special}\n${SKILL_TAG_ROUTING}` }, ...messages.slice(-16)], stream: settings.stream, options: settings.options, keep_alive: '-1' };
+  const payload = { model, messages: [{ role: 'system', content: `${special}\n${SKILL_TAG_ROUTING}` }, ...messages.slice(-16)], stream: settings.stream, options: settings.options, keep_alive: -1 };
   payload.think = settings.think;
   if (settings.format) payload.format = settings.format;
   activeAbortController = new AbortController();

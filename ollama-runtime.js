@@ -23,7 +23,9 @@ function normalizeOllamaOptions(input = {}) {
     stream: input.stream !== false,
     think,
     format,
-    keep_alive: /^(?:-1|0|\d+[smh])$/.test(String(input.keepAlive || '')) ? String(input.keepAlive) : '-1',
+    keep_alive: String(input.keepAlive || '') === '-1'
+      ? -1
+      : /^(?:0|\d+[smh])$/.test(String(input.keepAlive || '')) ? String(input.keepAlive) : -1,
     options: {
       temperature: boundedNumber(input.temperature, preset.temperature, 0, 2),
       top_p: boundedNumber(input.topP, preset.top_p, 0, 1),
