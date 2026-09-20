@@ -132,3 +132,9 @@ test('model catalog permits only bounded known ComfyUI categories', async () => 
   assert.deepEqual(await client.modelNames('upscale_models'), ['4x-UltraSharp.pth']);
   await assert.rejects(() => client.modelNames('../custom_nodes'), /Unsupported/);
 });
+
+test('model catalog supports FLUX diffusion and text encoder categories', async () => {
+  const client = createComfyUiClient({ baseUrl: 'http://127.0.0.1:8188', artifactDir: os.tmpdir(), fetchImpl: async url => new Response(JSON.stringify(url.endsWith('/models/diffusion_models') ? ['flux1-dev-fp8.safetensors'] : ['clip_l.safetensors', 't5xxl_fp8_e4m3fn.safetensors'])), timeoutMs: 1000 });
+  assert.deepEqual(await client.modelNames('diffusion_models'), ['flux1-dev-fp8.safetensors']);
+  assert.deepEqual(await client.modelNames('text_encoders'), ['clip_l.safetensors', 't5xxl_fp8_e4m3fn.safetensors']);
+});

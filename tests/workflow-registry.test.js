@@ -71,7 +71,7 @@ test('UltraSharp and external VAE workflows bind only named installed models', (
 test('main process recognizes video and reports its gated readiness precisely', () => {
   const fs = require('node:fs');
   const main = fs.readFileSync(path.resolve(__dirname, '..', 'main.js'), 'utf8');
-  assert.match(main, /\['image', 'revision', 'rebuild', 'upscale', 'control', 'faceid', 'canny', 'instantid', 'hybridid', 'tile', 'poselora', 'posemap', 'video'\]/);
+  assert.match(main, /\['image', 'revision', 'rebuild', 'upscale', 'control', 'faceid', 'canny', 'depth', 'instantid', 'hybridid', 'tile', 'poselora', 'posemap', 'video'\]/);
   assert.match(main, /Video generation is not ready on the Windows worker/);
   assert.doesNotMatch(main, /Media contract must be image, revision, rebuild, or upscale\./);
   assert.match(main, /UNREADY_CHECKPOINTS = new Set\(\['ponyDiffusionV6XL_v6StartWithThisOne\.safetensors'\]\)/);
@@ -117,4 +117,25 @@ test('hybrid identity workflow layers FaceID Plus v2 before InstantID', () => {
   const definition = registry.get('sdxl-hybrid-identity-v1');
   const result = cloneAndFillWorkflow(require(definition.file), { prompt: 'same adult face', negativePrompt: 'blur', sourceImage: 'face.png', checkpoint: 'model.safetensors', referenceStrength: .85, faceIdV2Strength: 1.05, faceIdLoraStrength: .45, instantIdControlStrength: .78, instantIdNoise: 0 });
   assert.deepEqual({ faceModel: result['7'].inputs.model, instantModel: result['11'].inputs.model, faceWeight: result['7'].inputs.weight_faceidv2, keypoints: result['11'].inputs.cn_strength }, { faceModel: ['5', 0], instantModel: ['7', 0], faceWeight: 1.05, keypoints: .78 });
+});
+
+test('FLUX Dev workflow binds the installed local model bundle and safe controls', () => {
+  const registry = createWorkflowRegistry(path.resolve(__dirname, '..'));
+  const definition = registry.get('flux1-dev-fp8-image-v1');
+  const result = cloneAndFillWorkflow(require(definition.file), { prompt: 'exact flux prompt', negativePrompt: 'preserved in job metadata', seed: 42, steps: 20, cfg: 3.5, sampler: 'euler', scheduler: 'simple', width: 768, height: 1024, batch: 1, vae: 'ae.safetensors', diffusionModel: 'flux1-dev-fp8.safetensors', clipL: 'clip_l.safetensors', t5xxl: 't5xxl_fp8_e4m3fn.safetensors' });
+  assert.equal(result['1'].inputs.unet_name, 'flux1-dev-fp8.safetensors');
+  assert.equal(result['2'].inputs.type, 'flux');
+  assert.equal(result['3'].inputs.vae_name, 'ae.safetensors');
+  assert.equal(result['4'].inputs.text, 'exact flux prompt');
+  assert.equal(result['5'].inputs.guidance, 3.5);
+  assert.equal(result['6'].inputs.batch_size, 1);
+});
+
+test('depth workflow extracts depth before applying the installed SDXL control model', () => {
+  const registry = createWorkflowRegistry(path.resolve(__dirname, '..'));
+  const definition = registry.get('sdxl-depth-control-v1');
+  const result = cloneAndFillWorkflow(require(definition.file), { prompt: 'new scene', negativePrompt: 'blur', sourceImage: 'source.png', checkpoint: 'juggernaut.safetensors', controlStrength: .7, controlStart: .05, controlEnd: .9 });
+  assert.equal(result['4'].inputs.control_net_name, 'sdxl-depth.safetensors');
+  assert.equal(result['6'].class_type, 'DepthAnythingV2Preprocessor');
+  assert.deepEqual(result['7'].inputs.image, ['6', 0]);
 });

@@ -1,0 +1,15 @@
+{
+  "1": { "class_type": "UNETLoader", "inputs": { "unet_name": "{{DIFFUSION_MODEL}}", "weight_dtype": "default" } },
+  "2": { "class_type": "DualCLIPLoader", "inputs": { "clip_name1": "{{CLIP_L}}", "clip_name2": "{{T5XXL}}", "type": "flux", "device": "default" } },
+  "3": { "class_type": "VAELoader", "inputs": { "vae_name": "{{VAE}}" } },
+  "4": { "class_type": "CLIPTextEncode", "inputs": { "text": "{{PROMPT}}", "clip": ["2", 0] } },
+  "5": { "class_type": "FluxGuidance", "inputs": { "conditioning": ["4", 0], "guidance": "{{CFG}}" } },
+  "6": { "class_type": "EmptyLatentImage", "inputs": { "width": "{{WIDTH}}", "height": "{{HEIGHT}}", "batch_size": "{{BATCH}}" } },
+  "7": { "class_type": "RandomNoise", "inputs": { "noise_seed": "{{SEED}}" } },
+  "8": { "class_type": "KSamplerSelect", "inputs": { "sampler_name": "{{SAMPLER}}" } },
+  "9": { "class_type": "BasicScheduler", "inputs": { "model": ["1", 0], "scheduler": "{{SCHEDULER}}", "steps": "{{STEPS}}", "denoise": 1 } },
+  "10": { "class_type": "BasicGuider", "inputs": { "model": ["1", 0], "conditioning": ["5", 0] } },
+  "11": { "class_type": "SamplerCustomAdvanced", "inputs": { "noise": ["7", 0], "guider": ["10", 0], "sampler": ["8", 0], "sigmas": ["9", 0], "latent_image": ["6", 0] } },
+  "12": { "class_type": "VAEDecode", "inputs": { "samples": ["11", 0], "vae": ["3", 0] } },
+  "13": { "class_type": "SaveImage", "inputs": { "filename_prefix": "MasterChief-FLUX", "images": ["12", 0] } }
+}

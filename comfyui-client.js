@@ -41,6 +41,9 @@ function cloneAndFillWorkflow(template, values) {
     ['{{PRESCALE}}', Number.isFinite(values.preScale) ? Math.min(0.5, Math.max(0.05, values.preScale)) : 0.5],
     ['{{CHECKPOINT}}', String(values.checkpoint || 'sd_xl_base_1.0.safetensors')],
     ['{{VAE}}', String(values.vae || 'sdxl_vae.safetensors')],
+    ['{{DIFFUSION_MODEL}}', String(values.diffusionModel || 'flux1-dev-fp8.safetensors')],
+    ['{{CLIP_L}}', String(values.clipL || 'clip_l.safetensors')],
+    ['{{T5XXL}}', String(values.t5xxl || 't5xxl_fp8_e4m3fn.safetensors')],
     ['{{UPSCALER}}', String(values.upscaler || '4x-UltraSharp.pth')],
     ['{{CONTROLNET}}', String(values.controlnet || 'OpenPoseXL2.safetensors')],
     ['{{CONTROL_STRENGTH}}', Number.isFinite(values.controlStrength) ? Math.min(2, Math.max(0, values.controlStrength)) : 1],
@@ -123,7 +126,7 @@ function createComfyUiClient({ baseUrl, fetchImpl = fetch, artifactDir, timeoutM
       return Array.isArray(body) ? body.map(String) : [];
     },
     async modelNames(category) {
-      const allowed = new Set(['checkpoints', 'vae', 'upscale_models', 'controlnet', 'clip_vision', 'loras', 'ipadapter']);
+      const allowed = new Set(['checkpoints', 'vae', 'upscale_models', 'controlnet', 'clip_vision', 'loras', 'ipadapter', 'diffusion_models', 'text_encoders']);
       if (!allowed.has(category)) throw new Error('Unsupported ComfyUI model category.');
       const response = await request(`/models/${category}`, {}, 10000);
       const body = await response.json();
@@ -148,6 +151,8 @@ function createComfyUiClient({ baseUrl, fetchImpl = fetch, artifactDir, timeoutM
         poseExtractor: Boolean(nodes?.DWPreprocessor || nodes?.OpenposePreprocessor || nodes?.OpenPosePreprocessor),
         poseExtractorNodes: ['DWPreprocessor', 'OpenposePreprocessor', 'OpenPosePreprocessor'].filter(name => Boolean(nodes?.[name])),
         qwenImage21: Object.keys(nodes || {}).some(name => /qwen.*image/i.test(name)),
+        fluxDev: has('UNETLoader', 'DualCLIPLoader', 'FluxGuidance', 'RandomNoise', 'KSamplerSelect', 'BasicScheduler', 'BasicGuider', 'SamplerCustomAdvanced'),
+        depthControl: has('DepthAnythingV2Preprocessor', 'ControlNetLoader', 'ControlNetApplyAdvanced'),
         lora: has('LoraLoader'),
         modelUpscale: has('UpscaleModelLoader', 'ImageUpscaleWithModel'),
         partialConditioning: has('ConditioningCombine', 'ConditioningSetArea')

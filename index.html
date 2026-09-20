@@ -47,6 +47,7 @@
     <summary>Media model and prompt controls</summary>
     <div class="prompt-field-grid"><label>Positive prompt<textarea id="positivePrompt" spellcheck="true" placeholder="Exact text sent as the positive prompt"></textarea></label><label>Negative prompt<textarea id="negativePrompt" spellcheck="true" placeholder="Exact text sent as the negative prompt"></textarea></label></div>
     <div class="media-parameter-grid">
+      <label>Engine<select id="mediaWorkflow"><option value="">SDXL · automatic reliable default</option></select></label>
       <label>Checkpoint<select id="mediaCheckpoint"><option value="">Automatic best installed</option></select></label>
       <label>VAE<select id="mediaVae"><option value="">Checkpoint default</option></select></label>
       <label>Seed<input id="mediaSeed" type="number" min="1" max="2147483646" placeholder="Random"></label>
@@ -59,7 +60,7 @@
       <label>Batch<input id="mediaBatch" type="number" min="1" max="8" value="1"></label>
       <label>Denoise<input id="mediaDenoise" type="number" min="0.2" max="0.99" step="0.01" value="0.84"></label>
     </div>
-    <p class="hint">Prompts are sent exactly as shown. These controls are recorded with every job.</p>
+    <p id="mediaEngineHint" class="hint">Prompts are sent exactly as shown. These controls are recorded with every job.</p>
   </details>
   <label for="prompt" class="sr-only">Command</label><textarea id="prompt" spellcheck="true" autocapitalize="sentences" aria-describedby="versionHint autocompleteHint" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" aria-controls="autocompleteList" placeholder="Give Commander Nova an objective…"></textarea><div id="autocompleteList" class="autocomplete-list" role="listbox" aria-label="Local command and skill suggestions"></div><div id="autocompleteHint" class="sr-only">Type slash for commands or at-sign for skill routes. Use arrows or Tab to insert a suggestion. Press Enter to transmit or Shift Enter for a new line.</div><input id="fileInput" class="sr-only" type="file" multiple><div id="attachments" class="attachments" aria-live="polite"></div><div class="actions"><button id="sendBtn" class="primary" aria-label="Transmit command">TRANSMIT</button><div class="utility-actions"><button id="attachBtn" type="button" aria-label="Attach or drop any local file">Attach</button><button id="archiveBtn" type="button" aria-label="Open the generated media archive">Archive</button><button id="referenceStudioBtn" type="button" aria-label="Open Reference Studio">Reference Studio</button><button id="micBtn" type="button" aria-pressed="false" aria-label="Start microphone recording">Mic</button><button id="micSettingsBtn" type="button" hidden aria-label="Open macOS Microphone settings">Mic settings</button><button id="paletteBtn" type="button" aria-label="Open command palette">⌘K</button><button id="clearBtn" type="button" title="Clear every saved conversation and temporary conversation trace">Clear</button><button id="clearAllBtn" type="button" title="Clear conversations plus generated images, videos, prompts, and Reference Studio media">Clear All</button></div></div><div id="versionHint" class="hint" role="status">Drop files here · Enter to send · Shift+Enter for newline</div>
 </section></section>

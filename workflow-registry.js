@@ -10,7 +10,7 @@ function evaluateWorkflowReadiness(workflows, availableNodes = [], catalogs = {}
   const nodeSet = new Set((availableNodes || []).map(String));
   const modelReady = requirement => {
     const [kind, requested = ''] = String(requirement).split(':', 2);
-    const values = kind === 'checkpoint' ? catalogs.checkpoints : kind === 'vae' ? catalogs.vaes : kind === 'upscaler' ? catalogs.upscalers : kind === 'controlnet' ? catalogs.controlnets : [];
+    const values = kind === 'checkpoint' ? catalogs.checkpoints : kind === 'vae' ? catalogs.vaes : kind === 'upscaler' ? catalogs.upscalers : kind === 'controlnet' ? catalogs.controlnets : kind === 'diffusion' ? catalogs.diffusionModels : kind === 'text_encoder' ? catalogs.textEncoders : kind === 'aux' ? catalogs.auxModels : [];
     if (!Array.isArray(values)) return false;
     if (kind === 'checkpoint' && requested === 'sdxl') return values.some(name => /(?:sd.?xl|juggernaut.*xl)/i.test(String(name)));
     return values.some(name => String(name).toLowerCase() === requested.toLowerCase());
