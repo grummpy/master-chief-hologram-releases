@@ -44,6 +44,7 @@ const { ingestAttachment } = require('./file-ingestion');
 const { createSpreadsheet, createPresentation, createCodeArtifact } = require('./productivity-artifacts');
 const { runOllamaEvaluation } = require('./ollama-evaluator');
 const { publicResearchUrls, normalizePublicResearch } = require('./public-research');
+const { createProjectStore } = require('./project-store');
 const localAiManifest = loadLocalAiManifest(path.join(__dirname, 'local-ai-manifest.json'));
 
 let mainWindow;
@@ -74,11 +75,51 @@ function huggingFaceConfig() {
   const key = credentials().get('huggingface', 'HF_API_KEY') || String(process.env.HF_API_KEY || '').trim();
   return { baseUrl, model, key };
 }
+const CONNECTOR_SETUP = Object.freeze({
+  gemini: { label: 'Google Gemini', secretKey: 'GOOGLE_API_KEY', placeholder: 'Google AI Studio API key', modelKey: 'geminiModel', defaultModel: 'gemini-2.5-flash', helpUrl: 'https://aistudio.google.com/app/apikey' },
+  gmail: { label: 'Gmail', secretKey: 'GMAIL_OAUTH_CLIENT_SECRET', placeholder: 'OAuth client secret', modelKey: 'gmailClientId', defaultModel: '', helpUrl: 'https://console.cloud.google.com/apis/credentials' },
+  suno: { label: 'Suno', secretKey: 'SUNO_API_KEY', placeholder: 'Suno platform API key', modelKey: '', defaultModel: '', helpUrl: 'https://platform.suno.com/' },
+  cursor: { label: 'Cursor Agent', secretKey: 'CURSOR_API_KEY', placeholder: 'Cursor API key (optional if CLI is logged in)', modelKey: '', defaultModel: '', helpUrl: 'https://docs.cursor.com/en/cli/reference/authentication' },
+  openai: { label: 'OpenAI', secretKey: 'OPENAI_API_KEY', placeholder: 'sk-…', modelKey: '', defaultModel: '', helpUrl: 'https://platform.openai.com/api-keys' },
+  xai: { label: 'xAI / Grok', secretKey: 'XAI_API_KEY', placeholder: 'xai-…', modelKey: '', defaultModel: '', helpUrl: 'https://console.x.ai/' },
+  github: { label: 'GitHub', secretKey: 'GITHUB_TOKEN', placeholder: 'github_pat_…', modelKey: '', defaultModel: '', helpUrl: 'https://github.com/settings/tokens' },
+  elevenlabs: { label: 'ElevenLabs', secretKey: 'ELEVENLABS_API_KEY', placeholder: 'ElevenLabs API key', modelKey: '', defaultModel: '', helpUrl: 'https://elevenlabs.io/app/settings/api-keys' },
+  huggingface: { label: 'Hugging Face', secretKey: 'HF_API_KEY', placeholder: 'hf_…', modelKey: 'hfModel', defaultModel: 'openai/gpt-oss-120b:fastest', helpUrl: 'https://huggingface.co/settings/tokens' }
+});
+function cursorAgentPath() {
+  return [path.join(app.getPath('home'), '.local', 'bin', 'cursor-agent'), '/opt/homebrew/bin/cursor-agent', '/usr/local/bin/cursor-agent'].find(fs.existsSync) || '';
+}
+function connectorSetupStatus() {
+  const store = credentials();
+  const configured = {};
+  for (const [id, item] of Object.entries(CONNECTOR_SETUP)) configured[id] = {
+    id, label: item.label, configured: Boolean(store.get(id, item.secretKey)),
+    value: item.modelKey ? String(connectorSettings[item.modelKey] || item.defaultModel || '') : '',
+    valueLabel: id === 'gmail' ? 'OAuth client ID' : item.modelKey ? 'Model' : '', placeholder: item.placeholder, helpUrl: item.helpUrl,
+    note: id === 'gmail' ? 'Gmail requires Google OAuth consent after the client credentials are saved.' : id === 'suno' ? 'Uses the official Suno platform; generation remains off until its API contract is verified.' : ''
+  };
+  configured.cursor.cliDetected = Boolean(cursorAgentPath());
+  return configured;
+}
+async function saveConnectorSetup(payload = {}) {
+  const id = String(payload.id || ''); const item = CONNECTOR_SETUP[id];
+  if (!item) throw new Error('Unknown connector.');
+  const secret = String(payload.secret || '').trim();
+  if (secret && !credentials().set(id, secret)) throw new Error('Encrypted credential storage is unavailable.');
+  if (item.modelKey) { connectorSettings[item.modelKey] = String(payload.value || item.defaultModel || '').trim(); saveConnectorSettings(); }
+  if (id === 'gemini') {
+    const key = credentials().get('gemini', 'GOOGLE_API_KEY');
+    const result = await checkJson('https://generativelanguage.googleapis.com/v1beta/openai/models', { Authorization: `Bearer ${key}` });
+    if (result.error || !result.response?.ok) throw new Error('Gemini key saved, but Google authentication did not validate.');
+  }
+  return connectorSetupStatus()[id];
+}
 const comfyBaseUrl = String(process.env.COMFYUI_BASE_URL || connectorSettings.comfyuiBaseUrl || '').trim();
 const generatedArtifactDir = path.join(app.getPath('userData'), 'artifacts', 'generated');
 const documentArtifactDir = path.join(app.getPath('userData'), 'artifacts', 'documents');
 const desktopProjectDir = path.join(app.getPath('desktop'), 'master-chief-hologram');
 const sourceProjectDir = fs.existsSync(path.join(desktopProjectDir, '.git')) ? desktopProjectDir : __dirname;
+const projectStore = createProjectStore(path.join(app.getPath('userData'), 'Projects'));
 const referenceStudio = createReferenceStudioStore(path.join(app.getPath('userData'), 'reference-studio.json'));
 const mediaJobLedger = createMediaJobLedger(path.join(app.getPath('userData'), 'media-jobs.json'));
 const audioArchiveRoot = path.join(app.getPath('userData'), 'audio', 'archive');
@@ -299,6 +340,10 @@ async function providerStatus() {
     openai: { state: 'missing', label: 'OpenAI key missing' },
     grok: { state: 'missing', label: 'Grok key missing' },
     github: { state: 'missing', label: 'GitHub token missing' }
+    ,gemini: { state: 'missing', label: 'Google Gemini · not configured' }
+    ,gmail: { state: 'missing', label: 'Gmail · OAuth not configured' }
+    ,suno: { state: 'missing', label: 'Suno · not configured' }
+    ,cursor: { state: 'missing', label: 'Cursor Agent · not configured' }
     ,ollama: { state: 'missing', label: 'Ollama unavailable' }
     ,huggingface: { state: 'missing', label: 'Hugging Face endpoint not configured' }
     ,voice: { state: 'cloud', label: 'Voice · cloud transcription' }
@@ -318,7 +363,18 @@ async function providerStatus() {
     }
   })());
 
-  const store = credentials(); store.migrate('openai', 'OPENAI_API_KEY'); store.migrate('xai', 'XAI_API_KEY'); store.migrate('github', 'GITHUB_TOKEN'); store.migrate('elevenlabs', 'ELEVENLABS_API_KEY'); store.migrate('huggingface', 'HF_API_KEY'); status.credentials = store.status();
+  const store = credentials(); store.migrate('openai', 'OPENAI_API_KEY'); store.migrate('xai', 'XAI_API_KEY'); store.migrate('github', 'GITHUB_TOKEN'); store.migrate('elevenlabs', 'ELEVENLABS_API_KEY'); store.migrate('huggingface', 'HF_API_KEY'); store.migrate('gemini', 'GOOGLE_API_KEY'); store.migrate('suno', 'SUNO_API_KEY'); store.migrate('cursor', 'CURSOR_API_KEY'); status.credentials = store.status();
+  const geminiKey = store.get('gemini', 'GOOGLE_API_KEY');
+  if (geminiKey) checks.push((async () => {
+    const result = await checkJson('https://generativelanguage.googleapis.com/v1beta/openai/models', { Authorization: `Bearer ${geminiKey}` });
+    status.gemini = result.error ? { state: 'error', label: 'Google Gemini · network error' } : result.response.ok ? { state: 'ready', label: 'Google Gemini · authenticated' } : { state: 'error', label: 'Google Gemini · key rejected' };
+  })());
+  const gmailClientId = String(connectorSettings.gmailClientId || '').trim();
+  const gmailSecret = store.get('gmail', 'GMAIL_OAUTH_CLIENT_SECRET');
+  if (gmailClientId && gmailSecret) status.gmail = { state: 'missing', label: 'Gmail · OAuth consent required', detail: 'Client credentials saved securely; account authorization is the next step.' };
+  if (store.get('suno', 'SUNO_API_KEY')) status.suno = { state: 'ready', label: 'Suno · credential stored', detail: 'Official API invocation remains disabled until the selected endpoint contract is verified.' };
+  const cursorBin = cursorAgentPath();
+  if (cursorBin || store.get('cursor', 'CURSOR_API_KEY')) status.cursor = { state: 'ready', label: cursorBin ? 'Cursor Agent · CLI detected' : 'Cursor Agent · key stored', detail: cursorBin || 'CLI installation still recommended.' };
   const openaiKey = store.get('openai', 'OPENAI_API_KEY');
   if (validSecret(openaiKey, /^sk-[^\s]{12,}$/)) checks.push((async () => {
     const result = await checkJson('https://api.openai.com/v1/models', {
@@ -560,6 +616,7 @@ async function connectorStatus() {
   const states = {
     'ollama.local': providers.ollama, 'codex.desktop': providers.codex, 'huggingface.inference': providers.huggingface,
     'openai.responses': providers.openai, 'xai.grok': providers.grok, 'github.account': providers.github,
+    'google.gemini': providers.gemini, 'google.gmail': providers.gmail, 'suno.music': providers.suno, 'cursor.agent': providers.cursor,
     'comfyui.local': comfy, 'elevenlabs.tts': providers.elevenlabs
   };
   return { connectors: withConnectorState(states), comfyui: comfy };
@@ -860,7 +917,7 @@ async function streamCompatible({ url, key, model, messages, systemPrompt, label
     }
   } finally { reader.releaseLock(); activeAbortController = null; }
   if (!reply.trim()) throw new Error(`${provider} returned an empty response.`);
-  emitChatEvent('done', { reply, label }); return { reply, label };
+  emitChatEvent('done', { reply, label }); return { reply, label, streamed: true };
 }
 
 async function callGrok({ messages, masterMode }) {
@@ -977,6 +1034,17 @@ async function callHuggingFace({ messages, masterMode, model: requestedModel }) 
   return { reply, label: `Hugging Face · ${model}` };
 }
 
+async function callGemini({ messages, masterMode, model: requestedModel }) {
+  const key = credentials().get('gemini', 'GOOGLE_API_KEY');
+  if (!key) throw new Error('Configure Google Gemini in Connectors.');
+  const model = requestedModel || connectorSettings.geminiModel || 'gemini-2.5-flash';
+  return streamCompatible({
+    url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', key, model, messages,
+    systemPrompt: masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent, privacy, evidence, and verification.' : 'You are a clear, helpful desktop AI assistant.',
+    label: `Google Gemini · ${model}`, provider: 'Gemini'
+  });
+}
+
 async function routeChat(payload) {
   payload = validateChatPayload(payload);
   const startedAt = Date.now();
@@ -984,6 +1052,7 @@ async function routeChat(payload) {
     let result;
     if (payload.provider === 'codex') result = await callCodex(payload);
     else if (payload.provider === 'openai') result = await callOpenAI(payload);
+    else if (payload.provider === 'gemini') result = await callGemini(payload);
     else if (payload.stream && payload.provider === 'grok') result = await streamCompatible({ url: 'https://api.x.ai/v1/chat/completions', key: (process.env.XAI_API_KEY || '').trim(), model: 'grok-3', messages: payload.messages, systemPrompt: payload.masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy.' : 'You are a clear, helpful desktop AI assistant.', label: 'Grok · xAI', provider: 'Grok' });
     else if (payload.stream && payload.provider === 'huggingface') { const configured = huggingFaceConfig(); if (!configured.key) throw new Error('Configure a Hugging Face token in Systems.'); const model = payload.model || configured.model; result = await streamCompatible({ url: `${configured.baseUrl}/chat/completions`, key: configured.key, model, messages: payload.messages, systemPrompt: payload.masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy.' : 'You are a clear, helpful desktop AI assistant.', label: `Hugging Face · ${model}`, provider: 'Hugging Face' }); }
     else if (payload.stream && payload.provider === 'ollama') result = await callOllama(payload);
@@ -996,6 +1065,18 @@ async function routeChat(payload) {
   } catch (error) {
     if (payload.provider === 'ollama') localAiAudit.record({ model: payload.model || process.env.OLLAMA_MODEL || 'default', outcome: 'error', latencyMs: Date.now() - startedAt, errorCode: error.name || 'request_failed' });
     throw new Error(safeProviderError(error.message));
+  }
+}
+
+async function routeChatWithRepair(payload) {
+  try { return await routeChat(payload); }
+  catch (firstError) {
+    const message = String(firstError?.message || '');
+    if (/aborted|cancel|credential|key missing|key rejected|not configured|invalid provider|permission/i.test(message)) throw firstError;
+    emitChatEvent('repair', { stage: 'diagnose', message: 'The first attempt failed. Retrying the same provider and prompt once.' });
+    await new Promise(resolve => setTimeout(resolve, 650));
+    try { const result = await routeChat({ ...payload, stream: false }); return { ...result, repaired: true }; }
+    catch (secondError) { throw new Error(`Automatic repair exhausted after two attempts. First: ${message}. Retry: ${secondError.message}`); }
   }
 }
 
@@ -1078,6 +1159,22 @@ secureHandle('create-document', (_event, payload) => createDocument(payload));
 secureHandle('create-productivity-artifact', (_event, payload) => createProductivityArtifact(payload));
 secureHandle('ingest-attachment', (_event, payload) => ingestAttachment(payload));
 secureHandle('connector-status', connectorStatus);
+secureHandle('connector-setup-status', () => connectorSetupStatus());
+secureHandle('connector-setup-save', (_event, payload) => saveConnectorSetup(payload));
+secureHandle('connector-setup-help', async (_event, payload) => {
+  const item = CONNECTOR_SETUP[String(payload?.id || '')];
+  if (!item) throw new Error('Unknown connector.');
+  await shell.openExternal(item.helpUrl); return true;
+});
+secureHandle('project-list', () => ({ root: projectStore.root, projects: projectStore.list() }));
+secureHandle('project-create', (_event, payload) => projectStore.create(payload?.name));
+secureHandle('project-open-root', async () => { const result = await shell.openPath(projectStore.root); if (result) throw new Error('Projects folder could not be opened.'); return true; });
+secureHandle('project-open', async (_event, payload) => { const target = projectStore.resolveProject(payload?.name); const result = await shell.openPath(target); if (result) throw new Error('Project could not be opened.'); return true; });
+secureHandle('project-save-artifact', (_event, payload) => {
+  const source = resolveArtifactPath(payload?.artifact);
+  if (!source) throw new Error('Artifact is unavailable.');
+  return projectStore.importFile(payload?.project, source);
+});
 secureHandle('voice-self-test', async () => voiceSelfTest(await localWhisperConfig(), {
   name: 'command-reference.webm',
   contentType: 'audio/webm;codecs=opus',
@@ -1201,7 +1298,7 @@ secureHandle('run-agent-plan', (_event, payload) => {
     execute: executeAgentTool
   });
 });
-secureHandle('chat', (_event, payload) => { requireToolApproval('chat.send_to_configured_provider'); return routeChat(payload); });
+secureHandle('chat', (_event, payload) => { requireToolApproval('chat.send_to_configured_provider'); return routeChatWithRepair(payload); });
 secureHandle('cancel-chat', () => { activeAbortController?.abort(); activeAbortController = null; activeChild?.kill('SIGTERM'); emitChatEvent('cancelled', {}); return true; });
 secureHandle('transcribe-audio', async (_event, payload) => {
   requireToolApproval('voice.transcribe_microphone');

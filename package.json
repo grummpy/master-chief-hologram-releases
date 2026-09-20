@@ -1,6 +1,6 @@
 {
   "name": "master-chief-hologram",
-  "version": "1.11.1",
+  "version": "1.12.0",
   "description": "Desktop holographic Master Chief AI companion – multi-model prompt runner",
   "main": "main.js",
   "scripts": {
@@ -66,6 +66,7 @@
       "local-ai-manifest.json",
       "local-ai-audit.js",
       "connector-registry.js",
+      "project-store.js",
       "comfyui-client.js",
       "media-job-ledger.js",
       "workflow-registry.js",

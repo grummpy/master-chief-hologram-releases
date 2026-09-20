@@ -8,6 +8,7 @@ const test = require('node:test');
 const root = path.resolve(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const renderer = fs.readFileSync(path.join(root, 'renderer.js'), 'utf8');
+const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
 const referenceStudio = fs.readFileSync(path.join(root, 'reference-studio.js'), 'utf8');
 
 test('G3 operator controls expose autocomplete, spellcheck, archive, and progress', () => {
@@ -45,6 +46,22 @@ test('Clear All removes generated media lineage while preserving credentials and
   assert.match(main, /referenceStudio\.clear\(\)/);
   assert.match(main, /fs\.rmSync\(path\.join\(generatedArtifactDir, entry\.name\)/);
   assert.doesNotMatch(main.slice(main.indexOf("secureHandle('clear-private-history'"), main.indexOf("secureHandle('open-artifact'")), /credentials|connector-settings|tool-approvals/);
+});
+
+test('workspace shell exposes protected Projects, right-side previews, and connector setup', () => {
+  assert.match(html, /id="filesViewBtn"/);
+  assert.match(html, /id="projectTree"/);
+  assert.match(html, /Saved Projects survive Clear and Clear All/);
+  assert.match(html, /id="previewTabBtn"/);
+  assert.match(html, /id="activityTabBtn"/);
+  assert.match(html, /id="connectorSetup"/);
+  assert.match(renderer, /saveArtifactToProject/);
+  assert.match(renderer, /refreshProjects/);
+});
+
+test('personal hologram removes the local-display banner', () => {
+  assert.doesNotMatch(renderer, /Personal · local display/);
+  assert.match(css, /data-persona-view=personal.*persona-badge/);
 });
 
 test('media controls expose explicit prompts, upscale, and Reference Studio', () => {

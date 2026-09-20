@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.12.0
+
+- Added a three-mode left rail: Professional, Personal, and a full Projects file browser.
+- Removed the personal-view overlay banner so Commander Nova remains unobstructed.
+- Added protected Projects storage that is explicitly preserved by Clear and Clear All.
+- Added right-side Systems, Preview, and Activity workspaces with media review and Save to Project actions.
+- Added encrypted, unified connector setup for Gemini, Gmail OAuth credentials, Suno, Cursor, OpenAI, xAI, GitHub, ElevenLabs, and Hugging Face.
+- Added Google Gemini chat routing through Google's OpenAI-compatible API while preserving explicit cloud-send confirmation.
+- Added honest Gmail OAuth, Cursor CLI, and Suno readiness states without claiming incomplete integrations are operational.
+- Added one bounded automatic retry for transient provider failures with visible recovery activity.
+
 ## 1.11.0
 
 - Expanded the Ollama agent with local attachment search, connector diagnostics, and downloadable artifact creation.

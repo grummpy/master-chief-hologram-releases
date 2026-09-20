@@ -26,6 +26,22 @@ const CONNECTORS = Object.freeze([
     capabilities: Object.freeze(['identity', 'repository']), approvalRequired: true, costClass: 'account-plan'
   }),
   Object.freeze({
+    id: 'google.gemini', label: 'Google Gemini · AI', kind: 'cloud-ai', residency: 'cloud',
+    capabilities: Object.freeze(['chat', 'tools', 'multimodal']), approvalRequired: true, costClass: 'account-plan'
+  }),
+  Object.freeze({
+    id: 'google.gmail', label: 'Gmail · Mail account', kind: 'account-connector', residency: 'cloud',
+    capabilities: Object.freeze(['mail.read', 'mail.search', 'mail.draft']), approvalRequired: true, costClass: 'account-plan'
+  }),
+  Object.freeze({
+    id: 'suno.music', label: 'Suno · Music production', kind: 'cloud-audio', residency: 'cloud',
+    capabilities: Object.freeze(['music.generate']), approvalRequired: true, costClass: 'account-plan'
+  }),
+  Object.freeze({
+    id: 'cursor.agent', label: 'Cursor · Coding agent', kind: 'developer-agent', residency: 'cloud-and-local',
+    capabilities: Object.freeze(['workspace.inspect', 'workspace.change', 'test.execute']), approvalRequired: true, costClass: 'account-plan'
+  }),
+  Object.freeze({
     id: 'comfyui.local',
     label: 'ComfyUI · Local GPU',
     kind: 'local-media',
