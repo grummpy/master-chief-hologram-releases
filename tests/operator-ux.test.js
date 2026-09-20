@@ -18,6 +18,13 @@ test('G3 operator controls expose autocomplete, spellcheck, archive, and progres
   assert.match(renderer, /showGenerationStatus/);
 });
 
+test('slash autocomplete never traps prompt editing', () => {
+  assert.match(renderer, /e\.key==='Backspace'\|\|e\.key==='Delete'/);
+  const editEscape = renderer.match(/if\(e\.key==='Backspace'\|\|e\.key==='Delete'\)\{([^}]*)\}/)?.[1] || '';
+  assert.match(editEscape, /closeAutocomplete\(\)/);
+  assert.doesNotMatch(editEscape, /preventDefault/);
+});
+
 test('Clear purges all conversation history and local retrieval traces', () => {
   assert.match(renderer, /Object\.keys\(histories\)\.forEach/);
   assert.match(renderer, /localStorage\.clear\(\)/);
