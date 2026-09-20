@@ -45,6 +45,7 @@ const { createSpreadsheet, createPresentation, createCodeArtifact } = require('.
 const { runOllamaEvaluation } = require('./ollama-evaluator');
 const { publicResearchUrls, normalizePublicResearch } = require('./public-research');
 const { createProjectStore } = require('./project-store');
+const { discoverPlugins } = require('./plugin-catalog');
 const localAiManifest = loadLocalAiManifest(path.join(__dirname, 'local-ai-manifest.json'));
 
 let mainWindow;
@@ -108,7 +109,7 @@ function boundedDirectoryNames(directory, limit = 100) {
 function workspaceLibrary(kind) {
   const codexRoot = process.env.CODEX_HOME || path.join(app.getPath('home'), '.codex');
   if (kind === 'scheduled') return { kind, title: 'Scheduled', path: path.join(codexRoot, 'automations'), items: boundedDirectoryNames(path.join(codexRoot, 'automations')).map(name => ({ name, type: 'automation' })) };
-  if (kind === 'plugins') return { kind, title: 'Plugins', path: path.join(codexRoot, 'plugins'), items: boundedDirectoryNames(path.join(codexRoot, 'plugins')).map(name => ({ name, type: 'plugin' })) };
+  if (kind === 'plugins') return { kind, title: 'Plugins', path: path.join(codexRoot, 'plugins', 'cache'), items: discoverPlugins(path.join(codexRoot, 'plugins')) };
   if (kind === 'explore') return { kind, title: 'Explore', items: getConnectorRegistry().map(item => ({ name: item.label, type: item.kind, detail: item.capabilities.join(' · ') })) };
   if (kind === 'pull-requests') return { kind, title: 'Pull requests', url: 'https://github.com/grummpy/master-chief-hologram/pulls', items: [] };
   throw new Error('Unknown workspace library.');

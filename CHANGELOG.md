@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.12.2
+
+- Fixed the Plugins workspace so it traverses the Codex cache hierarchy and lists installed plugin packages instead of only showing the `cache` directory.
+- Added plugin source, installed version, and available package description to the workspace catalog.
+
 ## 1.12.1
 
 - Fixed Files mode so the Commander Nova hologram panel is fully removed rather than visually overlapping the workspace.
