@@ -1,0 +1,4 @@
+'use strict';
+const test=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const path=require('node:path');
+const root=path.join(__dirname,'..'),main=fs.readFileSync(path.join(root,'main.js'),'utf8'),preload=fs.readFileSync(path.join(root,'preload.js'),'utf8'),renderer=fs.readFileSync(path.join(root,'renderer.js'),'utf8');
+test('cleared media failures cannot return during creative workspace restoration',()=>{assert.match(main,/function listVisibleMediaJobs/);assert.match(main,/conversationsClearedAt/);assert.match(main,/mediaClearedAt/);assert.match(main,/Date\.parse\(job\.updatedAt\|\|job\.createdAt/);assert.match(main,/media-job-list[^\n]+listVisibleMediaJobs/);assert.match(preload,/includeCleared = false/);assert.match(renderer,/window\.masterChief\.listMediaJobs\(100\)/)});

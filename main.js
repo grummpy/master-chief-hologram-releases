@@ -267,6 +267,7 @@ function listGeneratedArtifacts(limit = 50, includeCleared = false) {
     .sort((a, b) => b.modifiedMs - a.modifiedMs)
     .slice(0, Math.min(100, Math.max(1, Number(limit) || 50)));
 }
+function listVisibleMediaJobs(limit=100,includeCleared=false){const all=mediaJobLedger.list(500);if(includeCleared)return all.slice(0,Math.min(500,Math.max(1,Number(limit)||100)));const privacy=privacyState(),cutoff=Math.max(Date.parse(privacy.mediaClearedAt||'')||0,Date.parse(privacy.conversationsClearedAt||'')||0);return all.filter(job=>(Date.parse(job.updatedAt||job.createdAt||'')||0)>cutoff).slice(0,Math.min(500,Math.max(1,Number(limit)||100)))}
 function listReviewArtifacts(limit = 50) {
   const artifactIndex = readArtifactIndex(documentArtifactDir);
   const documents = fs.existsSync(documentArtifactDir) ? fs.readdirSync(documentArtifactDir, { withFileTypes: true }).filter(entry => entry.isFile() && !entry.name.startsWith('.')).map(entry => {
@@ -1889,7 +1890,7 @@ secureHandle('execute-local-tool', (_event, payload) => executeLocalTool(payload
 secureHandle('generate-local-media', (_event, payload) => {const kind=String(payload?.kind||'image')==='video'?'video':'image';return runTrackedJob(kind,payload,()=>generateLocalMedia(payload),{provider:'comfyui',capabilities:[kind],stage:'generating',message:`Generating local ${kind}`})});
 secureHandle('list-generated-media', (_event, payload) => listGeneratedArtifacts(payload?.limit, Boolean(payload?.includeCleared)));
 secureHandle('list-review-artifacts', (_event, payload) => listReviewArtifacts(payload?.limit));
-secureHandle('media-job-list', (_event, payload) => mediaJobLedger.list(payload?.limit));
+secureHandle('media-job-list', (_event, payload) => listVisibleMediaJobs(payload?.limit,Boolean(payload?.includeCleared)));
 secureHandle('media-job-get', (_event, payload) => mediaJobLedger.get(payload?.requestId));
 secureHandle('media-catalog', async () => {
   const video = workflowRegistry.list().some(item => item.contract === 'video' && item.enabled !== false);
