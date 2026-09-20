@@ -9,8 +9,11 @@
   const comparison = new Set();
   const purposeSelect = get('shotControlMode');
   if (purposeSelect && ![...purposeSelect.options].some(option => option.value === 'faceid')) purposeSelect.add(new Option('FaceID · preserve subject identity', 'faceid'), 1);
+  if (purposeSelect && ![...purposeSelect.options].some(option => option.value === 'instantid')) purposeSelect.add(new Option('InstantID · strongest face and keypoint lock', 'instantid'), 2);
+  if (purposeSelect && ![...purposeSelect.options].some(option => option.value === 'canny')) purposeSelect.add(new Option('Canny · copy edges and composition', 'canny'));
   const advancedGrid = get('shotControlEnd')?.parentElement?.parentElement;
   for (const [id, label, min, max, step, value] of [['shotFaceIdV2Strength','FaceID v2 strength',-1,5,.05,1],['shotFaceIdLoraStrength','FaceID LoRA strength',0,1,.05,.6]]) if (!get(id) && advancedGrid) { const wrap=document.createElement('label'); wrap.textContent=label; const input=document.createElement('input'); Object.assign(input,{id,type:'number',min:String(min),max:String(max),step:String(step),value:String(value)}); wrap.append(input); advancedGrid.append(wrap); }
+  for (const [id, label, min, max, step, value] of [['shotCannyLow','Canny low threshold',.01,.99,.01,.35],['shotCannyHigh','Canny high threshold',.01,.99,.01,.75],['shotInstantIdControlStrength','InstantID keypoint strength',0,10,.05,.8],['shotInstantIdNoise','InstantID identity noise',0,1,.1,0]]) if (!get(id) && advancedGrid) { const wrap=document.createElement('label'); wrap.textContent=label; const input=document.createElement('input'); Object.assign(input,{id,type:'number',min:String(min),max:String(max),step:String(step),value:String(value)}); wrap.append(input); advancedGrid.append(wrap); }
   const ids = shotId => ({ projectId: project?.id, subjectId: subject?.id, sheetId: sheet?.id, ...(shotId ? { shotId } : {}) });
   const selectValue = (id, fallback = '') => get(id)?.value || fallback;
   const shotTextFields = ['shotTitle','shotPositive','shotNegative','shotPose','shotEnvironment','shotCamera','shotLighting','shotContinuityLocks'];
@@ -20,7 +23,7 @@
       title: get('shotTitle').value, positivePrompt: get('shotPositive').value, negativePrompt: get('shotNegative').value,
       referenceMode: get('shotReferenceMode').value, referenceArtifact: get('shotReferenceArtifact').value,
       controlMode: get('shotControlMode').value, controlnet: get('shotControlnet').value,
-      controlStrength: Number(get('shotControlStrength').value), controlStart: Number(get('shotControlStart').value), controlEnd: Number(get('shotControlEnd').value), faceIdV2Strength: Number(get('shotFaceIdV2Strength').value), faceIdLoraStrength: Number(get('shotFaceIdLoraStrength').value),
+      controlStrength: Number(get('shotControlStrength').value), controlStart: Number(get('shotControlStart').value), controlEnd: Number(get('shotControlEnd').value), faceIdV2Strength: Number(get('shotFaceIdV2Strength').value), faceIdLoraStrength: Number(get('shotFaceIdLoraStrength').value), cannyLow: Number(get('shotCannyLow').value), cannyHigh: Number(get('shotCannyHigh').value), instantIdControlStrength: Number(get('shotInstantIdControlStrength').value), instantIdNoise: Number(get('shotInstantIdNoise').value),
       pose: get('shotPose').value, environment: get('shotEnvironment').value, camera: get('shotCamera').value, lighting: get('shotLighting').value,
       model: get('shotModel').value, workflow: get('shotWorkflow').value,
       referenceStrength: Number(get('shotReferenceStrength').value), denoise: Number(get('shotDenoise').value),
@@ -44,7 +47,7 @@
       ['Sampling', `${result.parameters.sampler} / ${result.parameters.scheduler} · ${result.parameters.steps} steps · CFG ${result.parameters.cfg}`],
       ['Canvas', `${result.parameters.width}×${result.parameters.height} · batch ${result.parameters.batch}`],
       ['Revision', `denoise ${result.parameters.denoise} · reference strength ${result.parameters.referenceStrength}`], ['Seed', result.parameters.seed]
-      ,['Reference purpose', result.parameters.controlMode === 'pose' ? `prepared pose map · ${result.parameters.controlnet} · strength ${result.parameters.controlStrength} · ${result.parameters.controlStart}–${result.parameters.controlEnd}` : 'visual image revision']
+      ,['Reference purpose', ({pose:`prepared pose map · ${result.parameters.controlnet} · strength ${result.parameters.controlStrength}`,faceid:`FaceID Plus v2 · identity ${result.parameters.referenceStrength}`,instantid:`InstantID · identity ${result.parameters.referenceStrength} · keypoints ${result.parameters.instantIdControlStrength}`,canny:`automatic Canny edges · thresholds ${result.parameters.cannyLow}/${result.parameters.cannyHigh} · strength ${result.parameters.controlStrength}`}[result.parameters.controlMode] || 'visual image revision')]
       ,['What changes', result.changePlan.changes.join(' · ') || 'Only the main positive prompt']
       ,['What stays locked', result.changePlan.locks.join(' · ') || 'No explicit continuity locks']
     ];
@@ -80,6 +83,7 @@
     get('shotWidth').value = '768'; get('shotHeight').value = '1024'; get('shotBatch').value = '1';
     get('shotControlnet').value = 'OpenPoseXL2.safetensors'; get('shotControlStrength').value = '1'; get('shotControlStart').value = '0'; get('shotControlEnd').value = '1';
     get('shotFaceIdV2Strength').value = '1'; get('shotFaceIdLoraStrength').value = '0.6';
+    get('shotCannyLow').value = '.35'; get('shotCannyHigh').value = '.75'; get('shotInstantIdControlStrength').value = '.8'; get('shotInstantIdNoise').value = '0';
     setReferenceMode(cleanReference ? 'none' : 'approved');
     invalidatePreflight();
   }
@@ -105,6 +109,7 @@
     get('shotWidth').value = shot.width || 768; get('shotHeight').value = shot.height || 1024; get('shotBatch').value = shot.batch || 1;
     get('shotControlnet').value = shot.controlnet || 'OpenPoseXL2.safetensors'; get('shotControlStrength').value = shot.controlStrength ?? 1; get('shotControlStart').value = shot.controlStart ?? 0; get('shotControlEnd').value = shot.controlEnd ?? 1;
     get('shotFaceIdV2Strength').value = shot.faceIdV2Strength ?? 1; get('shotFaceIdLoraStrength').value = shot.faceIdLoraStrength ?? .6;
+    get('shotCannyLow').value = shot.cannyLow ?? .35; get('shotCannyHigh').value = shot.cannyHigh ?? .75; get('shotInstantIdControlStrength').value = shot.instantIdControlStrength ?? .8; get('shotInstantIdNoise').value = shot.instantIdNoise ?? 0;
     get('shotContinuityLocks').value = shot.continuityLocks || '';
     setReferenceMode(shot.referenceMode || (shot.referenceArtifact ? 'selected' : 'approved'));
     invalidatePreflight();
@@ -182,13 +187,15 @@
     const select = get('shotReferenceArtifact'), prior = select.value;
     select.replaceChildren(new Option('Choose an artifact', ''), ...artifacts.filter(item => /\.(png|jpe?g|webp)$/i.test(item.filename)).map(item => new Option(item.filename, item.path))); select.value = prior;
     const model = get('shotModel'), selectedModel = model.value; model.replaceChildren(new Option('Automatic installed checkpoint', ''), ...catalog.checkpoints.map(name => new Option(name, name))); model.value = [...model.options].some(option => option.value === selectedModel) ? selectedModel : '';
-    const workflow = get('shotWorkflow'), selectedWorkflow = workflow.value; workflow.replaceChildren(new Option('Automatic compatible workflow', ''), ...catalog.workflows.filter(item => ['image', 'revision', 'control', 'faceid'].includes(item.contract)).map(item => { const option = new Option(`${item.id} · ${item.version}${item.readiness === 'ready' ? ' · ready' : ' · blocked'}`, item.id); option.disabled = item.readiness !== 'ready'; option.title = item.readiness === 'ready' ? 'All required nodes and models were detected.' : `Missing: ${[...(item.missingNodes || []), ...(item.missingModels || [])].join(', ')}`; return option; })); workflow.value = [...workflow.options].some(option => option.value === selectedWorkflow && !option.disabled) ? selectedWorkflow : '';
+    const workflow = get('shotWorkflow'), selectedWorkflow = workflow.value; workflow.replaceChildren(new Option('Automatic compatible workflow', ''), ...catalog.workflows.filter(item => ['image', 'revision', 'control', 'faceid', 'canny', 'instantid'].includes(item.contract)).map(item => { const option = new Option(`${item.id} · ${item.version}${item.readiness === 'ready' ? ' · ready' : ' · blocked'}`, item.id); option.disabled = item.readiness !== 'ready'; option.title = item.readiness === 'ready' ? 'All required nodes and models were detected.' : `Missing: ${[...(item.missingNodes || []), ...(item.missingModels || [])].join(', ')}`; return option; })); workflow.value = [...workflow.options].some(option => option.value === selectedWorkflow && !option.disabled) ? selectedWorkflow : '';
     const controlnet = get('shotControlnet'), selectedControlnet = controlnet.value; controlnet.replaceChildren(...catalog.controlnets.map(name => new Option(name, name))); controlnet.value = [...controlnet.options].some(option => option.value === selectedControlnet) ? selectedControlnet : (catalog.controlnets.find(name => /openposexl2/i.test(name)) || catalog.controlnets[0] || '');
     const ready = [];
     const faceWorkflow = catalog.workflows.find(item => item.id === 'sdxl-faceid-plus-v2');
     if (catalog.detected?.faceId && catalog.ipAdapters?.some(name => /faceid-plusv2.*sdxl/i.test(name)) && catalog.loras?.some(name => /faceid-plusv2.*sdxl/i.test(name)) && faceWorkflow?.readiness === 'ready') ready.push('FaceID Plus v2 SDXL · AntelopeV2 · ROCm ready');
     else if (catalog.detected?.ipAdapter && catalog.clipVision?.length) ready.push(`IP-Adapter detected (${catalog.clipVision.length} vision model); FaceID readiness incomplete`);
     if (catalog.detected?.controlNet && catalog.controlnets?.length) ready.push(`pose/structure control (${catalog.controlnets.length} model${catalog.controlnets.length === 1 ? '' : 's'})`);
+    if (catalog.detected?.instantId && catalog.controlnets?.includes('instantid-controlnet-sdxl.safetensors')) ready.push('InstantID identity + keypoint control ready');
+    if (catalog.detected?.cannyControl && catalog.controlnets?.includes('sdxl-canny.safetensors')) ready.push('automatic Canny edge control ready');
     if (catalog.detected?.inpaint) ready.push('targeted inpaint nodes');
     if (catalog.detected?.lora) ready.push(`LoRA routing${catalog.loras?.length ? ` (${catalog.loras.length} installed)` : ''}`);
     get('referenceAdapterGate').textContent = ready.length ? `Detected on live worker: ${ready.join(' · ')}. Registered API workflows remain the execution gate.` : 'Advanced reference nodes or compatible model files were not detected; basic image and revision workflows remain available.';
@@ -264,7 +271,7 @@
   const drop = get('referenceDropZone'); drop.ondragover = event => { event.preventDefault(); drop.classList.add('dragging'); }; drop.ondragleave = () => drop.classList.remove('dragging'); drop.ondrop = async event => { event.preventDefault(); drop.classList.remove('dragging'); const artifact = event.dataTransfer.getData('application/x-master-chief-artifact'); if (artifact) { if (!sheet) await saveHierarchy(); await window.masterChief.saveReferenceView({ ...ids(), view: { artifact, label: artifact.split('/').pop(), status: 'candidate' } }); await loadState(); } else await importFiles([...event.dataTransfer.files]); };
   get('compareTwoViews').onclick = () => showComparison(2); get('compareFourViews').onclick = () => showComparison(4); get('clearComparison').onclick = () => { comparison.clear(); get('referenceComparison').hidden = true; renderContactSheet(); };
   get('shotReferenceMode').onchange = event => { setReferenceMode(event.target.value); invalidatePreflight(); };
-  get('shotControlMode').onchange = event => { get('shotWorkflow').value = ''; invalidatePreflight(); get('sceneCoachAdvice').textContent = event.target.value === 'pose' ? 'Pose control expects a prepared OpenPose skeleton map, not a normal photograph. The installed OpenPose XL model will copy that structure while the text prompt controls appearance.' : event.target.value === 'faceid' ? 'FaceID uses the selected subject reference to preserve identity while allowing a new pose, scene, camera, and lighting. Start near 0.8 identity strength and 1.0 FaceID v2 strength.' : 'Visual revision uses the actual selected image as the redraw source.'; };
+  get('shotControlMode').onchange = event => { get('shotWorkflow').value = ''; invalidatePreflight(); const advice={pose:'Pose control expects a prepared OpenPose skeleton map, not a normal photograph.',faceid:'FaceID preserves identity while allowing a new pose, scene, camera, and lighting.',instantid:'InstantID locks face identity and facial keypoints more strongly. Use a clear, front-facing reference.',canny:'Canny automatically extracts edges from the selected image to preserve composition and silhouette.',revision:'Visual revision redraws the selected image directly.'}; get('sceneCoachAdvice').textContent=advice[event.target.value]||advice.revision; };
   get('clearActiveReference').onclick = () => { get('shotReferenceArtifact').value = ''; setReferenceMode('none'); get('referenceQueueStatus').textContent = 'Active reference cleared. The next queued shot will start clean; saved references remain available.'; };
   get('newCleanReferenceDraft').onclick = () => { comparison.clear(); get('referenceComparison').hidden = true; resetShotEditor({ cleanReference: true }); get('sceneCoachAdvice').textContent = 'Clean draft ready. No approved or selected image will be sent unless you choose a reference mode again.'; get('referenceQueueStatus').textContent = 'New clean draft started. Saved projects, references, variants, and media were not deleted.'; renderContactSheet(); get('shotPositive').focus(); };
   const sceneMoves = {

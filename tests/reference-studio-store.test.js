@@ -45,6 +45,19 @@ test('clean generation mode prevents approved reference fallback', () => {
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
+test('advanced identity and structure modes survive durable queue storage', () => {
+  const target = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'reference-controls-')), 'reference.json');
+  const store = createReferenceStudioStore(target);
+  const project = store.saveProject({ title: 'Controls' });
+  const subject = store.saveSubject(project.id, { name: 'Nova' });
+  const sheet = store.saveSheet(project.id, subject.id, { title: 'Identity' });
+  for (const controlMode of ['faceid', 'canny', 'instantid']) {
+    const shot = store.saveShot(project.id, { title: controlMode, positivePrompt: 'test', controlMode, faceIdV2Strength: 1.2, faceIdLoraStrength: .7, cannyLow: .2, cannyHigh: .8, instantIdControlStrength: .9, instantIdNoise: .1 }, subject.id, sheet.id);
+    assert.equal(shot.controlMode, controlMode);
+    assert.deepEqual({ face: shot.faceIdV2Strength, lora: shot.faceIdLoraStrength, low: shot.cannyLow, high: shot.cannyHigh, keypoints: shot.instantIdControlStrength, noise: shot.instantIdNoise }, { face: 1.2, lora: .7, low: .2, high: .8, keypoints: .9, noise: .1 });
+  }
+});
+
 test('schema v1 projects migrate without losing subject or shot data', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-reference-migrate-'));
   const file = path.join(root, 'reference-studio.json');

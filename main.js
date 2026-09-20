@@ -547,8 +547,8 @@ function updateMediaJob(requestId, patch) { return emitMediaJob(mediaJobLedger.u
 function mediaContract(payload = {}) {
   const kind = String(payload.kind || 'image');
   if (kind === 'image' && payload.sourceArtifact) return 'revision';
-  if (['image', 'revision', 'rebuild', 'upscale', 'control', 'faceid', 'video'].includes(kind)) return kind;
-  throw new Error('Media contract must be image, revision, rebuild, upscale, control, faceid, or video.');
+  if (['image', 'revision', 'rebuild', 'upscale', 'control', 'faceid', 'canny', 'instantid', 'video'].includes(kind)) return kind;
+  throw new Error('Media contract must be image, revision, rebuild, upscale, control, faceid, canny, instantid, or video.');
 }
 
 async function executeMediaJob(requestId) {
@@ -562,10 +562,10 @@ async function executeMediaJob(requestId) {
     updateMediaJob(requestId, { status: 'loading', stage: 'load', progress: 10 });
     let sourceImage = '';
     let safeUpscale = null;
-    if (['revision', 'upscale', 'control', 'faceid'].includes(contract)) {
+    if (['revision', 'upscale', 'control', 'faceid', 'canny', 'instantid'].includes(contract)) {
       const localSource = resolveArtifactPath(payload.sourceArtifact);
       if (!localSource || !/\.(png|jpe?g|webp)$/i.test(localSource)) throw new Error('The selected source is unavailable or is not a supported image.');
-      if (contract === 'upscale' && payload.workflowId === 'ultrasharp-upscale-v1') {
+      if (contract === 'upscale' && ['ultrasharp-upscale-v1', 'remacri-upscale-v1'].includes(payload.workflowId)) {
         const size = nativeImage.createFromPath(localSource).getSize();
         safeUpscale = safeUltraSharpPlan(size.width, size.height);
         let runtime = await comfyClient.runtimeStatus();
@@ -614,6 +614,10 @@ async function executeMediaJob(requestId) {
       controlStrength: payload.controlStrength,
       controlStart: payload.controlStart,
       controlEnd: payload.controlEnd,
+      cannyLow: payload.cannyLow,
+      cannyHigh: payload.cannyHigh,
+      instantIdControlStrength: payload.instantIdControlStrength,
+      instantIdNoise: payload.instantIdNoise,
       preScale: safeUpscale?.preScale,
       seed,
       revisionStrength: payload.denoise ?? payload.revisionStrength
@@ -649,7 +653,7 @@ async function executeMediaJob(requestId) {
     throw wrapped;
   } finally {
     activeMediaJobs.delete(requestId);
-    if (payload.workflowId === 'ultrasharp-upscale-v1') await comfyClient.freeMemory().catch(() => null);
+    if (['ultrasharp-upscale-v1', 'remacri-upscale-v1'].includes(payload.workflowId)) await comfyClient.freeMemory().catch(() => null);
   }
 }
 
@@ -704,7 +708,7 @@ async function preflightReferenceShot(payload) {
   if (shot.referenceMode === 'selected' && !sourceArtifact) throw new Error('Selected-reference mode requires a reference artifact.');
   if (shot.referenceMode === 'approved' && !sourceArtifact) throw new Error('No approved reference view is available. Promote a view or use clean generation.');
   const source = artifactFingerprint(sourceArtifact);
-  const contract = source ? (shot.controlMode === 'pose' ? 'control' : shot.controlMode === 'faceid' ? 'faceid' : 'revision') : 'image';
+  const contract = source ? ({ pose: 'control', faceid: 'faceid', canny: 'canny', instantid: 'instantid' }[shot.controlMode] || 'revision') : 'image';
   const definition = shot.workflow ? workflowRegistry.get(shot.workflow) : workflowRegistry.forKind(contract);
   if (definition.contract !== contract) throw new Error(`Workflow ${definition.id} does not support ${contract}.`);
   const checkpoints = await comfyClient.checkpoints();
@@ -715,7 +719,7 @@ async function preflightReferenceShot(payload) {
     contract, effectivePrompt: effectiveShotPrompt(subject, sheet, shot), negativePrompt: String(shot.negativePrompt || ''),
     referenceMode: shot.referenceMode || 'approved', source,
     workflow: { id: definition.id, version: definition.version, sha256: definition.sha256 }, checkpoint,
-    parameters: { seed, sampler: shot.sampler || 'dpmpp_2m', scheduler: shot.scheduler || 'karras', steps: Number(shot.steps || 28), cfg: Number(shot.cfg ?? 6.5), width: Number(shot.width || 768), height: Number(shot.height || 1024), batch: Number(shot.batch || 1), denoise: Number(shot.denoise ?? .84), referenceStrength: Number(shot.referenceStrength ?? .75), faceIdV2Strength: Number(shot.faceIdV2Strength ?? 1), faceIdLoraStrength: Number(shot.faceIdLoraStrength ?? .6), controlMode: shot.controlMode || 'revision', controlnet: shot.controlnet || 'OpenPoseXL2.safetensors', controlStrength: Number(shot.controlStrength ?? 1), controlStart: Number(shot.controlStart ?? 0), controlEnd: Number(shot.controlEnd ?? 1) },
+    parameters: { seed, sampler: shot.sampler || 'dpmpp_2m', scheduler: shot.scheduler || 'karras', steps: Number(shot.steps || 28), cfg: Number(shot.cfg ?? 6.5), width: Number(shot.width || 768), height: Number(shot.height || 1024), batch: Number(shot.batch || 1), denoise: Number(shot.denoise ?? .84), referenceStrength: Number(shot.referenceStrength ?? .75), faceIdV2Strength: Number(shot.faceIdV2Strength ?? 1), faceIdLoraStrength: Number(shot.faceIdLoraStrength ?? .6), cannyLow: Number(shot.cannyLow ?? .35), cannyHigh: Number(shot.cannyHigh ?? .75), instantIdControlStrength: Number(shot.instantIdControlStrength ?? .8), instantIdNoise: Number(shot.instantIdNoise ?? 0), controlMode: shot.controlMode || 'revision', controlnet: shot.controlnet || 'OpenPoseXL2.safetensors', controlStrength: Number(shot.controlStrength ?? 1), controlStart: Number(shot.controlStart ?? 0), controlEnd: Number(shot.controlEnd ?? 1) },
     changePlan: {
       changes: [['Pose', shot.pose], ['Environment', shot.environment], ['Camera', shot.camera], ['Lighting', shot.lighting]].filter(([, value]) => String(value || '').trim()).map(([label, value]) => `${label}: ${value}`),
       locks: [subject.continuityLocks, sheet.continuityLocks, shot.continuityLocks].filter(value => String(value || '').trim())
@@ -735,13 +739,14 @@ async function executeReferenceShot(ids, queue) {
     const source = artifactFingerprint(sourceArtifact);
     if (source && shot.referenceSha256 && source.sha256 !== shot.referenceSha256) throw new Error('The selected reference changed after preflight. Review the shot again before running it.');
     const result = await generateLocalMedia({
-      kind: sourceArtifact ? (shot.controlMode === 'pose' ? 'control' : shot.controlMode === 'faceid' ? 'faceid' : 'revision') : 'image', requestId, sessionId: queue.id,
+      kind: sourceArtifact ? ({ pose: 'control', faceid: 'faceid', canny: 'canny', instantid: 'instantid' }[shot.controlMode] || 'revision') : 'image', requestId, sessionId: queue.id,
       prompt: effectiveShotPrompt(subject, sheet, shot), negativePrompt: shot.negativePrompt,
       sourceArtifact: sourceArtifact || undefined, parentRevision: sourceArtifact || undefined,
       checkpoint: shot.model || undefined, workflowId: shot.workflow || undefined,
       seed: shot.seed, sampler: shot.sampler, scheduler: shot.scheduler, steps: shot.steps, cfg: shot.cfg, width: shot.width, height: shot.height, batch: shot.batch,
       controlnet: shot.controlnet, controlStrength: shot.controlStrength, controlStart: shot.controlStart, controlEnd: shot.controlEnd,
       referenceStrength: shot.referenceStrength, faceIdV2Strength: shot.faceIdV2Strength, faceIdLoraStrength: shot.faceIdLoraStrength,
+      cannyLow: shot.cannyLow, cannyHigh: shot.cannyHigh, instantIdControlStrength: shot.instantIdControlStrength, instantIdNoise: shot.instantIdNoise,
       denoise: shot.denoise, revisionStrength: shot.denoise, references: sourceArtifact ? [sourceArtifact] : []
     });
     let parentVariantId = '';

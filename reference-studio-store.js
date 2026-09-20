@@ -7,6 +7,7 @@ const path = require('path');
 const SHOT_STATUSES = new Set(['draft', 'queued', 'running', 'complete', 'failed', 'cancelled', 'recoverable']);
 const REVIEW_STATUSES = new Set(['candidate', 'approved', 'rejected']);
 const REFERENCE_MODES = new Set(['approved', 'selected', 'none']);
+const CONTROL_MODES = new Set(['revision', 'pose', 'faceid', 'canny', 'instantid']);
 const iso = () => new Date().toISOString();
 const id = value => cleanText(value, 100) || crypto.randomUUID();
 function cleanText(value, max = 4000) { return String(value || '').trim().slice(0, max); }
@@ -40,9 +41,12 @@ function normalizeShot(input = {}, existing = {}) {
     model: cleanText(input.model ?? existing.model, 500), workflow: cleanText(input.workflow ?? existing.workflow, 200),
     referenceMode: REFERENCE_MODES.has(input.referenceMode) ? input.referenceMode : (existing.referenceMode || (cleanText(input.referenceArtifact ?? existing.referenceArtifact, 1000) ? 'selected' : 'approved')),
     referenceSha256: cleanText(input.referenceSha256 ?? existing.referenceSha256, 64),
-    controlMode: input.controlMode === 'pose' ? 'pose' : 'revision',
+    controlMode: CONTROL_MODES.has(input.controlMode) ? input.controlMode : (CONTROL_MODES.has(existing.controlMode) ? existing.controlMode : 'revision'),
     controlnet: cleanText(input.controlnet ?? existing.controlnet, 500) || 'OpenPoseXL2.safetensors',
     controlStrength: number(input.controlStrength ?? existing.controlStrength, 1, 0, 2), controlStart: number(input.controlStart ?? existing.controlStart, 0), controlEnd: number(input.controlEnd ?? existing.controlEnd, 1),
+    faceIdV2Strength: number(input.faceIdV2Strength ?? existing.faceIdV2Strength, 1, -1, 5), faceIdLoraStrength: number(input.faceIdLoraStrength ?? existing.faceIdLoraStrength, .6, 0, 1),
+    cannyLow: number(input.cannyLow ?? existing.cannyLow, .35, .01, .99), cannyHigh: number(input.cannyHigh ?? existing.cannyHigh, .75, .01, .99),
+    instantIdControlStrength: number(input.instantIdControlStrength ?? existing.instantIdControlStrength, .8, 0, 10), instantIdNoise: number(input.instantIdNoise ?? existing.instantIdNoise, 0, 0, 1),
     seed: integer(input.seed ?? existing.seed, null, 1, 2147483646),
     sampler: cleanText(input.sampler ?? existing.sampler, 80) || 'dpmpp_2m', scheduler: cleanText(input.scheduler ?? existing.scheduler, 80) || 'karras',
     steps: integer(input.steps ?? existing.steps, 28, 1, 100), cfg: number(input.cfg ?? existing.cfg, 6.5, 0, 30),
@@ -126,4 +130,4 @@ function createReferenceStudioStore(filePath) {
   return { read, saveProject, saveSubject, saveSheet, saveView, saveShot, saveVariant, updateShot, removeShot, clearQueue, clear };
 }
 
-module.exports = { SHOT_STATUSES, REVIEW_STATUSES, REFERENCE_MODES, normalizeProject, normalizeSubject, normalizeSheet, normalizeView, normalizeShot, normalizeVariant, migrate, createReferenceStudioStore };
+module.exports = { SHOT_STATUSES, REVIEW_STATUSES, REFERENCE_MODES, CONTROL_MODES, normalizeProject, normalizeSubject, normalizeSheet, normalizeView, normalizeShot, normalizeVariant, migrate, createReferenceStudioStore };

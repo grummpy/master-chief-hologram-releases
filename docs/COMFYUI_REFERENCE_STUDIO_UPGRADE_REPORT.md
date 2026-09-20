@@ -191,6 +191,14 @@ The failure pattern is typical of text-only SDXL. More prose alone will not reli
 - Generated PNGs now expose bounded embedded ComfyUI workflow recovery, with durable job lineage preferred when both exist.
 - Artifact cards can reopen the exact positive prompt, negative prompt, checkpoint, VAE, seed, sampler, scheduler, steps, CFG, dimensions, batch, and denoise controls.
 - Added novice recipes for two-person blocking, product hero shots, and environment studies.
+
+## v1.27 implementation evidence
+
+- Added live-tested Canny edge-control and InstantID identity/keypoint workflows.
+- Fixed durable queue normalization so FaceID, Canny, and InstantID modes and their strengths survive save/reload instead of collapsing to ordinary revision.
+- Added a memory-bounded Remacri portrait upscale with a 2,048-pixel maximum edge, resource reserve checks, rollback, and post-job cache release.
+- Kept Depth, Tile, Control-LoRA OpenPose, and the still-downloading Pony checkpoint out of promoted workflows pending their own readiness evidence.
+- Model provenance, checksums, licenses, limitations, and rollback details are recorded in `docs/COMFYUI_MODEL_READINESS_2026-09-20.md`.
 3. Productize prepared-map OpenPose ControlNet.
 4. Seek explicit approval for an OpenPose preprocessor after compatibility/license review.
 5. Add masked inpaint/outpaint and regional controls.
