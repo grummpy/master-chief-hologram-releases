@@ -25,6 +25,8 @@ The renderer cannot supply commands, paths, users, or SSH options. It can reques
 - Live operator restart with post-action API and Runtime Center verification.
 - Stop/resume drill with worker-process teardown and API recovery evidence.
 
+The live restart gate identified two Windows-specific defects: a `SYSTEM` task could exit before AMD GPU initialization, and a directly scheduled batch process could receive a console termination event after remote control. The maintained worker script now runs a hidden VBS wrapper as the signed-in GPU user, preserving driver-session access and detaching the worker from the SSH/PowerShell lifecycle.
+
 ## PAPM score
 
 | Area | Weight | Score |

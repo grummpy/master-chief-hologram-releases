@@ -7,6 +7,7 @@
 - Added a gaming handoff that verifies the worker process exited before reporting its GPU allocation released.
 - Added SSH channel identity, scheduled-task evidence, and a bounded five-entry endpoint history to Runtime Center.
 - Reduced Windows status output to structured operational evidence before it crosses into the renderer.
+- Corrected the Windows background task to run through a hidden VBS wrapper in the signed-in GPU user's session; the prior SYSTEM/direct-console task could lose AMD access or exit after the SSH session closed.
 
 ## 1.19.0
 

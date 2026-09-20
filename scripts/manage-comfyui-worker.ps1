@@ -100,16 +100,18 @@ WScript.Quit exitCode
 "@
     Set-Content -LiteralPath $vbsRunner -Value $vbsContent -Encoding ASCII
 
-    # A SYSTEM startup task runs without an open terminal and does not require a
-    # user to sign in. Delay briefly so Windows can initialize the GPU driver.
-    $taskAction = New-ScheduledTaskAction -Execute 'cmd.exe' -Argument "/d /c `"$cmdRunner`""
-    $trigger = New-ScheduledTaskTrigger -AtStartup
+    # GPU runtimes need the signed-in desktop user's graphics session. A hidden
+    # logon task starts without an open PowerShell window while retaining AMD
+    # driver access; SYSTEM tasks can exit cleanly without ever exposing a GPU.
+    $taskAction = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument "`"$vbsRunner`""
+    $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+    $trigger = New-ScheduledTaskTrigger -AtLogOn -User $currentUser
     $trigger.Delay = 'PT30S'
     $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 5 -RestartInterval (New-TimeSpan -Minutes 1)
-    $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
-    Register-ScheduledTask -TaskName $taskName -Action $taskAction -Trigger $trigger -Settings $settings -Principal $principal -Description 'Runs the private Master Chief ComfyUI GPU worker in the background when Windows boots.' -Force | Out-Null
+    $principal = New-ScheduledTaskPrincipal -UserId $currentUser -LogonType Interactive -RunLevel Limited
+    Register-ScheduledTask -TaskName $taskName -Action $taskAction -Trigger $trigger -Settings $settings -Principal $principal -Description 'Runs the private Master Chief ComfyUI GPU worker invisibly after the Windows user signs in.' -Force | Out-Null
     Write-Host "Installed background task: $taskName"
-    Write-Host 'It will start automatically about 30 seconds after Windows boots, without sign-in or an open PowerShell window.'
+    Write-Host 'It will start automatically about 30 seconds after Windows sign-in without an open PowerShell window.'
     if (Test-WorkerHealth) {
       Write-Warning "Port $Port is already serving ComfyUI. Close the old foreground ComfyUI window, then run this script with -Action Restart."
     } else {
