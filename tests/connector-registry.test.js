@@ -6,6 +6,8 @@ const { getConnectorRegistry, withConnectorState } = require('../connector-regis
 test('connector catalog distinguishes local-free from explicitly selected cloud routes', () => {
   const connectors = getConnectorRegistry();
   assert.equal(connectors.find(item => item.id === 'ollama.local').costClass, 'local-free');
+  assert.equal(connectors.find(item => item.id === 'searxng.local').costClass, 'local-free');
+  assert.ok(connectors.find(item => item.id === 'searxng.local').capabilities.includes('web.search'));
   assert.equal(connectors.find(item => item.id === 'comfyui.local').costClass, 'local-free');
   assert.equal(connectors.find(item => item.id === 'codex.desktop').costClass, 'selected-cloud-plan');
   assert.equal(connectors.find(item => item.id === 'openai.responses').costClass, 'provider-billed');

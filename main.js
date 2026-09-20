@@ -43,7 +43,7 @@ const { requestedPages, createDocxArtifact } = require('./document-generator');
 const { ingestAttachment } = require('./file-ingestion');
 const { createSpreadsheet, createPresentation, createCodeArtifact } = require('./productivity-artifacts');
 const { runOllamaEvaluation } = require('./ollama-evaluator');
-const { publicResearchUrls, normalizePublicResearch } = require('./public-research');
+const { publicResearchUrls, normalizeSearxng, normalizePublicResearch } = require('./public-research');
 const { createProjectStore } = require('./project-store');
 const { discoverPlugins } = require('./plugin-catalog');
 const { createSchedulerStore } = require('./scheduler-store');
@@ -369,6 +369,11 @@ async function checkJson(url, headers = {}) {
   }
 }
 
+async function checkHttp(url) {
+  try { return { response: await fetch(url, { signal: AbortSignal.timeout(5000) }) }; }
+  catch (error) { return { error }; }
+}
+
 async function providerStatus() {
   const status = {
     version: APP_VERSION,
@@ -382,6 +387,7 @@ async function providerStatus() {
     ,suno: { state: 'missing', label: 'Suno · not configured' }
     ,cursor: { state: 'missing', label: 'Cursor Agent · not configured' }
     ,ollama: { state: 'missing', label: 'Ollama unavailable' }
+    ,searxng: { state: 'missing', label: 'SearXNG · local search unavailable', detail: 'Start the local private-search stack on this Mac.' }
     ,huggingface: { state: 'missing', label: 'Hugging Face endpoint not configured' }
     ,voice: { state: 'cloud', label: 'Voice · cloud transcription' }
     ,audio: { state: 'missing', label: 'Audio · checking local production' }
@@ -460,6 +466,13 @@ async function providerStatus() {
     status.ollama = { state: 'ready', label: primary ? `Ollama · ${primary.id} · local first` : `Ollama · ${count} model${count === 1 ? '' : 's'}` };
     if (primary) status.localAi = { state: 'ready', label: `Local AI · ${primary.tier} · ${primary.id}`, detail: 'Local-only routing; cloud fallback requires explicit selection.' };
   } else if (process.env.OLLAMA_BASE_URL) status.ollama = { state: 'error', label: 'Ollama connection error' }; })());
+
+  checks.push((async () => {
+    const searxng = await checkHttp('http://127.0.0.1:8888/');
+    status.searxng = !searxng.error && searxng.response?.ok
+      ? { state: 'ready', label: 'SearXNG · private local search ready', detail: 'The metasearch service is local; searches still reach the public engines you invoke.' }
+      : { state: 'missing', label: 'SearXNG · local search unavailable', detail: 'Run the local SearXNG Docker stack.' };
+  })());
 
   const { baseUrl: hfUrl, key: hfKey } = huggingFaceConfig();
   if (hfUrl && hfKey) checks.push((async () => {
@@ -651,7 +664,7 @@ async function connectorStatus() {
   const providers = await providerStatus();
   const comfy = comfyClient ? await comfyClient.health() : { state: 'missing', label: 'ComfyUI · worker not configured' };
   const states = {
-    'ollama.local': providers.ollama, 'codex.desktop': providers.codex, 'huggingface.inference': providers.huggingface,
+    'ollama.local': providers.ollama, 'searxng.local': providers.searxng, 'codex.desktop': providers.codex, 'huggingface.inference': providers.huggingface,
     'openai.responses': providers.openai, 'xai.grok': providers.grok, 'github.account': providers.github,
     'google.gemini': providers.gemini, 'google.gmail': providers.gmail, 'suno.music': providers.suno, 'cursor.agent': providers.cursor,
     'comfyui.local': comfy, 'elevenlabs.tts': providers.elevenlabs
@@ -682,6 +695,11 @@ async function executeAgentTool(id, input, context = {}) {
   }
   if (id === 'research.public_web') {
     requireToolApproval(id); const urls = publicResearchUrls(input?.query);
+    const searxng = await checkJson(urls.searxng);
+    if (!searxng.error && searxng.response?.ok) {
+      const result = normalizeSearxng(input?.query, searxng.body);
+      return { tool: id, result, summary: `Found ${result.sources.length} source links through the local SearXNG service without a paid AI provider.` };
+    }
     const [duck, wiki] = await Promise.all([checkJson(urls.duckduckgo), checkJson(urls.wikipedia)]);
     if ((duck.error || !duck.response?.ok) && (wiki.error || !wiki.response?.ok)) throw new Error('The free public research endpoints are unavailable.');
     const result = normalizePublicResearch(input?.query, duck.body, wiki.body);

@@ -6,6 +6,10 @@ const CONNECTORS = Object.freeze([
     capabilities: Object.freeze(['chat', 'tools', 'structured-output']), approvalRequired: false, costClass: 'local-free'
   }),
   Object.freeze({
+    id: 'searxng.local', label: 'SearXNG · Private local search', kind: 'local-search', residency: 'local',
+    capabilities: Object.freeze(['web.search', 'source.discovery']), approvalRequired: true, costClass: 'local-free'
+  }),
+  Object.freeze({
     id: 'codex.desktop', label: 'Codex Desktop · Research and workspace', kind: 'agent-bridge', residency: 'cloud-and-local',
     capabilities: Object.freeze(['web.research', 'workspace.inspect', 'workspace.change', 'test.execute']), approvalRequired: true, costClass: 'selected-cloud-plan'
   }),

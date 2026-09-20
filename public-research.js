@@ -9,8 +9,27 @@ function boundedQuery(value) {
 function publicResearchUrls(query) {
   const value = encodeURIComponent(boundedQuery(query));
   return {
+    searxng: `http://127.0.0.1:8888/search?q=${value}&format=json&language=auto&safesearch=0`,
     duckduckgo: `https://api.duckduckgo.com/?q=${value}&format=json&no_html=1&no_redirect=1&skip_disambig=1`,
     wikipedia: `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${value}&srlimit=5&utf8=1&format=json&origin=*`
+  };
+}
+
+function normalizeSearxng(query, payload = {}) {
+  const sources = (Array.isArray(payload.results) ? payload.results : [])
+    .map(item => ({
+      title: stripMarkup(item?.title || item?.url).slice(0, 240),
+      url: String(item?.url || '').trim(),
+      excerpt: stripMarkup(item?.content || item?.snippet).slice(0, 1000),
+      source: String(item?.engine || 'SearXNG')
+    }))
+    .filter(item => item.title && /^https?:\/\//i.test(item.url));
+  const seen = new Set();
+  const unique = sources.filter(item => !seen.has(item.url) && seen.add(item.url)).slice(0, 12);
+  return {
+    query: boundedQuery(query), sources: unique,
+    searched: ['Local SearXNG metasearch'],
+    limitation: 'SearXNG runs locally, but enabled search engines still receive the query. Verify important claims at the linked primary source.'
   };
 }
 
@@ -31,4 +50,4 @@ function normalizePublicResearch(query, duckduckgo = {}, wikipedia = {}) {
   return { query: boundedQuery(query), sources: unique, searched: ['DuckDuckGo Instant Answer', 'English Wikipedia'], limitation: 'Public no-key endpoints are narrower than a full commercial web index; verify important claims at the linked primary source.' };
 }
 
-module.exports = { boundedQuery, publicResearchUrls, normalizePublicResearch };
+module.exports = { boundedQuery, publicResearchUrls, normalizeSearxng, normalizePublicResearch };

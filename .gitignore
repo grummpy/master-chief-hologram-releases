@@ -8,3 +8,5 @@ out/
 
 release-archive/
 build-info.json
+infrastructure/searxng/.env
+infrastructure/searxng/data/

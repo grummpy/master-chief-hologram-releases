@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.17.0
+
+- Added a private, localhost-only SearXNG metasearch service backed by an automatically starting Colima/Docker runtime.
+- Local agent research now prefers SearXNG and falls back to the existing free public endpoints only when the local service is unavailable.
+- Added SearXNG runtime health and connector capability reporting to the app.
+- Added source normalization, URL validation, deduplication, bounded result handling, and explicit privacy limitations for search results.
+
 ## 1.16.0
 
 - Added combined previews for atomic patch sets spanning up to ten different project files.
