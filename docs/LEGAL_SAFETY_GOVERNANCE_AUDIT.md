@@ -1,12 +1,14 @@
+# PROPOSED—NOT APPROVED OR DEPLOYED
+
 # Legal, Safety, Security, Governance, and Training Audit
 
 Mission: `MC-ARMY-90-20260920`  
 Scope: Master Chief Hologram v1.42.0, excluding release signing/notarization.  
 Nature of review: operational issue-spotting; not legal advice or a certification.
 
-## Decision
+## Superseding decision
 
-**PASS — 93/100 weighted readiness for this specialist lane.** The product now provides an operator-visible data inventory, retention/clear explanations, route and residency disclosures, credential redaction, dependency-license metadata inspection, a human publishing preflight, and versioned operating guidance. The review adds no application-owned content filter, prompt rewrite, or publishing action.
+**OWNER REVIEW REQUIRED.** The earlier 93/100 assessment is withdrawn as a deployed-product score because executable legal/publishing/safety recommendations were added without prior review of the exact changes. Those controls have been removed. The material below is retained only as a proposal for independent owner audit.
 
 ## Frozen-rubric score
 

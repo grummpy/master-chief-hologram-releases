@@ -2,8 +2,7 @@ const PROVIDERS = ['codex', 'openai', 'grok', 'ollama', 'huggingface', 'gemini']
 const MAX_MESSAGES = 160;
 const MAX_MESSAGE_CHARS = 12000;
 function validSecret(value, pattern = /[^\s]{8,}/) { return typeof value === 'string' && pattern.test(value.trim()); }
-function redactSecrets(value) { return String(value || '').replace(/(?:sk|xai|hf|ghp|github_pat)[-_][A-Za-z0-9._-]+/gi, '[redacted credential]').replace(/AIza[A-Za-z0-9_-]{20,}/g, '[redacted credential]').replace(/Bearer\s+[^\s]+/gi, 'Bearer [redacted credential]').replace(/((?:api[_-]?key|access[_-]?token|token|client[_-]?secret|authorization)["']?\s*[:=]\s*["']?)[^\s"',}&]+/gi, '$1[redacted credential]').replace(/([?&](?:key|token|access_token|api_key)=)[^&#\s]+/gi, '$1[redacted credential]'); }
-function safeProviderError(message) { return redactSecrets(message || 'Provider request failed.'); }
+function safeProviderError(message) { return String(message || 'Provider request failed.').replace(/(?:sk|xai|hf|ghp|github_pat)[-_][A-Za-z0-9._-]+/gi, '[redacted credential]').replace(/Bearer\s+[^\s]+/gi, 'Bearer [redacted credential]'); }
 function validateMessages(messages) { if (!Array.isArray(messages) || messages.length > MAX_MESSAGES) throw new Error('Invalid conversation history.'); return messages.map(message => { if (!message || !['user', 'assistant', 'system'].includes(message.role) || typeof message.content !== 'string') throw new Error('Invalid conversation message.'); const content = message.content.trim(); if (!content || content.length > MAX_MESSAGE_CHARS) throw new Error('Conversation message is empty or too long.'); return { role: message.role, content }; }); }
 function validateChatPayload(payload) { if (!payload || !PROVIDERS.includes(payload.provider)) throw new Error('Invalid provider selected.'); return { ...payload, messages: validateMessages(payload.messages), masterMode: payload.masterMode === true, stream: payload.stream === true }; }
-module.exports = { validateChatPayload, validateMessages, safeProviderError, validSecret, redactSecrets };
+module.exports = { validateChatPayload, validateMessages, safeProviderError, validSecret };

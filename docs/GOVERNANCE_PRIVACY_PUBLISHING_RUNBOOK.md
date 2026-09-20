@@ -1,6 +1,8 @@
+# PROPOSED—NOT APPROVED OR DEPLOYED
+
 # Governance, Privacy, and Publishing Operator Runbook
 
-Applies to Master Chief Hologram v1.42.0. This is operational issue-spotting, not legal advice, license clearance, or a declaration of compliance.
+This document is retained for independent owner audit only. Its proposed in-app controls are disabled and absent from the packaged application. Nothing in this document is approved policy, legal advice, license clearance, or a declaration of compliance.
 
 ## Before entering private information
 
@@ -17,7 +19,7 @@ Applies to Master Chief Hologram v1.42.0. This is operational issue-spotting, no
 
 ## Before publishing or sharing
 
-Open **Systems → Privacy and publishing review** and complete the artifact preflight:
+The following preflight was proposed but is not present in the application and must not be implemented until the owner approves the exact code and text:
 
 1. Name the accountable human owner and exact artifact/version.
 2. Review provenance: source files, citations, provider/model, workflow, transformations, hashes, and parent revision.

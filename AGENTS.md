@@ -26,3 +26,19 @@ text and obtain explicit approval for that exact change.
 This rule does not apply to non-content security controls such as credential
 protection, network-destination consent, tool authorization, filesystem path
 containment, dependency security, or operating-system permissions.
+
+## Owner approval required for legal, publishing, and safety controls
+
+Specialists may audit and propose legal, licensing, privacy, records,
+publishing, moderation, governance, or safety changes, but their recommendations
+must remain non-executable review material until the repository owner approves
+the exact proposed code and user-facing text. Do not add, enable, package, or
+deploy a checklist, gate, warning, disclosure, refusal, classifier, retention
+rule, publication preflight, or behavior-changing control from those lanes based
+only on a broad audit or improvement request.
+
+Before implementation, show the owner the exact proposal, affected files,
+runtime effect, data stored, failure behavior, and rollback. Record the owner's
+explicit approval in the change summary and add a regression test tied to that
+approved scope. Audit documents may be retained only when clearly marked
+`PROPOSED—NOT APPROVED OR DEPLOYED`.

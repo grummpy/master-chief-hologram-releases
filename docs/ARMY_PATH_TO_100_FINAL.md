@@ -1,9 +1,11 @@
 # Master Chief Army 90 Final Report and Path to 100
 
 Mission: `MC-ARMY-90-20260920`  
-Build: Master Chief Hologram v1.42.0  
+Build: Master Chief Hologram v1.42.1 correction
 Assessment date: 2026-09-20  
-Decision: **PASS — every applicable specialist member reached at least 90/100 on the frozen rubric.**
+Decision: **SUPERSEDED IN PART — legal, publishing, governance, and safety implementation credit was withdrawn pending explicit owner approval.**
+
+> Correction: executable controls proposed by the legal/safety/governance lane were removed from the application. The engineering/model and artifact/UX results remain deployed. Legal, publishing, and safety material is retained only as `PROPOSED—NOT APPROVED OR DEPLOYED` and must be audited independently by the owner before any implementation.
 
 This is an engineering and operational readiness assessment. Legal findings are issue-spotting, not legal advice, certification, or license clearance. Public release signing and notarization were expressly outside this mission.
 
@@ -17,10 +19,10 @@ The rubric was fixed before implementation: functional completeness 30, failure 
 |---|---:|---:|---|---|
 | Engineering and local models | 84 | 92 | Pass | `ENGINEERING_MODEL_LANE_90_REPORT.md` |
 | UX, artifacts, data, archive, publishing | 84 | 93 | Pass | `UX_ARTIFACT_PUBLISHING_90_AUDIT.md` |
-| Legal, privacy, safety, security, governance | 88 | 93 | Pass | `LEGAL_SAFETY_GOVERNANCE_AUDIT.md` |
+| Legal, privacy, safety, security, governance | 88 | Not scored as deployed | Owner review required | `LEGAL_SAFETY_GOVERNANCE_AUDIT.md` |
 | Command, planning, intelligence, quality | 89 | 94 | Pass | This report, the frozen mission plan, and independent verification below |
 
-The weighted mean of the four lanes is **93.0/100**. This is not a claim that every provider, model, operating system, or legal jurisdiction is 93% compliant; it is the result of the defined local product rubric.
+The former 93.0 weighted mean is withdrawn because one lane included unapproved executable changes. No replacement combined score will be claimed until the owner approves or rejects each proposal and the accepted scope is retested.
 
 ## What changed during the mission
 
@@ -29,8 +31,7 @@ The weighted mean of the four lanes is **93.0/100**. This is not a claim that ev
 - Natural-language Word requests now route to real `.docx` production, joining Excel, PowerPoint, Python, R, and SQL artifact contracts.
 - Generated artifacts receive private atomic provenance records, checksums, request IDs, parent lineage, and visible Open, Reveal, Save As, Save to Project, Revise, and Duplicate-as-new actions.
 - Spreadsheet output now receives semantic number formats, adaptive widths, and read-back validation. PowerPoint output receives package, notes, and overflow validation.
-- The packaged app now includes a Governance and Publishing Review center with data-store/retention disclosures, route/residency information, dependency-license metadata inspection, and a human publication preflight.
-- Credential redaction was extended across diagnostic and provider errors without adding an app-owned content filter or rewriting user prompts.
+- The proposed Governance and Publishing Review center, route/license inspection, publication preflight, and expanded credential-redaction changes were removed pending owner review.
 - Keyboard tab behavior, narrow-window Review access, preview failures, labels, and operator guidance were improved.
 
 ## Member-by-member assessment and path to 100
@@ -110,4 +111,4 @@ The weighted mean of the four lanes is **93.0/100**. This is not a claim that ev
 
 ## Final disposition
 
-The v1.42.0 source, local package, and installed application passed their verification gates. All applicable non-release members meet the requested approximate 90% threshold under the frozen rubric. Moving closer to 100 requires the ordered external, native-application, human-factors, governance-evidence, and separately authorized release work above; those gaps are explicit rather than hidden in the score.
+The corrected build must pass a new package and installed-application verification after removal of the unapproved controls. Engineering/model and artifact/UX improvements remain, but legal/publishing/safety readiness is intentionally unscored until owner review. The exact pending proposals are listed in `PENDING_OWNER_APPROVAL.md`.
