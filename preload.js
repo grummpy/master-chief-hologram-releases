@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld('masterChief', {
   getCredentialStatus: () => ipcRenderer.invoke('credential-status'),
   getModelCatalog: () => ipcRenderer.invoke('model-catalog'),
   getOllamaRuntime: () => ipcRenderer.invoke('ollama-runtime'),
+  warmBestOllamaModel: () => ipcRenderer.invoke('ollama-warm-best'),
+  getPrivacyState: () => ipcRenderer.invoke('privacy-state'),
   unloadOllamaModel: model => ipcRenderer.invoke('ollama-unload', { model }),
   runOllamaAgent: payload => ipcRenderer.invoke('ollama-agent', payload),
   evaluateOllama: model => ipcRenderer.invoke('ollama-evaluate', { model }),

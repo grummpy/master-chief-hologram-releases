@@ -23,7 +23,7 @@ function normalizeOllamaOptions(input = {}) {
     stream: input.stream !== false,
     think,
     format,
-    keep_alive: /^(?:0|\d+[smh])$/.test(String(input.keepAlive || '')) ? String(input.keepAlive) : '5m',
+    keep_alive: /^(?:-1|0|\d+[smh])$/.test(String(input.keepAlive || '')) ? String(input.keepAlive) : '-1',
     options: {
       temperature: boundedNumber(input.temperature, preset.temperature, 0, 2),
       top_p: boundedNumber(input.topP, preset.top_p, 0, 1),
@@ -60,6 +60,19 @@ function selectToolModel(models = [], requested = '') {
   return [...toolModels].sort((left, right) => modelParameterBillions(right) - modelParameterBillions(left) || Number(right.size || 0) - Number(left.size || 0))[0] || null;
 }
 
+function selectBestChatModel(models = []) {
+  return [...models].sort((left, right) => {
+    const capabilityScore = model => (model.capabilities?.includes('tools') ? 2 : 0) + (model.capabilities?.includes('thinking') ? 1 : 0);
+    return capabilityScore(right) - capabilityScore(left)
+      || modelParameterBillions(right) - modelParameterBillions(left)
+      || Number(right.size || 0) - Number(left.size || 0);
+  })[0] || null;
+}
+
+function comfyPromptSystemPrompt() {
+  return 'You are a senior ComfyUI prompt architect. Convert the operator request into a production-ready SDXL prompt pair. Infer sensible visual details from the request instead of asking vague follow-up questions. Preserve every requested subject, action, wardrobe, environment, composition, camera, lighting, mood, and style detail. Return exactly two labeled sections: POSITIVE PROMPT: followed by one detailed comma-separated prompt, then NEGATIVE PROMPT: followed by one concise comma-separated defect/exclusion prompt. Do not generate an image, discuss policy, restate the request, or add commentary.';
+}
+
 const AGENT_TOOLS = Object.freeze([
   Object.freeze({ alias: 'diagnostics_local_runtime', id: 'diagnostics.local_runtime', description: 'Inspect the local Master Chief application runtime and versions.' }),
   Object.freeze({ alias: 'diagnostics_git_status', id: 'diagnostics.git_status', description: 'Read the Git status of the Master Chief application repository.' }),
@@ -87,4 +100,4 @@ const AGENT_TOOLS = Object.freeze([
 function agentToolSchemas() { return AGENT_TOOLS.map(tool => ({ type: 'function', function: { name: tool.alias, description: tool.description, parameters: { type: 'object', properties: tool.properties || {}, required: tool.required || [] } } })); }
 function resolveAgentTool(alias) { return AGENT_TOOLS.find(tool => tool.alias === alias)?.id || null; }
 
-module.exports = { MODES, normalizeOllamaOptions, ollamaSystemPrompt, modelCard, modelParameterBillions, selectToolModel, agentToolSchemas, resolveAgentTool };
+module.exports = { MODES, normalizeOllamaOptions, ollamaSystemPrompt, comfyPromptSystemPrompt, modelCard, modelParameterBillions, selectBestChatModel, selectToolModel, agentToolSchemas, resolveAgentTool };

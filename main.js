@@ -24,7 +24,7 @@ const { validateChatPayload, validateMessages, safeProviderError, validSecret } 
 const { createCredentialStore } = require('./credential-store');
 const { getToolRegistry, normalizeApprovals, setToolApproval, isToolApproved } = require('./tool-registry');
 const { createLocalToolExecutor } = require('./local-tool-executor');
-const { normalizeOllamaOptions, ollamaSystemPrompt, modelCard, selectToolModel, agentToolSchemas, resolveAgentTool } = require('./ollama-runtime');
+const { normalizeOllamaOptions, ollamaSystemPrompt, comfyPromptSystemPrompt, modelCard, selectBestChatModel, selectToolModel, agentToolSchemas, resolveAgentTool } = require('./ollama-runtime');
 const { createRagIndex } = require('./rag-index');
 const { safeArtifactPath } = require('./artifact-links');
 const { MICROPHONE_SETTINGS_URL, isGranted, recoveryMessage } = require('./microphone-access');
@@ -172,16 +172,24 @@ const sourceProjectDir = fs.existsSync(path.join(desktopProjectDir, '.git')) ? d
 const projectStore = createProjectStore(path.join(app.getPath('userData'), 'Projects'));
 const referenceStudio = createReferenceStudioStore(path.join(app.getPath('userData'), 'reference-studio.json'));
 const mediaJobLedger = createMediaJobLedger(path.join(app.getPath('userData'), 'media-jobs.json'));
+const privacyStateFile = path.join(app.getPath('userData'), 'privacy-state.json');
 const audioArchiveRoot = path.join(app.getPath('userData'), 'audio', 'archive');
 const audioJobs = createAudioJobStore(path.join(app.getPath('userData'), 'audio', 'jobs.json'), audioArchiveRoot);
 const workflowRegistry = createWorkflowRegistry(__dirname);
 const activeMediaJobs = new Map();
 const activeReferenceQueues = new Map();
 mediaJobLedger.recoverInterrupted();
+function privacyState() { try { return JSON.parse(fs.readFileSync(privacyStateFile, 'utf8')); } catch { return { conversationsClearedAt: null, mediaClearedAt: null }; } }
+function recordPrivacyClear(includeMedia) {
+  const previous = privacyState(); const now = new Date().toISOString();
+  const next = { conversationsClearedAt: now, mediaClearedAt: includeMedia ? now : previous.mediaClearedAt || null };
+  fs.writeFileSync(privacyStateFile, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 }); return next;
+}
 function generatedRelativePath(filename) { return `artifacts/generated/${path.basename(filename)}`; }
 function listGeneratedArtifacts(limit = 50) {
   if (!fs.existsSync(generatedArtifactDir)) return [];
   const supported = /\.(png|jpe?g|webp|gif|avif|bmp|mp4|m4v|mov|webm|ogv|mp3|wav|m4a|aac|ogg|flac)$/i;
+  const cutoff = Date.parse(privacyState().mediaClearedAt || '') || 0;
   return fs.readdirSync(generatedArtifactDir, { withFileTypes: true })
     .filter(entry => entry.isFile() && supported.test(entry.name))
     .map(entry => {
@@ -189,6 +197,7 @@ function listGeneratedArtifacts(limit = 50) {
       const stat = fs.statSync(filePath);
       const relative = generatedRelativePath(entry.name);
       const ledgerJob = typeof mediaJobLedger === 'undefined' ? null : mediaJobLedger.list(500).find(job => job.artifacts?.some(artifact => artifact.path === relative));
+      if (stat.mtimeMs <= cutoff) return null;
       return {
         filename: entry.name,
         path: relative,
@@ -200,7 +209,7 @@ function listGeneratedArtifacts(limit = 50) {
         sessionId: ledgerJob?.sessionId || null,
         job: ledgerJob || null
       };
-    })
+    }).filter(Boolean)
     .sort((a, b) => b.modifiedMs - a.modifiedMs)
     .slice(0, Math.min(100, Math.max(1, Number(limit) || 50)));
 }
@@ -1126,11 +1135,12 @@ async function callGrok({ messages, masterMode }) {
   return { reply, label: 'Grok · xAI' };
 }
 
-async function callOllama({ messages, masterMode, model: requestedModel, ollama: requestedOptions }) {
+async function callOllama({ messages, masterMode, model: requestedModel, ollama: requestedOptions, intent }) {
   const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
   const model = requestedModel || process.env.OLLAMA_MODEL || 'llama3.2';
   const settings = normalizeOllamaOptions(requestedOptions);
-  const payload = { model, messages: [{ role: 'system', content: `${ollamaSystemPrompt({ masterMode, mode: settings.mode })}\n${SKILL_TAG_ROUTING}` }, ...messages.slice(-16)], stream: settings.stream, options: settings.options, keep_alive: settings.keep_alive };
+  const special = intent === 'comfy-prompt' ? comfyPromptSystemPrompt() : ollamaSystemPrompt({ masterMode, mode: settings.mode });
+  const payload = { model, messages: [{ role: 'system', content: `${special}\n${SKILL_TAG_ROUTING}` }, ...messages.slice(-16)], stream: settings.stream, options: settings.options, keep_alive: '-1' };
   payload.think = settings.think;
   if (settings.format) payload.format = settings.format;
   activeAbortController = new AbortController();
@@ -1173,6 +1183,15 @@ async function ollamaRuntime() {
   const [version, catalog] = await Promise.all([checkJson(`${base}/api/version`), modelCatalog()]);
   if (version.error || !version.response.ok) throw new Error('Ollama is not reachable.');
   return { version: version.body.version || 'unknown', models: catalog.ollamaDetails };
+}
+
+async function warmBestOllamaModel() {
+  const runtime = await ollamaRuntime(); const selected = selectBestChatModel(runtime.models);
+  if (!selected) throw new Error('No installed Ollama chat model is available.');
+  const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
+  const response = await fetch(`${base}/api/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: selected.name, prompt: '', keep_alive: -1, stream: false }) });
+  const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error || `Ollama preload error ${response.status}`);
+  return { model: selected.name, loaded: true, keepAlive: 'always' };
 }
 
 async function unloadOllamaModel(model) {
@@ -1338,6 +1357,8 @@ secureHandle('provider-status', providerStatus);
 secureHandle('credential-status', () => credentials().status());
 secureHandle('model-catalog', modelCatalog);
 secureHandle('ollama-runtime', ollamaRuntime);
+secureHandle('ollama-warm-best', warmBestOllamaModel);
+secureHandle('privacy-state', privacyState);
 secureHandle('ollama-unload', (_event, payload) => unloadOllamaModel(payload?.model));
 secureHandle('ollama-agent', (_event, payload) => runOllamaAgent(payload));
 secureHandle('ollama-evaluate', (_event, payload) => runOllamaEvaluation({ model: String(payload?.model || ''), outputFile: ollamaEvaluationFile(), onProgress: progress => emitChatEvent('evaluation-progress', progress) }));
@@ -1549,9 +1570,10 @@ secureHandle('clear-private-history', async (_event, payload) => {
     media.jobs = mediaJobLedger.clear().removed;
     media.referenceProjects = referenceStudio.clear().removed;
   }
+  const privacy = recordPrivacyClear(includeMedia);
   await mainWindow.webContents.session.clearCache();
   await mainWindow.webContents.session.clearStorageData({ storages: ['localstorage', 'indexdb', 'serviceworkers', 'cachestorage'] });
-  return { cleared: true, removedIndex, media, generatedMediaPreserved: !includeMedia };
+  return { cleared: true, removedIndex, media, privacy, generatedMediaPreserved: !includeMedia };
 });
 secureHandle('open-artifact', async (_event, relativePath) => {
   const artifactPath = resolveArtifactPath(relativePath);

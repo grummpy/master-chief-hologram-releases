@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { normalizeOllamaOptions, ollamaSystemPrompt, modelCard, selectToolModel, agentToolSchemas, resolveAgentTool } = require('../ollama-runtime');
+const { normalizeOllamaOptions, ollamaSystemPrompt, comfyPromptSystemPrompt, modelCard, selectBestChatModel, selectToolModel, agentToolSchemas, resolveAgentTool } = require('../ollama-runtime');
 
 test('Ollama controls clamp operator values and preserve task mode', () => {
   const value = normalizeOllamaOptions({ mode: 'creative', temperature: 7, topP: -1, context: 999999, maxTokens: 4, seed: 42, think: 'high', format: 'json', keepAlive: '30m' });
@@ -15,6 +15,22 @@ test('Ollama controls clamp operator values and preserve task mode', () => {
   assert.equal(value.think, 'high');
   assert.equal(value.format, 'json');
   assert.equal(value.keep_alive, '30m');
+});
+
+test('best local chat model favors capability and remains loaded', () => {
+  const models = [
+    { name: 'plain:14b', size: 20, capabilities: ['completion'], details: { parameter_size: '14B' } },
+    { name: 'qwen:8b', size: 10, capabilities: ['completion', 'tools', 'thinking'], details: { parameter_size: '8B' } }
+  ];
+  assert.equal(selectBestChatModel(models).name, 'qwen:8b');
+  assert.equal(normalizeOllamaOptions({}).keep_alive, '-1');
+});
+
+test('ComfyUI prompt architect has a strict positive and negative contract', () => {
+  const prompt = comfyPromptSystemPrompt();
+  assert.match(prompt, /POSITIVE PROMPT:/);
+  assert.match(prompt, /NEGATIVE PROMPT:/);
+  assert.match(prompt, /instead of asking vague follow-up questions/);
 });
 
 test('Ollama system profiles require evidence and do not invent actions', () => {

@@ -8,6 +8,6 @@ test('local autocomplete is deterministic and requires no provider', () => {
 });
 
 test('slash commands and skill routes are offered locally', () => {
-  assert.deepEqual(suggestions('/'), ['/image ', '/video ', '/revise ', '/document ', '/spreadsheet ']);
+  assert.deepEqual(suggestions('/', 6), ['/image ', '/video ', '/revise ', '/prompt ', '/document ', '/spreadsheet ']);
   assert.deepEqual(suggestions('@pap'), ['@papm ']);
 });

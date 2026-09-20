@@ -4,7 +4,7 @@
   root.masterChiefAutocomplete = api;
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   const commands = Object.freeze([
-    '/image ', '/video ', '/revise ', '/document ', '/spreadsheet ',
+    '/image ', '/video ', '/revise ', '/prompt ', '/document ', '/spreadsheet ',
     '/presentation ', '/python ', '/r ', '/sql ', '/agent diagnostics',
     '@master-chief ', '@papm ', '@jarvis ', '@imagination ',
     '@prompt-engineering ', '@chief-ux ', '@captain-intelligence ',

@@ -38,7 +38,7 @@
       <label>Context<input id="ollamaContext" type="number" min="1024" max="131072" step="1024" value="8192"></label>
       <label>Max output<input id="ollamaMaxTokens" type="number" min="64" max="8192" step="64" value="1024"></label>
       <label>Seed<input id="ollamaSeed" type="number" min="0" placeholder="Random"></label>
-      <label>Keep loaded<select id="ollamaKeepAlive"><option value="5m">5 minutes</option><option value="30m">30 minutes</option><option value="1h">1 hour</option><option value="0">Unload after reply</option></select></label>
+      <label>Keep loaded<select id="ollamaKeepAlive"><option value="-1">Always (recommended)</option><option value="5m">5 minutes</option><option value="30m">30 minutes</option><option value="1h">1 hour</option><option value="0">Unload after reply</option></select></label>
     </div>
     <div class="ollama-runtime-bar"><span id="ollamaRuntimeStatus">Runtime details unavailable</span><button id="ollamaEvaluateBtn" type="button">Run 90% check</button><button id="ollamaRefreshBtn" type="button">Refresh models</button><button id="ollamaUnloadBtn" type="button">Unload selected</button></div><div id="ollamaEvaluationStatus" class="hint" role="status" aria-live="polite">Weighted end-to-end evaluation has not run.</div>
     <p class="hint">Native local streaming is on. Use <strong>/agent your objective</strong> for approved tool selection. ⌘/Ctrl+Enter sends; ⌘/Ctrl+L focuses the command box.</p>

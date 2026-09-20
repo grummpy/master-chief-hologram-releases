@@ -44,8 +44,17 @@ test('Clear All removes generated media lineage while preserving credentials and
   const main = fs.readFileSync(path.join(root, 'main.js'), 'utf8');
   assert.match(main, /mediaJobLedger\.clear\(\)/);
   assert.match(main, /referenceStudio\.clear\(\)/);
+  assert.match(main, /recordPrivacyClear\(includeMedia\)/);
+  assert.match(renderer, /restorePrivateHistory/);
   assert.match(main, /fs\.rmSync\(path\.join\(generatedArtifactDir, entry\.name\)/);
   assert.doesNotMatch(main.slice(main.indexOf("secureHandle('clear-private-history'"), main.indexOf("secureHandle('open-artifact'")), /credentials|connector-settings|tool-approvals/);
+});
+
+test('natural-language ComfyUI prompt authoring fills both prompt fields', () => {
+  assert.match(renderer, /isComfyPromptAuthoringRequest/);
+  assert.match(renderer, /intent:'comfy-prompt'/);
+  assert.match(renderer, /applyComfyPromptPair/);
+  assert.match(fs.readFileSync(path.join(root, 'autocomplete.js'), 'utf8'), /\/prompt /);
 });
 
 test('workspace shell exposes protected Projects, right-side previews, and connector setup', () => {
