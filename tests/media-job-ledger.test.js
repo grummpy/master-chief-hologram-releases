@@ -51,3 +51,12 @@ test('ledger recovers interrupted work and preserves revision lineage', () => {
     assert.equal(retry.parameters.prompt, 'change helmet');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
+
+test('ledger preserves selected VAE, upscaler, and pose-control parameters', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-ledger-models-'));
+  try {
+    const ledger = createMediaJobLedger(path.join(root, 'jobs.json'));
+    const job = ledger.create({ requestId: 'control', kind: 'control', prompt: 'pose', vae: 'sdxl_vae.safetensors', upscaler: '4x-UltraSharp.pth', controlnet: 'OpenPoseXL2.safetensors', controlStrength: .9, controlStart: .1, controlEnd: .85 }).job;
+    assert.deepEqual({ vae: job.parameters.vae, upscaler: job.parameters.upscaler, controlnet: job.parameters.controlnet, strength: job.parameters.controlStrength, start: job.parameters.controlStart, end: job.parameters.controlEnd }, { vae: 'sdxl_vae.safetensors', upscaler: '4x-UltraSharp.pth', controlnet: 'OpenPoseXL2.safetensors', strength: .9, start: .1, end: .85 });
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});

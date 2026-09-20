@@ -20,7 +20,7 @@ test('Reference Studio persists the complete hierarchy and review state atomical
     const store = createReferenceStudioStore(path.join(root, 'reference-studio.json'));
     const { project, subject, sheet } = fixture(store);
     const view = store.saveView({ projectId: project.id, subjectId: subject.id, sheetId: sheet.id }, { artifact: 'artifacts/generated/nova.png', label: 'front', status: 'approved', annotation: 'primary face view' });
-    const shot = store.saveShot(project.id, { title: 'Bridge', positivePrompt: 'bridge wide shot', negativePrompt: 'blur', pose: 'saluting', environment: 'bridge', camera: '35mm', lighting: 'cyan rim', model: 'model.safetensors', workflow: 'sdxl-revision-v1', referenceStrength: .8, denoise: .72, status: 'queued' }, subject.id, sheet.id);
+    const shot = store.saveShot(project.id, { title: 'Bridge', positivePrompt: 'bridge wide shot', negativePrompt: 'blur', pose: 'saluting', environment: 'bridge', camera: '35mm', lighting: 'cyan rim', model: 'model.safetensors', workflow: 'sdxl-revision-v1', referenceStrength: .8, denoise: .72, referenceSha256: 'a'.repeat(64), seed: 42, sampler: 'euler', scheduler: 'normal', steps: 32, cfg: 7, width: 832, height: 1216, batch: 4, status: 'queued' }, subject.id, sheet.id);
     const variant = store.saveVariant({ projectId: project.id, subjectId: subject.id, sheetId: sheet.id, shotId: shot.id }, { artifact: 'artifacts/generated/variant.png', requestId: 'request-1', status: 'approved', parentVariantId: '', annotation: 'best face' });
     const state = store.read();
     assert.equal(state.schemaVersion, 2);
@@ -29,6 +29,8 @@ test('Reference Studio persists the complete hierarchy and review state atomical
     assert.equal(state.projects[0].subjects[0].referenceSheets[0].shots[0].camera, '35mm');
     assert.equal(state.projects[0].subjects[0].referenceSheets[0].shots[0].denoise, .72);
     assert.equal(state.projects[0].subjects[0].referenceSheets[0].shots[0].referenceMode, 'approved');
+    assert.equal(state.projects[0].subjects[0].referenceSheets[0].shots[0].referenceSha256, 'a'.repeat(64));
+    assert.deepEqual({ seed: state.projects[0].subjects[0].referenceSheets[0].shots[0].seed, sampler: state.projects[0].subjects[0].referenceSheets[0].shots[0].sampler, batch: state.projects[0].subjects[0].referenceSheets[0].shots[0].batch }, { seed: 42, sampler: 'euler', batch: 4 });
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 

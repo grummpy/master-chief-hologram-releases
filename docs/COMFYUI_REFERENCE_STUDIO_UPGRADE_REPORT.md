@@ -39,7 +39,7 @@ The largest quality problem is not prompt truncation or transport. The applicati
 
 ### Readiness limitation
 
-The worker does not expose an OpenPose preprocessor node in the current object inventory. It can consume an already prepared pose map, but a one-click “extract pose from photo” feature needs a separately verified preprocessor node/package. That installation must be treated as a model/node readiness change, with compatibility, license, checksum, rollback, and AMD validation before enablement.
+The worker does not expose an OpenPose preprocessor node in the current object inventory. It can consume an already prepared pose map, but a one-click “extract pose from photo” feature needs a separately verified preprocessor node/package. The prepared-map graph passed a live AMD execution test; semantic pose quality remains pending a valid pose-map fixture. The FaceID files and nodes are present, but the required InsightFace `buffalo_l` or `antelopev2` recognition model is not installed. Those missing components must be treated as model/node readiness changes, with compatibility, license, checksum, rollback, and AMD validation before enablement.
 
 ## Current upstream ComfyUI capabilities reviewed
 
@@ -111,8 +111,8 @@ The failure pattern is typical of text-only SDXL. More prose alone will not reli
 - [x] Add an **Edit** action that reloads all shot controls.
 - [x] Show the reference mode on each queued shot.
 - [x] Add regression tests for clean mode and Reference Studio controls.
-- [ ] Add a preflight card showing the exact prompt, negative prompt, reference path/mode, model, workflow, seed, sampler, scheduler, steps, CFG, size, denoise, and strengths before queueing.
-- [ ] Add a stale-source check that rejects a missing or changed selected artifact.
+- [x] Add a preflight card showing the exact prompt, negative prompt, reference path/mode, model, workflow, seed, sampler, scheduler, steps, CFG, size, denoise, and strengths before queueing.
+- [x] Add a stale-source check that rejects a missing or changed selected artifact.
 
 ### P0 — live capability truth
 
@@ -121,16 +121,16 @@ The failure pattern is typical of text-only SDXL. More prose alone will not reli
 - [x] Display detected advanced reference capabilities in Reference Studio.
 - [x] Report current frontend and template package versions from `/system_stats`.
 - [x] Add compatibility results per registered workflow: ready, missing node, missing model, or disabled.
-- [ ] Add a one-click **Open ComfyUI Design Studio** action with the current workflow/session context.
+- [x] Add a one-click **Open ComfyUI Design Studio** action for the live worker; automatic graph/session handoff remains queued.
 
 ### P1 — scene progression for a novice operator
 
 - [x] Add one-click guidance for new scene, new pose, camera change, relight, detail pass, and structural rebuild.
 - [x] Keep the guidance visible and editable instead of silently rewriting the operator's prompt.
-- [ ] Add recipes for portrait, full body, two-person blocking, product shot, environment, turnaround sheet, and cinematic sequence.
-- [ ] Add **What changes / What stays locked** review before execution.
-- [ ] Add explainers for denoise, CFG, seed, sampler, scheduler, and reference strength beside each control.
-- [ ] Add four-seed exploration, contact-sheet generation, and promote-winner in one operation.
+- [x] Add first-wave recipes for portrait, full body, turnaround sheet, and cinematic framing; two-person, product, and environment recipes remain queued.
+- [x] Add **What changes / What stays locked** review before execution.
+- [x] Add explainers for denoise, CFG, seed, sampler, scheduler, and reference strength beside each control.
+- [x] Add four-variant exploration, automatic contact-sheet intake, and promote-winner through the existing variant review flow.
 
 ### P1 — identity and style control
 
@@ -143,8 +143,8 @@ The failure pattern is typical of text-only SDXL. More prose alone will not reli
 
 ### P1 — pose and structural control
 
-- [ ] Register a ControlNet API workflow that accepts a prepared OpenPose map.
-- [ ] Add pose-control strength and start/end percentage.
+- [x] Register a ControlNet API workflow that accepts a prepared OpenPose map.
+- [x] Add pose-control strength and start/end percentage.
 - [ ] Verify OpenPose XL and Control LoRA independently against Juggernaut XL and SDXL Base.
 - [ ] Review and explicitly approve a compatible OpenPose preprocessor package before installation.
 - [ ] After approval, add **Extract pose** and an editable pose preview.

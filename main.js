@@ -547,8 +547,8 @@ function updateMediaJob(requestId, patch) { return emitMediaJob(mediaJobLedger.u
 function mediaContract(payload = {}) {
   const kind = String(payload.kind || 'image');
   if (kind === 'image' && payload.sourceArtifact) return 'revision';
-  if (['image', 'revision', 'rebuild', 'upscale', 'video'].includes(kind)) return kind;
-  throw new Error('Media contract must be image, revision, rebuild, upscale, or video.');
+  if (['image', 'revision', 'rebuild', 'upscale', 'control', 'video'].includes(kind)) return kind;
+  throw new Error('Media contract must be image, revision, rebuild, upscale, control, or video.');
 }
 
 async function executeMediaJob(requestId) {
@@ -562,7 +562,7 @@ async function executeMediaJob(requestId) {
     updateMediaJob(requestId, { status: 'loading', stage: 'load', progress: 10 });
     let sourceImage = '';
     let safeUpscale = null;
-    if (['revision', 'upscale'].includes(contract)) {
+    if (['revision', 'upscale', 'control'].includes(contract)) {
       const localSource = resolveArtifactPath(payload.sourceArtifact);
       if (!localSource || !/\.(png|jpe?g|webp)$/i.test(localSource)) throw new Error('The selected source is unavailable or is not a supported image.');
       if (contract === 'upscale' && payload.workflowId === 'ultrasharp-upscale-v1') {
@@ -598,6 +598,8 @@ async function executeMediaJob(requestId) {
     if (definition.modelFamily === 'sdxl' && (!selectedCheckpoint || !checkpoints.includes(selectedCheckpoint))) throw new Error('The selected checkpoint is not installed on the live ComfyUI worker.');
     if (payload.vae && !(await comfyClient.modelNames('vae')).includes(payload.vae)) throw new Error('The selected VAE is not installed on the live ComfyUI worker.');
     if (definition.modelFamily === 'upscale-model' && !(await comfyClient.modelNames('upscale_models')).includes(payload.upscaler)) throw new Error('The selected upscale model is not installed on the live ComfyUI worker.');
+    const selectedControlnet = payload.controlnet || 'OpenPoseXL2.safetensors';
+    if (definition.contract === 'control' && !(await comfyClient.modelNames('controlnet')).includes(selectedControlnet)) throw new Error('The selected ControlNet model is not installed on the live ComfyUI worker.');
     const seed = Number.isSafeInteger(payload.seed) ? payload.seed : require('crypto').randomInt(1, 2147483646);
     const rawPrompt = contract === 'upscale' ? 'Deterministic image upscale' : String(payload.prompt || '');
     const workflow = cloneAndFillWorkflow(template, {
@@ -608,6 +610,10 @@ async function executeMediaJob(requestId) {
       checkpoint: selectedCheckpoint,
       vae: payload.vae,
       upscaler: payload.upscaler,
+      controlnet: selectedControlnet,
+      controlStrength: payload.controlStrength,
+      controlStart: payload.controlStart,
+      controlEnd: payload.controlEnd,
       preScale: safeUpscale?.preScale,
       seed,
       revisionStrength: payload.denoise ?? payload.revisionStrength
@@ -678,6 +684,45 @@ function effectiveShotPrompt(subject, sheet, shot) {
   return [shot.positivePrompt, shot.pose && `Pose: ${shot.pose}`, shot.environment && `Environment: ${shot.environment}`, shot.camera && `Camera: ${shot.camera}`, shot.lighting && `Lighting: ${shot.lighting}`, subject.appearanceNotes && `Appearance notes: ${subject.appearanceNotes}`, sheet.appearanceNotes && `Reference-sheet notes: ${sheet.appearanceNotes}`, subject.palette && `Palette: ${subject.palette}`, sheet.palette && `Sheet palette: ${sheet.palette}`, subject.continuityLocks && `Continuity locks: ${subject.continuityLocks}`, sheet.continuityLocks && `Sheet continuity locks: ${sheet.continuityLocks}`, shot.continuityLocks && `Shot continuity locks: ${shot.continuityLocks}`].filter(Boolean).join('\n');
 }
 
+function resolveShotSource(sheet, shot) {
+  if (shot.referenceMode === 'none') return '';
+  if (shot.referenceMode === 'selected') return shot.referenceArtifact || '';
+  return sheet.approvedViews.find(view => view.status === 'approved')?.artifact || '';
+}
+
+function artifactFingerprint(relativePath) {
+  if (!relativePath) return null;
+  const file = resolveArtifactPath(relativePath);
+  if (!file || !fs.statSync(file).isFile()) throw new Error('The selected reference artifact is unavailable. Choose another reference or use clean generation.');
+  return { path: relativePath, bytes: fs.statSync(file).size, sha256: require('crypto').createHash('sha256').update(fs.readFileSync(file)).digest('hex') };
+}
+
+async function preflightReferenceShot(payload) {
+  const { subject, sheet } = referenceLocation(payload);
+  const shot = payload?.shot || {};
+  const sourceArtifact = resolveShotSource(sheet, shot);
+  if (shot.referenceMode === 'selected' && !sourceArtifact) throw new Error('Selected-reference mode requires a reference artifact.');
+  if (shot.referenceMode === 'approved' && !sourceArtifact) throw new Error('No approved reference view is available. Promote a view or use clean generation.');
+  const source = artifactFingerprint(sourceArtifact);
+  const contract = source ? (shot.controlMode === 'pose' ? 'control' : 'revision') : 'image';
+  const definition = shot.workflow ? workflowRegistry.get(shot.workflow) : workflowRegistry.forKind(contract);
+  if (definition.contract !== contract) throw new Error(`Workflow ${definition.id} does not support ${contract}.`);
+  const checkpoints = await comfyClient.checkpoints();
+  const checkpoint = shot.model || checkpoints.find(name => /juggernaut.*xl.*v9/i.test(name)) || checkpoints.find(name => /juggernaut.*xl/i.test(name)) || checkpoints.find(name => /sd.?xl/i.test(name));
+  if (!checkpoint || !checkpoints.includes(checkpoint)) throw new Error('No compatible installed checkpoint is available.');
+  const seed = Number.isSafeInteger(shot.seed) ? shot.seed : require('crypto').randomInt(1, 2147483646);
+  return {
+    contract, effectivePrompt: effectiveShotPrompt(subject, sheet, shot), negativePrompt: String(shot.negativePrompt || ''),
+    referenceMode: shot.referenceMode || 'approved', source,
+    workflow: { id: definition.id, version: definition.version, sha256: definition.sha256 }, checkpoint,
+    parameters: { seed, sampler: shot.sampler || 'dpmpp_2m', scheduler: shot.scheduler || 'karras', steps: Number(shot.steps || 28), cfg: Number(shot.cfg ?? 6.5), width: Number(shot.width || 768), height: Number(shot.height || 1024), batch: Number(shot.batch || 1), denoise: Number(shot.denoise ?? .84), referenceStrength: Number(shot.referenceStrength ?? .75), controlMode: shot.controlMode || 'revision', controlnet: shot.controlnet || 'OpenPoseXL2.safetensors', controlStrength: Number(shot.controlStrength ?? 1), controlStart: Number(shot.controlStart ?? 0), controlEnd: Number(shot.controlEnd ?? 1) },
+    changePlan: {
+      changes: [['Pose', shot.pose], ['Environment', shot.environment], ['Camera', shot.camera], ['Lighting', shot.lighting]].filter(([, value]) => String(value || '').trim()).map(([label, value]) => `${label}: ${value}`),
+      locks: [subject.continuityLocks, sheet.continuityLocks, shot.continuityLocks].filter(value => String(value || '').trim())
+    }
+  };
+}
+
 async function executeReferenceShot(ids, queue) {
   const { subject, sheet, shot } = referenceLocation(ids);
   if (queue.cancelled) return;
@@ -686,14 +731,16 @@ async function executeReferenceShot(ids, queue) {
   const requestId = require('crypto').randomUUID();
   queue.requestIds.add(requestId);
   try {
-    const sourceArtifact = shot.referenceMode === 'none' ? '' : shot.referenceMode === 'selected'
-      ? shot.referenceArtifact
-      : sheet.approvedViews.find(view => view.status === 'approved')?.artifact || '';
+    const sourceArtifact = resolveShotSource(sheet, shot);
+    const source = artifactFingerprint(sourceArtifact);
+    if (source && shot.referenceSha256 && source.sha256 !== shot.referenceSha256) throw new Error('The selected reference changed after preflight. Review the shot again before running it.');
     const result = await generateLocalMedia({
-      kind: sourceArtifact ? 'revision' : 'image', requestId, sessionId: queue.id,
+      kind: sourceArtifact ? (shot.controlMode === 'pose' ? 'control' : 'revision') : 'image', requestId, sessionId: queue.id,
       prompt: effectiveShotPrompt(subject, sheet, shot), negativePrompt: shot.negativePrompt,
       sourceArtifact: sourceArtifact || undefined, parentRevision: sourceArtifact || undefined,
       checkpoint: shot.model || undefined, workflowId: shot.workflow || undefined,
+      seed: shot.seed, sampler: shot.sampler, scheduler: shot.scheduler, steps: shot.steps, cfg: shot.cfg, width: shot.width, height: shot.height, batch: shot.batch,
+      controlnet: shot.controlnet, controlStrength: shot.controlStrength, controlStart: shot.controlStart, controlEnd: shot.controlEnd,
       denoise: shot.denoise, revisionStrength: shot.denoise, references: sourceArtifact ? [sourceArtifact] : []
     });
     let parentVariantId = '';
@@ -1449,7 +1496,7 @@ secureHandle('media-catalog', async () => {
     comfyClient.checkpoints(), comfyClient.modelNames('vae'), comfyClient.modelNames('upscale_models'),
     comfyClient.modelNames('controlnet'), comfyClient.modelNames('clip_vision'), comfyClient.modelNames('loras'), comfyClient.capabilities()
   ]) : [[], [], [], [], [], [], {}];
-  const workflows = evaluateWorkflowReadiness(workflowRegistry.list(), detected.availableNodes, { checkpoints, vaes, upscalers });
+  const workflows = evaluateWorkflowReadiness(workflowRegistry.list(), detected.availableNodes, { checkpoints, vaes, upscalers, controlnets });
   return { checkpoints, vaes, upscalers, controlnets, clipVision, loras, workflows, detected,
     capabilities: { image: true, revision: true, rebuild: true, upscale: true, video },
     videoReadiness: video ? 'ready' : 'missing approved AMD workflow and model bundle' };
@@ -1496,6 +1543,7 @@ secureHandle('reference-studio-save-sheet', (_event, payload) => referenceStudio
 secureHandle('reference-studio-save-view', (_event, payload) => referenceStudio.saveView(payload, payload?.view));
 secureHandle('reference-studio-save-shot', (_event, payload) => referenceStudio.saveShot(String(payload?.projectId || ''), payload?.shot, String(payload?.subjectId || ''), String(payload?.sheetId || '')));
 secureHandle('reference-studio-save-variant', (_event, payload) => referenceStudio.saveVariant(payload, payload?.variant));
+secureHandle('reference-studio-preflight-shot', (_event, payload) => preflightReferenceShot(payload));
 secureHandle('reference-studio-remove-shot', (_event, payload) => referenceStudio.removeShot(String(payload?.projectId || ''), String(payload?.shotId || ''), String(payload?.subjectId || ''), String(payload?.sheetId || '')));
 secureHandle('reference-studio-run-queue', (_event, payload) => runReferenceQueue(payload));
 secureHandle('reference-studio-cancel-queue', async (_event, payload) => {

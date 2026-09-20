@@ -71,6 +71,7 @@ contextBridge.exposeInMainWorld('masterChief', {
   saveReferenceView: payload => ipcRenderer.invoke('reference-studio-save-view', payload),
   saveReferenceShot: payload => ipcRenderer.invoke('reference-studio-save-shot', payload),
   saveReferenceVariant: payload => ipcRenderer.invoke('reference-studio-save-variant', payload),
+  preflightReferenceShot: payload => ipcRenderer.invoke('reference-studio-preflight-shot', payload),
   removeReferenceShot: payload => ipcRenderer.invoke('reference-studio-remove-shot', payload),
   runReferenceQueue: payload => ipcRenderer.invoke('reference-studio-run-queue', payload),
   cancelReferenceQueue: queueId => ipcRenderer.invoke('reference-studio-cancel-queue', { queueId }),

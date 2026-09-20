@@ -11,6 +11,7 @@ const iso = () => new Date().toISOString();
 const id = value => cleanText(value, 100) || crypto.randomUUID();
 function cleanText(value, max = 4000) { return String(value || '').trim().slice(0, max); }
 function number(value, fallback, min = 0, max = 1) { const parsed = Number(value); return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback; }
+function integer(value, fallback, min, max) { const parsed = Number(value); return Number.isSafeInteger(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback; }
 
 function normalizeVariant(input = {}, existing = {}) {
   return {
@@ -38,6 +39,14 @@ function normalizeShot(input = {}, existing = {}) {
     camera: cleanText(input.camera ?? existing.camera, 1000), lighting: cleanText(input.lighting ?? existing.lighting, 1000),
     model: cleanText(input.model ?? existing.model, 500), workflow: cleanText(input.workflow ?? existing.workflow, 200),
     referenceMode: REFERENCE_MODES.has(input.referenceMode) ? input.referenceMode : (existing.referenceMode || (cleanText(input.referenceArtifact ?? existing.referenceArtifact, 1000) ? 'selected' : 'approved')),
+    referenceSha256: cleanText(input.referenceSha256 ?? existing.referenceSha256, 64),
+    controlMode: input.controlMode === 'pose' ? 'pose' : 'revision',
+    controlnet: cleanText(input.controlnet ?? existing.controlnet, 500) || 'OpenPoseXL2.safetensors',
+    controlStrength: number(input.controlStrength ?? existing.controlStrength, 1, 0, 2), controlStart: number(input.controlStart ?? existing.controlStart, 0), controlEnd: number(input.controlEnd ?? existing.controlEnd, 1),
+    seed: integer(input.seed ?? existing.seed, null, 1, 2147483646),
+    sampler: cleanText(input.sampler ?? existing.sampler, 80) || 'dpmpp_2m', scheduler: cleanText(input.scheduler ?? existing.scheduler, 80) || 'karras',
+    steps: integer(input.steps ?? existing.steps, 28, 1, 100), cfg: number(input.cfg ?? existing.cfg, 6.5, 0, 30),
+    width: integer(input.width ?? existing.width, 768, 256, 2048), height: integer(input.height ?? existing.height, 1024, 256, 2048), batch: integer(input.batch ?? existing.batch, 1, 1, 4),
     continuityLocks: cleanText(input.continuityLocks ?? existing.continuityLocks, 2000),
     referenceStrength: number(input.referenceStrength ?? existing.referenceStrength, .75),
     denoise: number(input.denoise ?? existing.denoise, .84, .2, .99),

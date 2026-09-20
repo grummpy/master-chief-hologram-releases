@@ -6,16 +6,27 @@ const test = require('node:test');
 const { createWorkflowRegistry, evaluateWorkflowReadiness } = require('../workflow-registry');
 const { cloneAndFillWorkflow } = require('../comfyui-client');
 
-test('registry versions all four independent media contracts', () => {
+test('registry versions all supported independent media contracts', () => {
   const root = path.resolve(__dirname, '..');
   const registry = createWorkflowRegistry(root);
-  for (const contract of ['image', 'revision', 'rebuild', 'upscale']) {
+  for (const contract of ['image', 'revision', 'rebuild', 'upscale', 'control']) {
     const workflow = registry.forKind(contract);
     assert.equal(workflow.contract, contract);
     assert.match(workflow.version, /^\d+\.\d+\.\d+$/);
     assert.match(workflow.sha256, /^[a-f0-9]{64}$/);
     assert.ok(Array.isArray(workflow.requiredNodes));
   }
+});
+
+test('OpenPose workflow binds a prepared map and explicit control window', () => {
+  const root = path.resolve(__dirname, '..');
+  const registry = createWorkflowRegistry(root);
+  const definition = registry.forKind('control');
+  const result = cloneAndFillWorkflow(require(definition.file), { prompt: 'full body pose', negativePrompt: 'bad hands', sourceImage: 'pose-map.png', checkpoint: 'juggernaut.safetensors', controlnet: 'OpenPoseXL2.safetensors', controlStrength: .85, controlStart: .05, controlEnd: .8, seed: 77 });
+  assert.equal(result['4'].inputs.control_net_name, 'OpenPoseXL2.safetensors');
+  assert.equal(result['5'].inputs.image, 'pose-map.png');
+  assert.deepEqual({ strength: result['6'].inputs.strength, start: result['6'].inputs.start_percent, end: result['6'].inputs.end_percent }, { strength: .85, start: .05, end: .8 });
+  assert.equal(result['8'].inputs.seed, 77);
 });
 
 test('image workflow receives the recorded operator parameters', () => {
@@ -48,7 +59,7 @@ test('UltraSharp and external VAE workflows bind only named installed models', (
 test('main process recognizes video and reports its gated readiness precisely', () => {
   const fs = require('node:fs');
   const main = fs.readFileSync(path.resolve(__dirname, '..', 'main.js'), 'utf8');
-  assert.match(main, /\['image', 'revision', 'rebuild', 'upscale', 'video'\]/);
+  assert.match(main, /\['image', 'revision', 'rebuild', 'upscale', 'control', 'video'\]/);
   assert.match(main, /Video generation is not ready on the Windows worker/);
   assert.doesNotMatch(main, /Media contract must be image, revision, rebuild, or upscale\./);
 });
