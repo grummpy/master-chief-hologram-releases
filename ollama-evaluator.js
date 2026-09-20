@@ -23,7 +23,7 @@ async function runOllamaEvaluation({ baseUrl = 'http://127.0.0.1:11434', model, 
     const item = CASES[index]; const started = Date.now(); let output = ''; let error = '';
     onProgress?.({ index, total: CASES.length, area: item.area });
     try {
-      const response = await fetch(`${baseUrl.replace(/\/$/, '')}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model, stream: false, messages: [{ role: 'system', content: 'Follow the user request exactly. Produce the requested final result without preamble or follow-up questions.' }, { role: 'user', content: item.prompt }], ...(item.format ? { format: item.format } : {}), options: { temperature: 0, seed: 42, num_ctx: 4096, num_predict: 320 }, keep_alive: '10m' }) });
+      const response = await fetch(`${baseUrl.replace(/\/$/, '')}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model, think: false, stream: false, messages: [{ role: 'system', content: 'Follow the user request exactly. Produce the requested final result without preamble or follow-up questions.' }, { role: 'user', content: item.prompt }], ...(item.format ? { format: item.format } : {}), options: { temperature: 0, seed: 42, num_ctx: 4096, num_predict: 320 }, keep_alive: '10m' }) });
       const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`); output = String(body.message?.content || '');
     } catch (value) { error = String(value.message || value); }
     let passed = false; try { passed = !error && Boolean(item.check(output)); } catch (value) { error = error || String(value.message || value); }
