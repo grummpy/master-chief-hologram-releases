@@ -180,6 +180,13 @@ const activeMediaJobs = new Map();
 const activeReferenceQueues = new Map();
 mediaJobLedger.recoverInterrupted();
 function privacyState() { try { return JSON.parse(fs.readFileSync(privacyStateFile, 'utf8')); } catch { return { conversationsClearedAt: null, mediaClearedAt: null }; } }
+function initializePrivacyState() {
+  if (fs.existsSync(privacyStateFile)) return privacyState();
+  const initialized = { conversationsClearedAt: new Date().toISOString(), mediaClearedAt: null, reason: 'privacy-receipt-migration' };
+  fs.writeFileSync(privacyStateFile, `${JSON.stringify(initialized, null, 2)}\n`, { mode: 0o600 });
+  return initialized;
+}
+initializePrivacyState();
 function recordPrivacyClear(includeMedia) {
   const previous = privacyState(); const now = new Date().toISOString();
   const next = { conversationsClearedAt: now, mediaClearedAt: includeMedia ? now : previous.mediaClearedAt || null };

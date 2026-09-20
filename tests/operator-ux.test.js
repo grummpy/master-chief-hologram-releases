@@ -35,6 +35,8 @@ test('Clear purges all conversation history and local retrieval traces', () => {
   assert.match(main, /clearStorageData/);
   assert.match(main, /ragIndex\.clear\(\)/);
   assert.match(main, /conversationsClearedAt/);
+  assert.match(main, /privacy-receipt-migration/);
+  assert.match(main, /initializePrivacyState\(\)/);
   assert.match(renderer, /Clear Chat/);
 });
 
