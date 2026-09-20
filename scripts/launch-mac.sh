@@ -42,13 +42,21 @@ update_repo() {
 UPDATE_RESULT=0
 update_repo || UPDATE_RESULT=$?
 
+EXPECTED_VERSION="$(node -p "require('./package.json').version")"
+INSTALLED_VERSION=""
+if [[ -f "$APP_BUNDLE/Contents/Info.plist" ]]; then
+  INSTALLED_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_BUNDLE/Contents/Info.plist" 2>/dev/null || true)"
+fi
+NEED_INSTALL=0
+[[ "$INSTALLED_VERSION" == "$EXPECTED_VERSION" ]] || NEED_INSTALL=1
+
 if [[ ! -x "$APP_DIR/node_modules/.bin/electron" ]]; then
   "$NPM_BIN" ci >>"$LOG_DIR/launcher.log" 2>&1
 fi
 
 # Build into dist first, then replace the desktop bundle as one directory
 # operation.  Preserve the existing bundle if a build fails.
-if [[ "$UPDATE_RESULT" -eq 10 || ! -d "$APP_BUNDLE" ]] && [[ -x "$APP_DIR/node_modules/.bin/electron-builder" ]]; then
+if [[ "$UPDATE_RESULT" -eq 10 || "$NEED_INSTALL" -eq 1 || ! -d "$APP_BUNDLE" ]] && [[ -x "$APP_DIR/node_modules/.bin/electron-builder" ]]; then
   STAGE_DIR="$(mktemp -d /tmp/master-chief-hologram-stage.XXXXXX)"
   PREVIOUS_BUNDLE="$DESKTOP_DIR/.Master Chief Hologram.app.previous"
   trap 'rm -rf "$STAGE_DIR"; rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
