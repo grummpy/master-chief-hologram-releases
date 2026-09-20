@@ -11,6 +11,7 @@
 - Corrected ElevenLabs telemetry so local macOS speech no longer makes the cloud connector appear configured.
 - Added strongest-tool-model selection so local agent work prefers Qwen3 8B over micro models once installed.
 - Added a bounded local code loop: exact one-match repository patches with before/after hashes plus a fixed `npm test` command.
+- Added cost class directly to the provider selector and one-time cloud-send confirmation.
 
 ## 1.10.1
 
