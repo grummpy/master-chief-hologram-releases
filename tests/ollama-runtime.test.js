@@ -20,6 +20,7 @@ test('Ollama controls clamp operator values and preserve task mode', () => {
 test('Ollama system profiles require evidence and do not invent actions', () => {
   const prompt = ollamaSystemPrompt({ masterMode: true, mode: 'coding' });
   assert.match(prompt, /Never claim a file, command, tool result/);
+  assert.match(prompt, /Produce the finished deliverable now/);
   assert.match(prompt, /TASK MODE: CODING/);
   assert.match(prompt, /Inspect before changing/);
 });
