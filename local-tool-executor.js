@@ -11,7 +11,9 @@ const LOCAL_TOOL_IDS = Object.freeze([
   'diagnostics.git_status',
   'project.list_files',
   'project.read_text_file',
+  'project.preview_replace',
   'project.replace_text',
+  'project.rollback_edit',
   'project.run_tests',
   'artifacts.list'
 ]);
@@ -22,6 +24,11 @@ function truncate(value, limit = 8000) {
 }
 
 function sha256(value) { return crypto.createHash('sha256').update(value).digest('hex'); }
+function replacementDiff(relativePath, oldText, newText) {
+  const removed = String(oldText).split(/\r?\n/).map(line => `-${line}`).join('\n');
+  const added = String(newText).split(/\r?\n/).map(line => `+${line}`).join('\n');
+  return truncate(`--- a/${relativePath}\n+++ b/${relativePath}\n@@ exact replacement @@\n${removed}\n${added}`, 5000);
+}
 
 function containedPath(root, relativePath) {
   const target = path.resolve(root, String(relativePath || '.'));
@@ -29,9 +36,14 @@ function containedPath(root, relativePath) {
   return target;
 }
 
-function createLocalToolExecutor({ appVersion, projectDir, artifactDirs = [], execFile }) {
+function createLocalToolExecutor({ appVersion, projectDir, artifactDirs = [], editHistoryDir, execFile }) {
   if (typeof execFile !== 'function') throw new Error('A fixed-command executor is required.');
   const safeProjectDir = path.resolve(projectDir);
+  const historyRoot = path.resolve(editHistoryDir || path.join(safeProjectDir, '.master-chief-edit-history'));
+  function atomicWrite(target, content, mode) { const temp = `${target}.${process.pid}.agent-edit.tmp`; fs.writeFileSync(temp, content, { mode }); fs.renameSync(temp, target); }
+  function receiptPath(kind, id) { if (!/^[a-f0-9-]{36}$/.test(String(id || ''))) throw new Error(`A valid ${kind} receipt is required.`); return path.join(historyRoot, `${kind}-${id}.json`); }
+  function readReceipt(kind, id) { const file = receiptPath(kind, id); if (!fs.existsSync(file)) throw new Error(`${kind === 'preview' ? 'Preview' : 'Rollback'} receipt was not found or has expired.`); return { file, value: JSON.parse(fs.readFileSync(file, 'utf8')) }; }
+  function writeReceipt(kind, id, value) { fs.mkdirSync(historyRoot, { recursive: true, mode: 0o700 }); const file = receiptPath(kind, id); fs.writeFileSync(file, JSON.stringify(value), { mode: 0o600 }); return file; }
   return {
     ids: LOCAL_TOOL_IDS,
     async execute(id, input = {}) {
@@ -71,7 +83,7 @@ function createLocalToolExecutor({ appVersion, projectDir, artifactDirs = [], ex
         if (content.includes('\u0000')) throw new Error('Binary files are not supported by this tool.');
         return { tool: id, result: { path: relativePath, content: truncate(content, 12000) }, summary: `Read ${relativePath} (${stat.size} bytes).` };
       }
-      if (id === 'project.replace_text') {
+      if (id === 'project.preview_replace') {
         const relativePath = String(input.path || '').trim(); const oldText = String(input.oldText || ''); const newText = String(input.newText || '');
         if (!relativePath || !oldText) throw new Error('A project-relative path and non-empty oldText are required.');
         if (oldText.length > 20000 || newText.length > 20000) throw new Error('A single replacement is limited to 20,000 characters.');
@@ -80,9 +92,28 @@ function createLocalToolExecutor({ appVersion, projectDir, artifactDirs = [], ex
         const original = fs.readFileSync(target, 'utf8'); if (original.includes('\u0000')) throw new Error('Binary files are not supported by this tool.');
         const occurrences = original.split(oldText).length - 1;
         if (occurrences !== 1) throw new Error(`oldText must match exactly once; found ${occurrences}.`);
-        const updated = original.replace(oldText, newText); const temp = `${target}.${process.pid}.agent-edit.tmp`;
-        fs.writeFileSync(temp, updated, { mode: stat.mode }); fs.renameSync(temp, target);
-        return { tool: id, result: { path: relativePath, beforeSha256: sha256(original), afterSha256: sha256(updated), changedBytes: Buffer.byteLength(updated) - Buffer.byteLength(original) }, summary: `Updated one exact match in ${relativePath}.` };
+        const updated = original.replace(oldText, newText); const previewId = crypto.randomUUID();
+        const receipt = { previewId, path: relativePath, oldText, newText, beforeSha256: sha256(original), afterSha256: sha256(updated), changedBytes: Buffer.byteLength(updated) - Buffer.byteLength(original), createdAt: new Date().toISOString() };
+        writeReceipt('preview', previewId, receipt);
+        return { tool: id, result: { ...receipt, diff: replacementDiff(relativePath, oldText, newText) }, summary: `Previewed one exact replacement in ${relativePath}; apply with preview receipt ${previewId}.` };
+      }
+      if (id === 'project.replace_text') {
+        const { file: previewFile, value: preview } = readReceipt('preview', input.previewId);
+        const target = containedPath(safeProjectDir, preview.path); const stat = fs.statSync(target); const original = fs.readFileSync(target, 'utf8');
+        if (sha256(original) !== preview.beforeSha256) throw new Error('The file changed after preview. Create a fresh preview before applying.');
+        const updated = original.replace(preview.oldText, preview.newText);
+        if (sha256(updated) !== preview.afterSha256) throw new Error('Preview verification failed; no change was written.');
+        atomicWrite(target, updated, stat.mode); const rollbackId = crypto.randomUUID();
+        writeReceipt('rollback', rollbackId, { rollbackId, path: preview.path, beforeSha256: preview.beforeSha256, afterSha256: preview.afterSha256, original, createdAt: new Date().toISOString() });
+        fs.unlinkSync(previewFile);
+        return { tool: id, result: { path: preview.path, previewId: preview.previewId, rollbackId, beforeSha256: preview.beforeSha256, afterSha256: preview.afterSha256, changedBytes: preview.changedBytes }, summary: `Applied the verified preview to ${preview.path}. Rollback receipt: ${rollbackId}.` };
+      }
+      if (id === 'project.rollback_edit') {
+        const { file: rollbackFile, value: rollback } = readReceipt('rollback', input.rollbackId); const target = containedPath(safeProjectDir, rollback.path);
+        const stat = fs.statSync(target); const current = fs.readFileSync(target, 'utf8');
+        if (sha256(current) !== rollback.afterSha256) throw new Error('The file changed after this edit. Rollback stopped to preserve newer work.');
+        atomicWrite(target, rollback.original, stat.mode); fs.unlinkSync(rollbackFile);
+        return { tool: id, result: { path: rollback.path, rollbackId: rollback.rollbackId, restoredSha256: rollback.beforeSha256 }, summary: `Rolled back the verified edit to ${rollback.path}.` };
       }
       if (id === 'project.run_tests') {
         const result = await execFile('npm', ['test'], { cwd: safeProjectDir, timeout: 180000, maxBuffer: 2 * 1024 * 1024, windowsHide: true });

@@ -44,14 +44,30 @@ test('artifact listing returns bounded metadata', async () => {
   assert.equal(report.result.artifacts[0].name, 'brief.docx');
 });
 
-test('project patch requires one exact match and reports hashes', async () => {
+test('project patch requires a current preview and supports hash-safe rollback', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-edit-')); const target = path.join(root, 'app.txt');
   fs.writeFileSync(target, 'before value');
-  const executor = createLocalToolExecutor({ appVersion: '1.2.3', projectDir: root, execFile: async () => ({ stdout: '' }) });
-  const report = await executor.execute('project.replace_text', { path: 'app.txt', oldText: 'before', newText: 'after' });
+  const history = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-edit-history-'));
+  const executor = createLocalToolExecutor({ appVersion: '1.2.3', projectDir: root, editHistoryDir: history, execFile: async () => ({ stdout: '' }) });
+  const preview = await executor.execute('project.preview_replace', { path: 'app.txt', oldText: 'before', newText: 'after' });
+  assert.equal(fs.readFileSync(target, 'utf8'), 'before value');
+  assert.match(preview.result.diff, /--- a\/app\.txt[\s\S]*-before[\s\S]*\+after/);
+  const report = await executor.execute('project.replace_text', { previewId: preview.result.previewId });
   assert.equal(fs.readFileSync(target, 'utf8'), 'after value');
   assert.notEqual(report.result.beforeSha256, report.result.afterSha256);
-  await assert.rejects(() => executor.execute('project.replace_text', { path: 'app.txt', oldText: 'missing', newText: 'x' }), /found 0/);
+  const rollback = await executor.execute('project.rollback_edit', { rollbackId: report.result.rollbackId });
+  assert.equal(fs.readFileSync(target, 'utf8'), 'before value');
+  assert.equal(rollback.result.restoredSha256, report.result.beforeSha256);
+  await assert.rejects(() => executor.execute('project.preview_replace', { path: 'app.txt', oldText: 'missing', newText: 'x' }), /found 0/);
+});
+
+test('project patch refuses stale preview and rollback receipts', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-edit-stale-')); const target = path.join(root, 'app.txt');
+  fs.writeFileSync(target, 'before value');
+  const executor = createLocalToolExecutor({ appVersion: '1.2.3', projectDir: root, editHistoryDir: path.join(root, '.history'), execFile: async () => ({ stdout: '' }) });
+  const preview = await executor.execute('project.preview_replace', { path: 'app.txt', oldText: 'before', newText: 'after' });
+  fs.writeFileSync(target, 'newer value');
+  await assert.rejects(() => executor.execute('project.replace_text', { previewId: preview.result.previewId }), /changed after preview/);
 });
 
 test('project test runner invokes only npm test in the approved root', async () => {

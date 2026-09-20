@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.13.0
+
+- Added a durable, bounded repository editing sequence for the local Ollama agent: exact replacement preview, readable diff, hash-verified apply, and hash-verified rollback.
+- Preview and rollback receipts survive application restarts in private local application storage.
+- Stale previews and rollback attempts fail closed when a file has changed, preserving newer work.
+- Added separate Tool Access approvals and Ollama tool schemas for preview, apply, and rollback.
+
 ## 1.12.3
 
 - Made configurable Systems health rows and Creative connector rows open the credential setup dialog directly with the selected service preloaded.

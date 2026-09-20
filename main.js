@@ -246,7 +246,7 @@ function requireToolApproval(id) {
   }
 }
 const ragIndex = createRagIndex(path.join(app.getPath('userData'), 'local-index.json'));
-const localTools = createLocalToolExecutor({ appVersion: APP_VERSION, projectDir: sourceProjectDir, artifactDirs: [generatedArtifactDir, documentArtifactDir], execFile: execFileAsync });
+const localTools = createLocalToolExecutor({ appVersion: APP_VERSION, projectDir: sourceProjectDir, artifactDirs: [generatedArtifactDir, documentArtifactDir], editHistoryDir: path.join(app.getPath('userData'), 'edit-history'), execFile: execFileAsync });
 const localAiAudit = createLocalAiAudit(path.join(app.getPath('userData'), 'local-ai-audit.jsonl'));
 function toolAuditFile() { return path.join(app.getPath('userData'), 'tool-audit.jsonl'); }
 function microphoneStatus() { try { return process.platform === 'darwin' ? systemPreferences.getMediaAccessStatus('microphone') : 'granted'; } catch { return 'unknown'; } }
