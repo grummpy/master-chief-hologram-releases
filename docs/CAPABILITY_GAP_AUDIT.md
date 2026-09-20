@@ -1,6 +1,6 @@
 # Master Chief Capability and Jarvis Code Audit
 
-Assessed: 2026-09-20T15:29:40.742Z
+Assessed: 2026-09-20T15:39:14.928Z
 Weighted capability score: **90.5/100**
 Benchmark: Codex-style dependable local-first command center
 

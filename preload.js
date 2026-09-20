@@ -88,6 +88,7 @@ contextBridge.exposeInMainWorld('masterChief', {
   executeLocalTool: id => ipcRenderer.invoke('execute-local-tool', { id }),
   generateLocalMedia: payload => ipcRenderer.invoke('generate-local-media', payload),
   listGeneratedMedia: (limit, includeCleared = false) => ipcRenderer.invoke('list-generated-media', { limit, includeCleared }),
+  listReviewArtifacts: limit => ipcRenderer.invoke('list-review-artifacts', { limit }),
   listMediaJobs: limit => ipcRenderer.invoke('media-job-list', { limit }),
   getMediaJob: requestId => ipcRenderer.invoke('media-job-get', { requestId }),
   getMediaCatalog: () => ipcRenderer.invoke('media-catalog'),

@@ -1,6 +1,6 @@
 {
   "name": "master-chief-hologram",
-  "version": "1.40.0",
+  "version": "1.41.0",
   "description": "Desktop holographic Master Chief AI companion – multi-model prompt runner",
   "main": "main.js",
   "scripts": {
@@ -109,6 +109,7 @@
       "p0-evaluation.js",
       "capability-gap-audit.js",
       "artifact-links.js",
+      "artifact-intent.js",
       "build-info.json",
       "LICENSE",
       "main.js",

@@ -19,7 +19,7 @@ for (const envPath of envCandidates) {
 const execFileAsync = promisify(execFile);
 const CODEX_BIN = process.env.CODEX_BIN || '/Applications/ChatGPT.app/Contents/Resources/codex';
 const APP_VERSION = require('./package.json').version;
-const SKILL_TAG_ROUTING = 'When the user includes an @skill-name tag, treat it as an explicit request to apply that named specialist to the current prompt. State the selected role and keep it subordinate to the user request, Context Manager, PAPM, permissions, and verification.';
+const SKILL_TAG_ROUTING = 'When the user includes an @skill-name tag, treat it as an explicit request to apply that named specialist to the current prompt. State the selected role and keep it subordinate to the user request, Context Manager, PAPM, permissions, and verification. @local-model-operations covers Hugging Face, Ollama, Qwen, Dolphin, GGUF, model fit, routing, evaluation, and lifecycle. @productivity-artifact-engineer produces and verifies real Word, Excel, PowerPoint, PDF, Python, R, and SQL files and must return visible artifact actions instead of prose-only completion.';
 const { validateChatPayload, validateMessages, safeProviderError, validSecret } = require('./security');
 const { createCredentialStore } = require('./credential-store');
 const { getToolRegistry, normalizeApprovals, setToolApproval, isToolApproved } = require('./tool-registry');
@@ -218,6 +218,7 @@ function recordPrivacyClear(includeMedia) {
   fs.writeFileSync(privacyStateFile, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 }); return next;
 }
 function generatedRelativePath(filename) { return `artifacts/generated/${path.basename(filename)}`; }
+function documentRelativePath(filename) { return `artifacts/documents/${path.basename(filename)}`; }
 function listGeneratedArtifacts(limit = 50, includeCleared = false) {
   if (!fs.existsSync(generatedArtifactDir)) return [];
   const supported = /\.(png|jpe?g|webp|gif|avif|bmp|mp4|m4v|mov|webm|ogv|mp3|wav|m4a|aac|ogg|flac)$/i;
@@ -247,6 +248,14 @@ function listGeneratedArtifacts(limit = 50, includeCleared = false) {
     }).filter(Boolean)
     .sort((a, b) => b.modifiedMs - a.modifiedMs)
     .slice(0, Math.min(100, Math.max(1, Number(limit) || 50)));
+}
+function listReviewArtifacts(limit = 50) {
+  const documents = fs.existsSync(documentArtifactDir) ? fs.readdirSync(documentArtifactDir, { withFileTypes: true }).filter(entry => entry.isFile()).map(entry => {
+    const filePath = path.join(documentArtifactDir, entry.name); const stat = fs.statSync(filePath);
+    return { filename: entry.name, path: documentRelativePath(entry.name), bytes: stat.size, modifiedAt: stat.mtime.toISOString(), modifiedMs: stat.mtimeMs, category: 'document', sha256: require('crypto').createHash('sha256').update(fs.readFileSync(filePath)).digest('hex') };
+  }) : [];
+  return [...listGeneratedArtifacts(limit, false).map(item => ({ ...item, category: 'media' })), ...documents]
+    .sort((a, b) => b.modifiedMs - a.modifiedMs).slice(0, Math.min(100, Math.max(1, Number(limit) || 50)));
 }
 function resolveArtifactPath(relativePath) {
   const value = String(relativePath || '').replace(/\\/g, '/');
@@ -1701,6 +1710,7 @@ secureHandle('set-tool-approval', (_event, payload) => { toolApprovals = setTool
 secureHandle('execute-local-tool', (_event, payload) => executeLocalTool(payload?.id));
 secureHandle('generate-local-media', (_event, payload) => generateLocalMedia(payload));
 secureHandle('list-generated-media', (_event, payload) => listGeneratedArtifacts(payload?.limit, Boolean(payload?.includeCleared)));
+secureHandle('list-review-artifacts', (_event, payload) => listReviewArtifacts(payload?.limit));
 secureHandle('media-job-list', (_event, payload) => mediaJobLedger.list(payload?.limit));
 secureHandle('media-job-get', (_event, payload) => mediaJobLedger.get(payload?.requestId));
 secureHandle('media-catalog', async () => {

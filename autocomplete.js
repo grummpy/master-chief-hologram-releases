@@ -12,6 +12,7 @@
     '@comfyui-command-stack ', '@comfyui-workflow-engineer ',
     '@comfyui-runtime-operator ', '@comfyui-model-readiness ',
     '@creative-reference-continuity ', '@local-ai-fabric ',
+    '@local-model-operations ', '@productivity-artifact-engineer ',
     'Check system readiness', 'Run voice self-test', 'Create a PAPM plan for ',
     'Create a local AI plan for ', 'Create a graphics and 3D plan for ',
     'Index local document ', 'Inspect local runtime', 'Inspect project Git status',
