@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('masterChief', {
   createProductivityArtifact: payload => ipcRenderer.invoke('create-productivity-artifact', payload),
   ingestAttachment: payload => ipcRenderer.invoke('ingest-attachment', payload),
   getConnectorStatus: () => ipcRenderer.invoke('connector-status'),
+  getComfyUiRuntimeStatus: () => ipcRenderer.invoke('comfyui-runtime-status'),
+  openComfyUiRuntime: () => ipcRenderer.invoke('comfyui-runtime-open'),
   getConnectorSetupStatus: () => ipcRenderer.invoke('connector-setup-status'),
   saveConnectorSetup: payload => ipcRenderer.invoke('connector-setup-save', payload),
   openConnectorHelp: id => ipcRenderer.invoke('connector-setup-help', { id }),

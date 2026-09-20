@@ -681,6 +681,11 @@ async function connectorStatus() {
   return { connectors: withConnectorState(states), comfyui: comfy };
 }
 
+async function comfyRuntimeStatus() {
+  if (!comfyClient) throw new Error('ComfyUI worker is not configured.');
+  return { endpoint: comfyBaseUrl, ...(await comfyClient.runtimeStatus()), checkedAt: new Date().toISOString() };
+}
+
 async function executeAgentTool(id, input, context = {}) {
   if (localTools.ids.includes(id)) return executeLocalTool(id, input);
   if (id === 'knowledge.search_local') {
@@ -1230,6 +1235,8 @@ secureHandle('create-document', (_event, payload) => createDocument(payload));
 secureHandle('create-productivity-artifact', (_event, payload) => createProductivityArtifact(payload));
 secureHandle('ingest-attachment', (_event, payload) => ingestAttachment(payload));
 secureHandle('connector-status', connectorStatus);
+secureHandle('comfyui-runtime-status', comfyRuntimeStatus);
+secureHandle('comfyui-runtime-open', async () => { if (!comfyClient) throw new Error('ComfyUI worker is not configured.'); await shell.openExternal(comfyBaseUrl); return true; });
 secureHandle('connector-setup-status', () => connectorSetupStatus());
 secureHandle('connector-setup-save', (_event, payload) => saveConnectorSetup(payload));
 secureHandle('connector-setup-help', async (_event, payload) => {

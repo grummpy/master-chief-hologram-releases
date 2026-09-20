@@ -90,6 +90,31 @@ function createComfyUiClient({ baseUrl, fetchImpl = fetch, artifactDir, timeoutM
       const body = await response.json();
       return Array.isArray(body) ? body.map(String) : [];
     },
+    async runtimeStatus() {
+      const [statsResponse, queueResponse, checkpointsResponse] = await Promise.all([
+        request('/system_stats', {}, 10000), request('/queue', {}, 10000), request('/models/checkpoints', {}, 10000)
+      ]);
+      const [stats, queue, checkpointBody] = await Promise.all([statsResponse.json(), queueResponse.json(), checkpointsResponse.json()]);
+      const boundedText = (value, fallback = 'unknown') => String(value || fallback).slice(0, 240);
+      return {
+        system: {
+          os: boundedText(stats.system?.os),
+          comfyuiVersion: boundedText(stats.system?.comfyui_version),
+          pythonVersion: boundedText(stats.system?.python_version),
+          pytorchVersion: boundedText(stats.system?.pytorch_version),
+          ramTotal: Number(stats.system?.ram_total || 0), ramFree: Number(stats.system?.ram_free || 0)
+        },
+        devices: (Array.isArray(stats.devices) ? stats.devices : []).slice(0, 8).map(device => ({
+          name: boundedText(device.name, 'Unknown device'), type: boundedText(device.type),
+          vramTotal: Number(device.vram_total || 0), vramFree: Number(device.vram_free || 0)
+        })),
+        queue: {
+          running: Array.isArray(queue.queue_running) ? queue.queue_running.length : 0,
+          pending: Array.isArray(queue.queue_pending) ? queue.queue_pending.length : 0
+        },
+        checkpoints: (Array.isArray(checkpointBody) ? checkpointBody : []).slice(0, 100).map(name => boundedText(name, 'Unnamed checkpoint'))
+      };
+    },
     async submit(workflow, clientId = crypto.randomUUID()) {
       const response = await request('/prompt', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: workflow, client_id: clientId })

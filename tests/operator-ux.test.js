@@ -80,6 +80,14 @@ test('Systems and connector status rows open preselected credential setup', () =
   assert.match(main, /candidate\.health\(\)/);
 });
 
+test('Runtime Center exposes live worker evidence without mutation controls', () => {
+  for (const id of ['runtimeCenterBtn','runtimeCenter','runtimeCenterGrid','runtimeCheckpointList','runtimeRefreshBtn','runtimeOpenBtn','runtimeConfigureBtn']) assert.match(html, new RegExp(`id="${id}"`));
+  assert.match(renderer, /getComfyUiRuntimeStatus/);
+  assert.match(renderer, /queue\.running/);
+  assert.match(renderer, /vramFree/);
+  assert.doesNotMatch(html, /id="runtimeRestartBtn"|id="gamingModeBtn"/);
+});
+
 test('Scheduled workspace creates and manages durable local reminders', () => {
   for (const id of ['schedulerSetup','schedulerTitle','schedulerMessage','schedulerDueAt','schedulerRepeat']) assert.match(html, new RegExp(`id="${id}"`));
   assert.match(renderer, /renderScheduledJobs/);

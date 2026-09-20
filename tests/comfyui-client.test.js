@@ -90,3 +90,18 @@ test('client queues, polls, and hashes a fixture artifact', async () => {
     assert.ok(calls.some(url => url.includes('/view?')));
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
+
+test('runtime status reports bounded worker, queue, device, and checkpoint evidence', async () => {
+  const fetchImpl = async url => {
+    if (url.endsWith('/system_stats')) return new Response(JSON.stringify({ system: { os: 'win32', comfyui_version: '0.36.0', python_version: '3.13', pytorch_version: '2.13+rocm', ram_total: 16, ram_free: 8 }, devices: [{ name: 'AMD GPU', type: 'cuda', vram_total: 17, vram_free: 9 }] }), { status: 200 });
+    if (url.endsWith('/queue')) return new Response(JSON.stringify({ queue_running: [['one']], queue_pending: [['two'], ['three']] }), { status: 200 });
+    if (url.endsWith('/models/checkpoints')) return new Response(JSON.stringify(['sdxl.safetensors']), { status: 200 });
+    return new Response('', { status: 404 });
+  };
+  const client = createComfyUiClient({ baseUrl: 'http://127.0.0.1:8188', artifactDir: os.tmpdir(), fetchImpl, timeoutMs: 1000 });
+  const status = await client.runtimeStatus();
+  assert.equal(status.system.comfyuiVersion, '0.36.0');
+  assert.deepEqual(status.queue, { running: 1, pending: 2 });
+  assert.equal(status.devices[0].name, 'AMD GPU');
+  assert.deepEqual(status.checkpoints, ['sdxl.safetensors']);
+});

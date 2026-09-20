@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.19.0
+
+- Added a read-only Runtime Center for the private Windows ComfyUI worker.
+- Runtime evidence now includes the active endpoint, ComfyUI/Python/PyTorch versions, system RAM, GPU/VRAM, queue depth, and installed checkpoints.
+- Added refresh, endpoint configuration, and open-worker actions while deliberately excluding restart and gaming-mode mutations from this visibility-first release.
+- Bounded all worker-provided labels and checkpoint results before displaying them in the app.
+
 ## 1.18.0
 
 - Added self-service ComfyUI private-worker endpoint configuration to Systems and Creative connectors.
