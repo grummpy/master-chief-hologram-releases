@@ -74,6 +74,7 @@ test('Systems and connector status rows open preselected credential setup', () =
   }
   assert.match(html, /id="connectorSecretLabel"/);
   assert.match(renderer, /secretRequired/);
+  assert.match(css, /provider-setup label\[hidden\].*display:none!important/);
   const main = fs.readFileSync(path.join(root, 'main.js'), 'utf8');
   assert.match(main, /ComfyUI private worker/);
   assert.match(main, /candidate\.health\(\)/);
