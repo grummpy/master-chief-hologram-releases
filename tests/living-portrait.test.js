@@ -1,0 +1,6 @@
+'use strict';
+const test=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const path=require('node:path');
+const root=path.join(__dirname,'..'),html=fs.readFileSync(path.join(root,'index.html'),'utf8'),renderer=fs.readFileSync(path.join(root,'renderer.js'),'utf8'),portrait=fs.readFileSync(path.join(root,'living-portrait.js'),'utf8');
+test('Commander Nova head label is removed',()=>{assert.doesNotMatch(html,/id="personaBadge"/);assert.doesNotMatch(renderer,/\$\('personaBadge'\)/)});
+test('living portrait reacts to operator states and supports a still fallback',()=>{for(const id of ['novaMotionA','novaMotionB'])assert.match(html,new RegExp(`id="${id}"`));for(const state of ['idle','listening','thinking','speaking','success','error'])assert.match(portrait,new RegExp(`${state}:`));assert.match(portrait,/prefers-reduced-motion/);assert.match(portrait,/visibilitychange/);assert.match(renderer,/masterChiefLivingPortrait\?\.setState/)});
+test('owner-provided motion assets and provenance manifest are packaged',()=>{for(const name of ['nova-idle.mp4','nova-attention.mp4','nova-reporting.mp4','manifest.json'])assert.equal(fs.existsSync(path.join(root,'assets','characters','motion',name)),true,name);assert.match(fs.readFileSync(path.join(root,'assets','characters','motion','manifest.json'),'utf8'),/Owner-provided/) });

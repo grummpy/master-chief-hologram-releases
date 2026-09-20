@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "character": "Commander Nova",
+  "source": "Owner-provided Desktop/Nova-professional-videos",
+  "states": {
+    "idle": "nova-idle.mp4",
+    "attention": "nova-attention.mp4",
+    "reporting": "nova-reporting.mp4"
+  },
+  "playback": {
+    "muted": true,
+    "loop": true,
+    "playsInline": true,
+    "reducedMotionFallback": "../command-officer-reference-v1.png"
+  }
+}
