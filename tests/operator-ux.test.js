@@ -84,6 +84,9 @@ test('Scheduled workspace creates and manages durable local reminders', () => {
   assert.match(preload, /scheduler-list/);
   assert.match(main, /secureHandle\('scheduler-create'/);
   assert.match(main, /new Notification/);
+  assert.match(html, /id="monitorTarget"/);
+  assert.match(renderer, /createMonitor/);
+  assert.match(main, /runMonitorTick/);
 });
 
 test('personal hologram removes the local-display banner', () => {

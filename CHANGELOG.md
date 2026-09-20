@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.15.0
+
+- Added durable, quiet health monitors for local Ollama and the private-LAN Windows ComfyUI worker.
+- Monitors notify only after the initial baseline when health state or its diagnostic label changes.
+- Added monitor create, pause, resume, cancel, status, last-check, next-check, and bounded history controls to Files → Scheduled.
+- Added typed Ollama tools and separate Tool Access approvals for listing, creating, and managing local runtime monitors.
+
 ## 1.14.0
 
 - Added a durable local reminder scheduler with native macOS notifications, one-time and repeating jobs, restart recovery, execution history, and overdue-run reconciliation.

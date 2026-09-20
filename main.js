@@ -47,6 +47,7 @@ const { publicResearchUrls, normalizePublicResearch } = require('./public-resear
 const { createProjectStore } = require('./project-store');
 const { discoverPlugins } = require('./plugin-catalog');
 const { createSchedulerStore } = require('./scheduler-store');
+const { createMonitorStore } = require('./monitor-store');
 const localAiManifest = loadLocalAiManifest(path.join(__dirname, 'local-ai-manifest.json'));
 
 let mainWindow;
@@ -57,11 +58,25 @@ function credentials() { return credentialStore || (credentialStore = createCred
 let activeAbortController = null;
 let toolApprovals;
 const scheduler = createSchedulerStore(path.join(app.getPath('userData'), 'scheduled-reminders.json'));
+const monitors = createMonitorStore(path.join(app.getPath('userData'), 'runtime-monitors.json'));
 let schedulerTimer;
 function runSchedulerTick() {
   for (const job of scheduler.tick()) {
     if (Notification.isSupported()) { const notice = new Notification({ title: job.title, body: job.message, silent: false }); notice.on('click', showWindow); notice.show(); }
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('scheduler-event', { type: 'delivered', job });
+  }
+}
+async function probeMonitor(target) {
+  if (target === 'ollama') { const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, ''); const result = await checkJson(`${base}/api/tags`); return !result.error && result.response?.ok ? { state: 'ready', label: 'Ollama is available' } : { state: 'error', label: 'Ollama is unavailable' }; }
+  if (target === 'comfyui') return comfyClient ? comfyClient.health() : { state: 'missing', label: 'ComfyUI worker is not configured' };
+  return { state: 'error', label: 'Unknown monitor target' };
+}
+async function runMonitorTick() {
+  for (const item of monitors.due()) {
+    const recorded = monitors.record(item.id, await probeMonitor(item.target));
+    if (!recorded.changed) continue;
+    const job = recorded.monitor; if (Notification.isSupported()) { const notice = new Notification({ title: `${job.title} changed`, body: job.lastLabel, silent: false }); notice.on('click', showWindow); notice.show(); }
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('monitor-event', { type: 'changed', monitor: job });
   }
 }
 function ollamaEvaluationFile() { return path.join(app.getPath('userData'), 'ollama-evaluation.json'); }
@@ -657,6 +672,9 @@ async function executeAgentTool(id, input, context = {}) {
   if (id === 'scheduler.list') { requireToolApproval(id); const jobs = scheduler.list(); return { tool: id, result: { jobs }, summary: `Found ${jobs.length} local reminder${jobs.length === 1 ? '' : 's'}.` }; }
   if (id === 'scheduler.create') { requireToolApproval(id); const job = scheduler.create(input); return { tool: id, result: job, summary: `Scheduled ${job.title} for ${job.nextRunAt}.` }; }
   if (id === 'scheduler.action') { requireToolApproval(id); const job = scheduler.action(input?.id, input?.action); return { tool: id, result: job, summary: `${input.action} completed for ${job.title}.` }; }
+  if (id === 'monitors.list') { requireToolApproval(id); const items = monitors.list(); return { tool: id, result: { monitors: items }, summary: `Found ${items.length} local runtime monitor${items.length === 1 ? '' : 's'}.` }; }
+  if (id === 'monitors.create') { requireToolApproval(id); const monitor = monitors.create(input); return { tool: id, result: monitor, summary: `Created quiet ${monitor.title} monitoring.` }; }
+  if (id === 'monitors.action') { requireToolApproval(id); const monitor = monitors.action(input?.id, input?.action); return { tool: id, result: monitor, summary: `${input.action} completed for ${monitor.title}.` }; }
   if (id === 'artifacts.create') {
     requireToolApproval(id); const kind = String(input?.kind || ''); const request = String(input?.request || '');
     const result = kind === 'document' ? await createDocument({ request, provider: 'ollama', model: context.model, masterMode: true }) : await createProductivityArtifact({ kind, request, model: context.model });
@@ -1130,7 +1148,7 @@ if (!gotLock) {
   app.on('second-instance', showWindow);
   app.whenReady().then(() => {
     createWindow();
-    schedulerTimer = setInterval(runSchedulerTick, 15000); setTimeout(runSchedulerTick, 1000);
+    schedulerTimer = setInterval(() => { runSchedulerTick(); runMonitorTick().catch(() => {}); }, 15000); setTimeout(() => { runSchedulerTick(); runMonitorTick().catch(() => {}); }, 1000);
     // Grant Chromium's microphone request after the window/session exists.
     mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback, details) => {
       const trusted = webContents === mainWindow.webContents && String(details?.requestingUrl || '').startsWith('file://');
@@ -1212,6 +1230,9 @@ secureHandle('workspace-library-open', async (_event, payload) => {
 secureHandle('scheduler-list', () => ({ jobs: scheduler.list() }));
 secureHandle('scheduler-create', (_event, payload) => scheduler.create(payload));
 secureHandle('scheduler-action', (_event, payload) => scheduler.action(payload?.id, payload?.action));
+secureHandle('monitor-list', () => ({ monitors: monitors.list() }));
+secureHandle('monitor-create', (_event, payload) => monitors.create(payload));
+secureHandle('monitor-action', (_event, payload) => monitors.action(payload?.id, payload?.action));
 secureHandle('voice-self-test', async () => voiceSelfTest(await localWhisperConfig(), {
   name: 'command-reference.webm',
   contentType: 'audio/webm;codecs=opus',

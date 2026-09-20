@@ -37,7 +37,7 @@ test('agent exposes only explicitly mapped local tools', () => {
   assert.equal(resolveAgentTool('shell'), null);
   assert.deepEqual(agentToolSchemas().map(item => item.function.name), [
     'diagnostics_local_runtime', 'diagnostics_git_status', 'project_list_files', 'project_read_text_file', 'project_preview_replace', 'project_replace_text', 'project_rollback_edit', 'project_run_tests', 'artifacts_list',
-    'knowledge_search_local', 'connectors_status', 'scheduler_list', 'scheduler_create', 'scheduler_action', 'artifacts_create', 'research_public_web'
+    'knowledge_search_local', 'connectors_status', 'scheduler_list', 'scheduler_create', 'scheduler_action', 'monitors_list', 'monitors_create', 'monitors_action', 'artifacts_create', 'research_public_web'
   ]);
   assert.equal(resolveAgentTool('research_web_codex'), null);
 });
