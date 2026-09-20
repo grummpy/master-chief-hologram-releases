@@ -731,14 +731,16 @@ async function comfyRuntimeStatus() {
 
 async function operationalReadiness() {
   const ollamaBase = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
-  const [ollama, search, runtimeResult, modelResult, voiceResult] = await Promise.allSettled([
+  const [ollama, search, runtimeResult, remoteResult, modelResult, voiceResult] = await Promise.allSettled([
     checkJson(`${ollamaBase}/api/tags`),
     checkHttp('http://127.0.0.1:8888/'),
-    comfyRuntimeStatus(),
+    comfyClient ? comfyClient.runtimeStatus() : Promise.reject(new Error('ComfyUI is not configured.')),
+    comfyClient ? windowsWorkerControl().status() : Promise.reject(new Error('ComfyUI is not configured.')),
     comfyClient ? Promise.all([comfyClient.checkpoints(), comfyClient.modelNames('vae'), comfyClient.modelNames('upscale_models')]) : Promise.reject(new Error('ComfyUI is not configured.')),
     localWhisperConfig()
   ]);
   const runtime = runtimeResult.status === 'fulfilled' ? runtimeResult.value : null;
+  const remote = remoteResult.status === 'fulfilled' ? remoteResult.value : null;
   const models = modelResult.status === 'fulfilled' ? modelResult.value : [[], [], []];
   const ollamaBody = ollama.status === 'fulfilled' && !ollama.value.error && ollama.value.response?.ok ? ollama.value.body : null;
   const ollamaNames = Array.isArray(ollamaBody?.models) ? ollamaBody.models.map(item => String(item.name || item.model || '')).filter(Boolean) : [];
@@ -761,7 +763,7 @@ async function operationalReadiness() {
     { id: 'ollama.local', label: 'Local language AI', weight: 20, state: primary ? 'ready' : ollamaBody ? 'warning' : 'error', evidence: primary ? `${primary.id} is installed and selected by the local manifest.` : ollamaBody ? `${ollamaNames.length} Ollama models found but no enabled primary manifest match.` : 'Ollama did not answer /api/tags.', repair: 'Start Ollama and install or enable the primary model recorded in the local AI manifest.' },
     { id: 'searxng.local', label: 'Private search', weight: 10, state: search.status === 'fulfilled' && !search.value.error && search.value.response?.ok ? 'ready' : 'error', evidence: search.status === 'fulfilled' && search.value.response?.ok ? 'Local SearXNG answered on port 8888.' : 'Local SearXNG did not answer on port 8888.', repair: 'Start the local SearXNG container, then rerun readiness.' },
     { id: 'comfyui.api', label: 'Windows media worker', weight: 15, state: runtime ? 'ready' : 'error', evidence: runtime ? `ComfyUI ${runtime.system.comfyuiVersion} on ${device?.name || 'reported device'}.` : String(runtimeResult.reason?.message || 'ComfyUI runtime status failed.'), repair: 'Use Resume AI worker, then refresh Runtime Center.' },
-    { id: 'comfyui.ssh', label: 'Remote maintenance channel', weight: 10, state: runtime?.remote?.state === 'ready' ? 'ready' : 'error', evidence: runtime?.remote?.label || 'SSH control evidence unavailable.', repair: 'Restore the Windows OpenSSH service and authorized Master Chief key.' },
+    { id: 'comfyui.ssh', label: 'Remote maintenance channel', weight: 10, state: remote ? 'ready' : 'error', evidence: remote ? `SSH control reached ${remote.user}@${remote.host}; task ${remote.status.taskState}.` : String(remoteResult.reason?.message || 'SSH control evidence unavailable.'), repair: 'Restore the Windows OpenSSH service and authorized Master Chief key.' },
     { id: 'comfyui.queue', label: 'Media queue', weight: 10, state: !runtime ? 'error' : runtime.queue.running || runtime.queue.pending ? 'warning' : 'ready', evidence: runtime ? `${runtime.queue.running} running and ${runtime.queue.pending} pending.` : 'Queue unavailable.', repair: 'Let active work finish or cancel it before maintenance or high-memory generation.' },
     { id: 'comfyui.capacity', label: 'GPU and memory reserve', weight: 10, state: ramReady && vramReady ? 'ready' : runtime ? 'warning' : 'error', evidence: runtime ? `${Math.round(runtime.system.ramFree / 1073741824 * 10) / 10} GB RAM and ${Math.round((device?.vramFree || 0) / 1073741824 * 10) / 10} GB VRAM free.` : 'Capacity unavailable.', repair: 'Close games and GPU-heavy programs, then use Release VRAM or restart the worker.' },
     { id: 'comfyui.models', label: 'Promoted image models', weight: 15, state: requiredModels.checkpoint && requiredModels.vae && requiredModels.upscaler ? 'ready' : modelResult.status === 'fulfilled' ? 'warning' : 'error', evidence: `Juggernaut: ${requiredModels.checkpoint || 'missing'}; SDXL VAE: ${requiredModels.vae ? 'ready' : 'missing'}; UltraSharp: ${requiredModels.upscaler ? 'ready' : 'missing'}.`, repair: 'Restore the missing promoted model to its declared ComfyUI model folder and verify its checksum.' },

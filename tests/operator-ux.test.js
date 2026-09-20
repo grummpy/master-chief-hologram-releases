@@ -92,6 +92,7 @@ test('Runtime Center exposes live evidence and confirmed fixed worker controls',
   const main = fs.readFileSync(path.join(root, 'main.js'), 'utf8');
   assert.match(preload, /operational-readiness/);
   assert.match(main, /secureHandle\('operational-readiness'/);
+  assert.match(main, /windowsWorkerControl\(\)\.status\(\)/);
 });
 
 test('Scheduled workspace creates and manages durable local reminders', () => {

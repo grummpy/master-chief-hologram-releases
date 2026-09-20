@@ -6,6 +6,7 @@
 - Scores Ollama, SearXNG, ComfyUI, SSH control, queue state, RAM/VRAM reserve, promoted models, archive storage, and offline transcription on a fixed 100-point model with a 90-point readiness gate.
 - Displays bounded evidence and an exact repair action for every warning or failure without logging prompts, files, or credentials.
 - Records only the aggregate readiness outcome in the existing secret-free worker operations log.
+- Keeps SSH maintenance evidence independent from ComfyUI API availability so a firewall failure does not hide a healthy Windows control channel.
 
 ## 1.22.0
 
