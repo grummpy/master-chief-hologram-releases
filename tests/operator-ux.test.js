@@ -154,6 +154,9 @@ test('Reference Studio exposes hierarchy, review, comparison, queue, and runtime
   assert.match(referenceStudio, /Confirm add to queue/);
   assert.match(referenceStudio, /Identity Lock loaded from the verified InstantID test/);
   assert.match(referenceStudio, /Compare source/);
+  assert.match(referenceStudio, /automatic pose extraction not installed/);
+  const client = fs.readFileSync(path.join(root, 'comfyui-client.js'), 'utf8');
+  assert.match(client, /poseExtractorNodes/);
 });
 
 test('Ollama Command Center exposes native generation and agent controls', () => {

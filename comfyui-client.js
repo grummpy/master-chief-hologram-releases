@@ -145,6 +145,8 @@ function createComfyUiClient({ baseUrl, fetchImpl = fetch, artifactDir, timeoutM
         faceId: has('IPAdapterUnifiedLoaderFaceID', 'IPAdapterInsightFaceLoader', 'IPAdapterFaceID'),
         instantId: has('InstantIDModelLoader', 'InstantIDFaceAnalysis', 'ApplyInstantIDAdvanced'),
         cannyControl: has('Canny', 'ControlNetLoader', 'ControlNetApplyAdvanced'),
+        poseExtractor: Boolean(nodes?.DWPreprocessor || nodes?.OpenposePreprocessor || nodes?.OpenPosePreprocessor),
+        poseExtractorNodes: ['DWPreprocessor', 'OpenposePreprocessor', 'OpenPosePreprocessor'].filter(name => Boolean(nodes?.[name])),
         lora: has('LoraLoader'),
         modelUpscale: has('UpscaleModelLoader', 'ImageUpscaleWithModel'),
         partialConditioning: has('ConditioningCombine', 'ConditioningSetArea')
