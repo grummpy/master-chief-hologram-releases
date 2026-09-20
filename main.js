@@ -186,10 +186,13 @@ function recordPrivacyClear(includeMedia) {
   fs.writeFileSync(privacyStateFile, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 }); return next;
 }
 function generatedRelativePath(filename) { return `artifacts/generated/${path.basename(filename)}`; }
-function listGeneratedArtifacts(limit = 50) {
+function listGeneratedArtifacts(limit = 50, includeCleared = false) {
   if (!fs.existsSync(generatedArtifactDir)) return [];
   const supported = /\.(png|jpe?g|webp|gif|avif|bmp|mp4|m4v|mov|webm|ogv|mp3|wav|m4a|aac|ogg|flac)$/i;
-  const cutoff = Date.parse(privacyState().mediaClearedAt || '') || 0;
+  const privacy = privacyState();
+  const cutoff = includeCleared
+    ? Date.parse(privacy.mediaClearedAt || '') || 0
+    : Math.max(Date.parse(privacy.mediaClearedAt || '') || 0, Date.parse(privacy.conversationsClearedAt || '') || 0);
   return fs.readdirSync(generatedArtifactDir, { withFileTypes: true })
     .filter(entry => entry.isFile() && supported.test(entry.name))
     .map(entry => {
@@ -1428,7 +1431,7 @@ secureHandle('tool-approvals', () => ({ approvals: { ...loadToolApprovals() }, r
 secureHandle('set-tool-approval', (_event, payload) => { toolApprovals = setToolApproval(loadToolApprovals(), String(payload?.id || ''), payload?.approved); saveToolApprovals(); return { approvals: { ...toolApprovals } }; });
 secureHandle('execute-local-tool', (_event, payload) => executeLocalTool(payload?.id));
 secureHandle('generate-local-media', (_event, payload) => generateLocalMedia(payload));
-secureHandle('list-generated-media', (_event, payload) => listGeneratedArtifacts(payload?.limit));
+secureHandle('list-generated-media', (_event, payload) => listGeneratedArtifacts(payload?.limit, Boolean(payload?.includeCleared)));
 secureHandle('media-job-list', (_event, payload) => mediaJobLedger.list(payload?.limit));
 secureHandle('media-job-get', (_event, payload) => mediaJobLedger.get(payload?.requestId));
 secureHandle('media-catalog', async () => ({ checkpoints: comfyClient ? await comfyClient.checkpoints() : [], vaes: comfyClient ? await comfyClient.modelNames('vae') : [], upscalers: comfyClient ? await comfyClient.modelNames('upscale_models') : [], workflows: workflowRegistry.list(), capabilities: { image: true, revision: true, rebuild: true, upscale: true, video: workflowRegistry.list().some(item => item.contract === 'video' && item.enabled !== false) }, videoReadiness: workflowRegistry.list().some(item => item.contract === 'video' && item.enabled !== false) ? 'ready' : 'missing approved AMD workflow and model bundle' }));

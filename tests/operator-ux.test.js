@@ -34,6 +34,8 @@ test('Clear purges all conversation history and local retrieval traces', () => {
   assert.match(main, /clear-private-history/);
   assert.match(main, /clearStorageData/);
   assert.match(main, /ragIndex\.clear\(\)/);
+  assert.match(main, /conversationsClearedAt/);
+  assert.match(renderer, /Clear Chat/);
 });
 
 test('Clear All removes generated media lineage while preserving credentials and settings', () => {

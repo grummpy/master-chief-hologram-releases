@@ -68,6 +68,8 @@ async function purgePrivateActivity(includeMedia=false){
     addMsg('system',`Private-history clear failed: ${e.message}`);
   }
 }
+$('clearBtn').textContent='Clear Chat';
+$('clearBtn').title='Clear saved conversations and hide prior generated media from the app; files remain in the Archive folder.';
 $('clearBtn').onclick=()=>purgePrivateActivity(false);
 $('clearAllBtn').onclick=()=>purgePrivateActivity(true);
 $('archiveBtn').onclick=async()=>{try{await window.masterChief.openMediaArchive()}catch(e){addMsg('system',`Archive unavailable: ${e.message}`)}};$('closeBtn').onclick=()=>window.masterChief.windowAction('hide');$('minBtn').onclick=()=>window.masterChief.windowAction('minimize');$('pinBtn').onclick=async e=>e.currentTarget.setAttribute('aria-pressed',String(await window.masterChief.windowAction('toggle-top')));
