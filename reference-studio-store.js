@@ -6,6 +6,7 @@ const path = require('path');
 
 const SHOT_STATUSES = new Set(['draft', 'queued', 'running', 'complete', 'failed', 'cancelled', 'recoverable']);
 const REVIEW_STATUSES = new Set(['candidate', 'approved', 'rejected']);
+const REFERENCE_MODES = new Set(['approved', 'selected', 'none']);
 const iso = () => new Date().toISOString();
 const id = value => cleanText(value, 100) || crypto.randomUUID();
 function cleanText(value, max = 4000) { return String(value || '').trim().slice(0, max); }
@@ -36,6 +37,7 @@ function normalizeShot(input = {}, existing = {}) {
     pose: cleanText(input.pose ?? existing.pose, 1000), environment: cleanText(input.environment ?? existing.environment, 1000),
     camera: cleanText(input.camera ?? existing.camera, 1000), lighting: cleanText(input.lighting ?? existing.lighting, 1000),
     model: cleanText(input.model ?? existing.model, 500), workflow: cleanText(input.workflow ?? existing.workflow, 200),
+    referenceMode: REFERENCE_MODES.has(input.referenceMode) ? input.referenceMode : (existing.referenceMode || (cleanText(input.referenceArtifact ?? existing.referenceArtifact, 1000) ? 'selected' : 'approved')),
     continuityLocks: cleanText(input.continuityLocks ?? existing.continuityLocks, 2000),
     referenceStrength: number(input.referenceStrength ?? existing.referenceStrength, .75),
     denoise: number(input.denoise ?? existing.denoise, .84, .2, .99),
@@ -115,4 +117,4 @@ function createReferenceStudioStore(filePath) {
   return { read, saveProject, saveSubject, saveSheet, saveView, saveShot, saveVariant, updateShot, removeShot, clearQueue, clear };
 }
 
-module.exports = { SHOT_STATUSES, REVIEW_STATUSES, normalizeProject, normalizeSubject, normalizeSheet, normalizeView, normalizeShot, normalizeVariant, migrate, createReferenceStudioStore };
+module.exports = { SHOT_STATUSES, REVIEW_STATUSES, REFERENCE_MODES, normalizeProject, normalizeSubject, normalizeSheet, normalizeView, normalizeShot, normalizeVariant, migrate, createReferenceStudioStore };

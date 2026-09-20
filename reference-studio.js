@@ -8,6 +8,45 @@
   const comparison = new Set();
   const ids = shotId => ({ projectId: project?.id, subjectId: subject?.id, sheetId: sheet?.id, ...(shotId ? { shotId } : {}) });
   const selectValue = (id, fallback = '') => get(id)?.value || fallback;
+  const shotTextFields = ['shotTitle','shotPositive','shotNegative','shotPose','shotEnvironment','shotCamera','shotLighting','shotContinuityLocks'];
+
+  function setReferenceMode(mode = 'approved') {
+    get('shotReferenceMode').value = mode;
+    const selected = mode === 'selected';
+    get('shotReferenceArtifact').disabled = !selected;
+    get('shotReferenceStrength').disabled = mode === 'none';
+  }
+
+  function resetShotEditor({ cleanReference = false } = {}) {
+    shotTextFields.forEach(id => { get(id).value = ''; });
+    get('shotReferenceArtifact').value = '';
+    get('shotWorkflow').value = '';
+    get('shotModel').value = '';
+    get('shotReferenceStrength').value = '0.75';
+    get('shotReferenceStrengthValue').value = '0.75';
+    get('shotDenoise').value = '0.84';
+    get('shotDenoiseValue').value = '0.84';
+    setReferenceMode(cleanReference ? 'none' : 'approved');
+  }
+
+  function loadShotEditor(shot) {
+    get('shotTitle').value = shot.title || '';
+    get('shotPositive').value = shot.positivePrompt || '';
+    get('shotNegative').value = shot.negativePrompt || '';
+    get('shotReferenceArtifact').value = shot.referenceArtifact || '';
+    get('shotPose').value = shot.pose || '';
+    get('shotEnvironment').value = shot.environment || '';
+    get('shotCamera').value = shot.camera || '';
+    get('shotLighting').value = shot.lighting || '';
+    get('shotModel').value = shot.model || '';
+    get('shotWorkflow').value = shot.workflow || '';
+    get('shotReferenceStrength').value = shot.referenceStrength ?? .75;
+    get('shotReferenceStrengthValue').value = shot.referenceStrength ?? .75;
+    get('shotDenoise').value = shot.denoise ?? .84;
+    get('shotDenoiseValue').value = shot.denoise ?? .84;
+    get('shotContinuityLocks').value = shot.continuityLocks || '';
+    setReferenceMode(shot.referenceMode || (shot.referenceArtifact ? 'selected' : 'approved'));
+  }
 
   function chooseCurrent() {
     const savedProject = localStorage.getItem('mcReferenceProject');
@@ -79,9 +118,15 @@
   async function loadArtifacts() {
     const [artifacts, catalog] = await Promise.all([window.masterChief.listGeneratedMedia(200), window.masterChief.getMediaCatalog()]);
     const select = get('shotReferenceArtifact'), prior = select.value;
-    select.replaceChildren(new Option('Use approved sheet view', ''), ...artifacts.filter(item => /\.(png|jpe?g|webp)$/i.test(item.filename)).map(item => new Option(item.filename, item.path))); select.value = prior;
+    select.replaceChildren(new Option('Choose an artifact', ''), ...artifacts.filter(item => /\.(png|jpe?g|webp)$/i.test(item.filename)).map(item => new Option(item.filename, item.path))); select.value = prior;
     const model = get('shotModel'), selectedModel = model.value; model.replaceChildren(new Option('Automatic installed checkpoint', ''), ...catalog.checkpoints.map(name => new Option(name, name))); model.value = [...model.options].some(option => option.value === selectedModel) ? selectedModel : '';
-    const workflow = get('shotWorkflow'), selectedWorkflow = workflow.value; workflow.replaceChildren(new Option('Automatic compatible workflow', ''), ...catalog.workflows.filter(item => ['image', 'revision'].includes(item.contract)).map(item => new Option(`${item.id} · ${item.version}`, item.id))); workflow.value = [...workflow.options].some(option => option.value === selectedWorkflow) ? selectedWorkflow : '';
+    const workflow = get('shotWorkflow'), selectedWorkflow = workflow.value; workflow.replaceChildren(new Option('Automatic compatible workflow', ''), ...catalog.workflows.filter(item => ['image', 'revision'].includes(item.contract)).map(item => { const option = new Option(`${item.id} · ${item.version}${item.readiness === 'ready' ? ' · ready' : ' · blocked'}`, item.id); option.disabled = item.readiness !== 'ready'; option.title = item.readiness === 'ready' ? 'All required nodes and models were detected.' : `Missing: ${[...(item.missingNodes || []), ...(item.missingModels || [])].join(', ')}`; return option; })); workflow.value = [...workflow.options].some(option => option.value === selectedWorkflow && !option.disabled) ? selectedWorkflow : '';
+    const ready = [];
+    if (catalog.detected?.ipAdapter && catalog.clipVision?.length) ready.push(`identity/style reference (${catalog.clipVision.length} vision model)`);
+    if (catalog.detected?.controlNet && catalog.controlnets?.length) ready.push(`pose/structure control (${catalog.controlnets.length} model${catalog.controlnets.length === 1 ? '' : 's'})`);
+    if (catalog.detected?.inpaint) ready.push('targeted inpaint nodes');
+    if (catalog.detected?.lora) ready.push(`LoRA routing${catalog.loras?.length ? ` (${catalog.loras.length} installed)` : ''}`);
+    get('referenceAdapterGate').textContent = ready.length ? `Detected on live worker: ${ready.join(' · ')}. Registered API workflows remain the execution gate.` : 'Advanced reference nodes or compatible model files were not detected; basic image and revision workflows remain available.';
   }
 
   async function renderVariants(container, shot) {
@@ -94,7 +139,7 @@
       const promote = document.createElement('button'); promote.textContent = 'Promote'; promote.onclick = async () => { await window.masterChief.saveReferenceVariant({ ...ids(shot.id), variant: { ...variant, status: 'approved' } }); await loadState(); };
       const reject = document.createElement('button'); reject.textContent = 'Reject'; reject.onclick = async () => { await window.masterChief.saveReferenceVariant({ ...ids(shot.id), variant: { ...variant, status: 'rejected' } }); await loadState(); };
       const annotate = document.createElement('button'); annotate.textContent = 'Note'; annotate.onclick = async () => { const value = prompt('Variant annotation', variant.annotation || ''); if (value !== null) { await window.masterChief.saveReferenceVariant({ ...ids(shot.id), variant: { ...variant, annotation: value } }); await loadState(); } };
-      const branch = document.createElement('button'); branch.textContent = 'Branch'; branch.onclick = async () => { get('shotTitle').value = `${shot.title} branch`; get('shotPositive').value = shot.positivePrompt; get('shotNegative').value = shot.negativePrompt; get('shotReferenceArtifact').value = variant.artifact; get('shotDenoise').value = shot.denoise; get('shotDenoiseValue').value = shot.denoise; get('shotPositive').focus(); };
+      const branch = document.createElement('button'); branch.textContent = 'Branch'; branch.onclick = async () => { loadShotEditor({ ...shot, title: `${shot.title} branch`, referenceArtifact: variant.artifact, referenceMode: 'selected' }); get('shotPositive').focus(); };
       item.append(caption, promote, reject, annotate, branch); strip.append(item);
     }
     container.append(strip);
@@ -108,12 +153,13 @@
       const title = document.createElement('strong'); title.textContent = shot.title;
       const status = document.createElement('span'); status.className = `reference-shot-status status-${shot.status}`; status.textContent = shot.status;
       const promptText = document.createElement('p'); promptText.textContent = shot.positivePrompt || 'No positive prompt recorded.';
-      const details = document.createElement('small'); details.textContent = [shot.pose, shot.environment, shot.camera, shot.lighting, `strength ${shot.referenceStrength}`, `denoise ${shot.denoise}`, shot.model || 'auto model'].filter(Boolean).join(' · ');
+      const details = document.createElement('small'); details.textContent = [shot.referenceMode === 'none' ? 'clean generation' : `${shot.referenceMode || 'approved'} reference`, shot.pose, shot.environment, shot.camera, shot.lighting, `strength ${shot.referenceStrength}`, `denoise ${shot.denoise}`, shot.model || 'auto model'].filter(Boolean).join(' · ');
       const actions = document.createElement('div'); actions.className = 'reference-shot-actions';
       const run = document.createElement('button'); run.textContent = shot.status === 'failed' ? 'Retry' : 'Run'; run.onclick = async () => { await window.masterChief.saveReferenceShot({ ...ids(), shot: { ...shot, status: 'queued', error: '' } }); await loadState(); await runQueue(shot.id); };
-      const load = document.createElement('button'); load.textContent = 'Load'; load.onclick = () => { get('positivePrompt').value = shot.positivePrompt; get('negativePrompt').value = shot.negativePrompt; get('prompt').value = '/image Reference Studio shot'; dialog.close(); get('prompt').focus(); };
+      const edit = document.createElement('button'); edit.textContent = 'Edit'; edit.onclick = () => { loadShotEditor(shot); get('shotPositive').focus(); };
+      const load = document.createElement('button'); load.textContent = 'Send to command'; load.onclick = () => { get('positivePrompt').value = shot.positivePrompt; get('negativePrompt').value = shot.negativePrompt; get('prompt').value = '/image Reference Studio shot'; dialog.close(); get('prompt').focus(); };
       const remove = document.createElement('button'); remove.textContent = 'Remove'; remove.onclick = async () => { await window.masterChief.removeReferenceShot({ ...ids(shot.id) }); await loadState(); };
-      actions.append(run, load, remove); card.append(title, status, promptText, details); if (shot.error) { const error = document.createElement('small'); error.className = 'shot-error'; error.textContent = shot.error; card.append(error); } card.append(actions); await renderVariants(card, shot); queue.append(card);
+      actions.append(run, edit, load, remove); card.append(title, status, promptText, details); if (shot.error) { const error = document.createElement('small'); error.className = 'shot-error'; error.textContent = shot.error; card.append(error); } card.append(actions); await renderVariants(card, shot); queue.append(card);
     }
   }
 
@@ -152,11 +198,24 @@
   get('referenceFileInput').onchange = async event => { await importFiles([...event.target.files]); event.target.value = ''; };
   const drop = get('referenceDropZone'); drop.ondragover = event => { event.preventDefault(); drop.classList.add('dragging'); }; drop.ondragleave = () => drop.classList.remove('dragging'); drop.ondrop = async event => { event.preventDefault(); drop.classList.remove('dragging'); const artifact = event.dataTransfer.getData('application/x-master-chief-artifact'); if (artifact) { if (!sheet) await saveHierarchy(); await window.masterChief.saveReferenceView({ ...ids(), view: { artifact, label: artifact.split('/').pop(), status: 'candidate' } }); await loadState(); } else await importFiles([...event.dataTransfer.files]); };
   get('compareTwoViews').onclick = () => showComparison(2); get('compareFourViews').onclick = () => showComparison(4); get('clearComparison').onclick = () => { comparison.clear(); get('referenceComparison').hidden = true; renderContactSheet(); };
+  get('shotReferenceMode').onchange = event => setReferenceMode(event.target.value);
+  get('clearActiveReference').onclick = () => { get('shotReferenceArtifact').value = ''; setReferenceMode('none'); get('referenceQueueStatus').textContent = 'Active reference cleared. The next queued shot will start clean; saved references remain available.'; };
+  get('newCleanReferenceDraft').onclick = () => { comparison.clear(); get('referenceComparison').hidden = true; resetShotEditor({ cleanReference: true }); get('sceneCoachAdvice').textContent = 'Clean draft ready. No approved or selected image will be sent unless you choose a reference mode again.'; get('referenceQueueStatus').textContent = 'New clean draft started. Saved projects, references, variants, and media were not deleted.'; renderContactSheet(); get('shotPositive').focus(); };
+  const sceneMoves = {
+    scene: { focus: 'shotEnvironment', advice: 'Describe only the new location, time, weather, and background action. Keep face, body, costume, and color anchors in Continuity locks. Use an approved reference with moderate denoise.' },
+    pose: { focus: 'shotPose', advice: 'Describe body position, hand placement, gaze, and action. Keep environment and camera unchanged. Use the selected or approved reference; lower denoise preserves more identity.' },
+    camera: { focus: 'shotCamera', advice: 'Specify shot size, lens or field of view, angle, height, distance, and depth of field. Leave character locks unchanged.' },
+    light: { focus: 'shotLighting', advice: 'Specify key direction, softness, fill ratio, rim light, practical sources, color temperature, and exposure mood. Keep pose and camera fixed.' },
+    detail: { focus: 'shotPositive', advice: 'Use a lower-denoise revision for texture, material, hair, skin, and edge cleanup. Do not add a new scene or pose in the same pass.', denoise: .35 },
+    rebuild: { focus: 'shotPositive', advice: 'Use a clean generation when composition is fundamentally wrong. Restate the complete subject, action, environment, camera, lighting, and continuity locks.', mode: 'none', denoise: .84 }
+  };
+  document.querySelectorAll('[data-scene-move]').forEach(button => { button.onclick = () => { const move = sceneMoves[button.dataset.sceneMove]; if (move.mode) setReferenceMode(move.mode); if (move.denoise) { get('shotDenoise').value = move.denoise; get('shotDenoiseValue').value = move.denoise; } get('sceneCoachAdvice').textContent = move.advice; get(move.focus).focus(); }; });
   get('shotReferenceStrength').oninput = event => { get('shotReferenceStrengthValue').value = event.target.value; }; get('shotDenoise').oninput = event => { get('shotDenoiseValue').value = event.target.value; };
-  get('addReferenceShot').onclick = async () => { if (!sheet) await saveHierarchy(); const positivePrompt = get('shotPositive').value; if (!positivePrompt.trim()) { get('shotPositive').focus(); return; } await window.masterChief.saveReferenceShot({ ...ids(), shot: { title: get('shotTitle').value, positivePrompt, negativePrompt: get('shotNegative').value, referenceArtifact: get('shotReferenceArtifact').value, pose: get('shotPose').value, environment: get('shotEnvironment').value, camera: get('shotCamera').value, lighting: get('shotLighting').value, model: get('shotModel').value, workflow: get('shotWorkflow').value, referenceStrength: Number(get('shotReferenceStrength').value), denoise: Number(get('shotDenoise').value), continuityLocks: get('shotContinuityLocks').value, status: 'queued' } }); ['shotTitle','shotPositive','shotNegative','shotPose','shotEnvironment','shotCamera','shotLighting','shotContinuityLocks'].forEach(id => { get(id).value = ''; }); await loadState(); };
+  get('addReferenceShot').onclick = async () => { if (!sheet) await saveHierarchy(); const positivePrompt = get('shotPositive').value; if (!positivePrompt.trim()) { get('shotPositive').focus(); return; } const referenceMode = get('shotReferenceMode').value; if (referenceMode === 'selected' && !get('shotReferenceArtifact').value) { get('referenceQueueStatus').textContent = 'Choose a reference artifact or select a different reference mode.'; get('shotReferenceArtifact').focus(); return; } await window.masterChief.saveReferenceShot({ ...ids(), shot: { title: get('shotTitle').value, positivePrompt, negativePrompt: get('shotNegative').value, referenceMode, referenceArtifact: get('shotReferenceArtifact').value, pose: get('shotPose').value, environment: get('shotEnvironment').value, camera: get('shotCamera').value, lighting: get('shotLighting').value, model: get('shotModel').value, workflow: get('shotWorkflow').value, referenceStrength: Number(get('shotReferenceStrength').value), denoise: Number(get('shotDenoise').value), continuityLocks: get('shotContinuityLocks').value, status: 'queued' } }); resetShotEditor(); await loadState(); };
   get('runReferenceQueue').onclick = () => runQueue(); get('resumeReferenceQueue').onclick = async () => { for (const shot of sheet?.shots || []) if (['failed','cancelled','recoverable'].includes(shot.status)) await window.masterChief.saveReferenceShot({ ...ids(), shot: { ...shot, status: 'queued', error: '' } }); await loadState(); await runQueue(); };
   get('cancelReferenceQueue').onclick = async () => { if (activeQueueId) await window.masterChief.cancelReferenceQueue(activeQueueId); };
   get('clearReferenceQueue').onclick = async () => { if (sheet) { const result = await window.masterChief.clearReferenceQueue(ids()); get('referenceQueueStatus').textContent = `${result.cleared} pending shots cleared`; await loadState(); } };
   get('closeReferenceRuntime').onclick = async () => { if (!sheet) return; const result = await window.masterChief.closeReferenceRuntime(ids()); get('referenceQueueStatus').textContent = result.gpuMemoryReleased ? 'Runtime closed; VRAM release requested. Lineage preserved.' : 'Runtime session closed. Lineage preserved.'; await loadState(); };
+  setReferenceMode('approved');
   if (window.masterChief.onReferenceQueueEvent) window.masterChief.onReferenceQueueEvent(async event => { if (event.queueId) activeQueueId = event.status === 'complete' || event.status === 'cancelled' ? null : event.queueId; get('referenceQueueStatus').textContent = event.type === 'shot' ? `${event.status}: ${event.shotId}` : `${event.status}: ${event.completed || 0}/${event.total || 0}`; if (event.type === 'shot') await loadState(); });
 })();

@@ -37,7 +37,7 @@ const { cloneAndFillWorkflow, safeUltraSharpPlan, createComfyUiClient } = requir
 const { runAgentPlan } = require('./agent-runner');
 const { createReferenceStudioStore } = require('./reference-studio-store');
 const { createMediaJobLedger } = require('./media-job-ledger');
-const { createWorkflowRegistry } = require('./workflow-registry');
+const { createWorkflowRegistry, evaluateWorkflowReadiness } = require('./workflow-registry');
 const { normalizeSpeechContract, createAudioJobStore } = require('./audio-production');
 const { requestedPages, createDocxArtifact } = require('./document-generator');
 const { ingestAttachment } = require('./file-ingestion');
@@ -686,7 +686,9 @@ async function executeReferenceShot(ids, queue) {
   const requestId = require('crypto').randomUUID();
   queue.requestIds.add(requestId);
   try {
-    const sourceArtifact = shot.referenceArtifact || sheet.approvedViews.find(view => view.status === 'approved')?.artifact || '';
+    const sourceArtifact = shot.referenceMode === 'none' ? '' : shot.referenceMode === 'selected'
+      ? shot.referenceArtifact
+      : sheet.approvedViews.find(view => view.status === 'approved')?.artifact || '';
     const result = await generateLocalMedia({
       kind: sourceArtifact ? 'revision' : 'image', requestId, sessionId: queue.id,
       prompt: effectiveShotPrompt(subject, sheet, shot), negativePrompt: shot.negativePrompt,
@@ -1441,7 +1443,17 @@ secureHandle('generate-local-media', (_event, payload) => generateLocalMedia(pay
 secureHandle('list-generated-media', (_event, payload) => listGeneratedArtifacts(payload?.limit, Boolean(payload?.includeCleared)));
 secureHandle('media-job-list', (_event, payload) => mediaJobLedger.list(payload?.limit));
 secureHandle('media-job-get', (_event, payload) => mediaJobLedger.get(payload?.requestId));
-secureHandle('media-catalog', async () => ({ checkpoints: comfyClient ? await comfyClient.checkpoints() : [], vaes: comfyClient ? await comfyClient.modelNames('vae') : [], upscalers: comfyClient ? await comfyClient.modelNames('upscale_models') : [], workflows: workflowRegistry.list(), capabilities: { image: true, revision: true, rebuild: true, upscale: true, video: workflowRegistry.list().some(item => item.contract === 'video' && item.enabled !== false) }, videoReadiness: workflowRegistry.list().some(item => item.contract === 'video' && item.enabled !== false) ? 'ready' : 'missing approved AMD workflow and model bundle' }));
+secureHandle('media-catalog', async () => {
+  const video = workflowRegistry.list().some(item => item.contract === 'video' && item.enabled !== false);
+  const [checkpoints, vaes, upscalers, controlnets, clipVision, loras, detected] = comfyClient ? await Promise.all([
+    comfyClient.checkpoints(), comfyClient.modelNames('vae'), comfyClient.modelNames('upscale_models'),
+    comfyClient.modelNames('controlnet'), comfyClient.modelNames('clip_vision'), comfyClient.modelNames('loras'), comfyClient.capabilities()
+  ]) : [[], [], [], [], [], [], {}];
+  const workflows = evaluateWorkflowReadiness(workflowRegistry.list(), detected.availableNodes, { checkpoints, vaes, upscalers });
+  return { checkpoints, vaes, upscalers, controlnets, clipVision, loras, workflows, detected,
+    capabilities: { image: true, revision: true, rebuild: true, upscale: true, video },
+    videoReadiness: video ? 'ready' : 'missing approved AMD workflow and model bundle' };
+});
 secureHandle('media-job-cancel', async (_event, payload) => {
   requireToolApproval('media.generate_local');
   const requestId = String(payload?.requestId || '');

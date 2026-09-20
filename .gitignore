@@ -1,5 +1,6 @@
 node_modules/
 artifacts/generated/
+artifacts/prompt-fidelity/
 .env
 .DS_Store
 *.log

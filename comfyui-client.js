@@ -112,11 +112,29 @@ function createComfyUiClient({ baseUrl, fetchImpl = fetch, artifactDir, timeoutM
       return Array.isArray(body) ? body.map(String) : [];
     },
     async modelNames(category) {
-      const allowed = new Set(['checkpoints', 'vae', 'upscale_models']);
+      const allowed = new Set(['checkpoints', 'vae', 'upscale_models', 'controlnet', 'clip_vision', 'loras']);
       if (!allowed.has(category)) throw new Error('Unsupported ComfyUI model category.');
       const response = await request(`/models/${category}`, {}, 10000);
       const body = await response.json();
       return (Array.isArray(body) ? body : []).slice(0, 100).map(value => String(value).slice(0, 240));
+    },
+    async capabilities() {
+      const response = await request('/object_info', {}, 30000);
+      const nodes = await response.json();
+      const has = (...names) => names.every(name => Boolean(nodes?.[name]));
+      return {
+        discoveredAt: new Date().toISOString(),
+        nodeCount: nodes && typeof nodes === 'object' ? Object.keys(nodes).length : 0,
+        availableNodes: nodes && typeof nodes === 'object' ? Object.keys(nodes).sort().slice(0, 2000) : [],
+        advancedSampler: has('KSamplerAdvanced'),
+        inpaint: has('LoadImage', 'VAEEncodeForInpaint', 'InpaintModelConditioning'),
+        controlNet: has('ControlNetLoader', 'ControlNetApplyAdvanced'),
+        clipVision: has('CLIPVisionLoader'),
+        ipAdapter: Boolean(nodes?.IPAdapterAdvanced || nodes?.IPAdapterUnifiedLoader),
+        lora: has('LoraLoader'),
+        modelUpscale: has('UpscaleModelLoader', 'ImageUpscaleWithModel'),
+        partialConditioning: has('ConditioningCombine', 'ConditioningSetArea')
+      };
     },
     async runtimeStatus() {
       const [statsResponse, queueResponse, checkpointsResponse] = await Promise.all([
@@ -128,6 +146,8 @@ function createComfyUiClient({ baseUrl, fetchImpl = fetch, artifactDir, timeoutM
         system: {
           os: boundedText(stats.system?.os),
           comfyuiVersion: boundedText(stats.system?.comfyui_version),
+          frontendVersion: boundedText(stats.system?.required_frontend_version),
+          templatesVersion: boundedText(stats.system?.installed_templates_version),
           pythonVersion: boundedText(stats.system?.python_version),
           pytorchVersion: boundedText(stats.system?.pytorch_version),
           ramTotal: Number(stats.system?.ram_total || 0), ramFree: Number(stats.system?.ram_free || 0)

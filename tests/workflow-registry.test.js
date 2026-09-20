@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const test = require('node:test');
-const { createWorkflowRegistry } = require('../workflow-registry');
+const { createWorkflowRegistry, evaluateWorkflowReadiness } = require('../workflow-registry');
 const { cloneAndFillWorkflow } = require('../comfyui-client');
 
 test('registry versions all four independent media contracts', () => {
@@ -51,4 +51,13 @@ test('main process recognizes video and reports its gated readiness precisely', 
   assert.match(main, /\['image', 'revision', 'rebuild', 'upscale', 'video'\]/);
   assert.match(main, /Video generation is not ready on the Windows worker/);
   assert.doesNotMatch(main, /Media contract must be image, revision, rebuild, or upscale\./);
+});
+
+test('workflow readiness requires every declared node and model', () => {
+  const workflows = [{ id: 'ready', enabled: true, requiredNodes: ['LoadImage'], requiredModels: ['checkpoint:sdxl', 'vae:sdxl_vae.safetensors'] }, { id: 'blocked', enabled: true, requiredNodes: ['MissingNode'], requiredModels: ['upscaler:missing.pth'] }];
+  const result = evaluateWorkflowReadiness(workflows, ['LoadImage'], { checkpoints: ['Juggernaut-XL_v9.safetensors'], vaes: ['sdxl_vae.safetensors'], upscalers: [] });
+  assert.equal(result[0].readiness, 'ready');
+  assert.equal(result[1].readiness, 'blocked');
+  assert.deepEqual(result[1].missingNodes, ['MissingNode']);
+  assert.deepEqual(result[1].missingModels, ['upscaler:missing.pth']);
 });

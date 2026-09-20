@@ -146,9 +146,10 @@ test('blank media seed remains random instead of becoming seed zero', () => {
 });
 
 test('Reference Studio exposes hierarchy, review, comparison, queue, and runtime controls', () => {
-  for (const id of ['referenceProjectSelect','referenceSubjectSelect','referenceSheetSelect','referenceContactSheet','referenceComparison','runReferenceQueue','cancelReferenceQueue','resumeReferenceQueue','clearReferenceQueue','closeReferenceRuntime','shotReferenceStrength','shotDenoise']) assert.match(html, new RegExp(`id="${id}"`));
+  for (const id of ['referenceProjectSelect','referenceSubjectSelect','referenceSheetSelect','referenceContactSheet','referenceComparison','runReferenceQueue','cancelReferenceQueue','resumeReferenceQueue','clearReferenceQueue','closeReferenceRuntime','shotReferenceStrength','shotDenoise','shotReferenceMode','clearActiveReference','newCleanReferenceDraft','sceneCoachAdvice']) assert.match(html, new RegExp(`id="${id}"`));
   assert.match(referenceStudio, /onReferenceQueueEvent/);
   assert.match(referenceStudio, /saveReferenceVariant/);
+  assert.match(referenceStudio, /clean generation/);
 });
 
 test('Ollama Command Center exposes native generation and agent controls', () => {

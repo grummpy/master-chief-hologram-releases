@@ -6,6 +6,22 @@ const path = require('path');
 
 function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'); }
 
+function evaluateWorkflowReadiness(workflows, availableNodes = [], catalogs = {}) {
+  const nodeSet = new Set((availableNodes || []).map(String));
+  const modelReady = requirement => {
+    const [kind, requested = ''] = String(requirement).split(':', 2);
+    const values = kind === 'checkpoint' ? catalogs.checkpoints : kind === 'vae' ? catalogs.vaes : kind === 'upscaler' ? catalogs.upscalers : [];
+    if (!Array.isArray(values)) return false;
+    if (kind === 'checkpoint' && requested === 'sdxl') return values.some(name => /(?:sd.?xl|juggernaut.*xl)/i.test(String(name)));
+    return values.some(name => String(name).toLowerCase() === requested.toLowerCase());
+  };
+  return (workflows || []).map(workflow => {
+    const missingNodes = (workflow.requiredNodes || []).filter(node => !nodeSet.has(String(node)));
+    const missingModels = (workflow.requiredModels || []).filter(requirement => !modelReady(requirement));
+    return { ...workflow, readiness: missingNodes.length || missingModels.length || workflow.enabled === false ? 'blocked' : 'ready', missingNodes, missingModels };
+  });
+}
+
 function createWorkflowRegistry(root, manifestPath = path.join(root, 'workflows', 'registry.json')) {
   const base = path.resolve(root);
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
@@ -29,4 +45,4 @@ function createWorkflowRegistry(root, manifestPath = path.join(root, 'workflows'
   return { get, forKind, list, version: manifest.version };
 }
 
-module.exports = { createWorkflowRegistry };
+module.exports = { createWorkflowRegistry, evaluateWorkflowReadiness };

@@ -28,6 +28,18 @@ test('Reference Studio persists the complete hierarchy and review state atomical
     assert.equal(state.projects[0].subjects[0].referenceSheets[0].shots[0].variants[0].id, variant.id);
     assert.equal(state.projects[0].subjects[0].referenceSheets[0].shots[0].camera, '35mm');
     assert.equal(state.projects[0].subjects[0].referenceSheets[0].shots[0].denoise, .72);
+    assert.equal(state.projects[0].subjects[0].referenceSheets[0].shots[0].referenceMode, 'approved');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('clean generation mode prevents approved reference fallback', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-reference-clean-'));
+  try {
+    const store = createReferenceStudioStore(path.join(root, 'reference-studio.json'));
+    const { project, subject, sheet } = fixture(store);
+    const shot = store.saveShot(project.id, { positivePrompt: 'new composition', referenceMode: 'none', referenceArtifact: 'old.png' }, subject.id, sheet.id);
+    assert.equal(shot.referenceMode, 'none');
+    assert.equal(store.read().projects[0].subjects[0].referenceSheets[0].shots[0].referenceMode, 'none');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
