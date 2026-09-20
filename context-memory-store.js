@@ -3,19 +3,21 @@
 const fs = require('fs');
 const path = require('path');
 
-function writeAtomic(file, state) {
+function writeAtomic(file, state, encode = value => JSON.stringify(value, null, 2)) {
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
   const temporary = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(temporary, JSON.stringify(state, null, 2), { mode: 0o600 });
+  fs.writeFileSync(temporary, encode(state), { mode: 0o600 });
   fs.renameSync(temporary, file);
 }
 
-function createContextMemoryStore(file) {
+function createContextMemoryStore(file, options = {}) {
+  const encode = typeof options.encode === 'function' ? options.encode : value => JSON.stringify(value, null, 2);
+  const decode = typeof options.decode === 'function' ? options.decode : value => JSON.parse(value);
   let state;
-  try { state = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { state = { version: 1, projects: {}, approvedPreferences: [] }; }
+  try { state = decode(fs.readFileSync(file, 'utf8')); } catch { state = { version: 1, projects: {}, approvedPreferences: [] }; }
   if (!state.projects || typeof state.projects !== 'object') state.projects = {};
   if (!Array.isArray(state.approvedPreferences)) state.approvedPreferences = [];
-  const save = () => writeAtomic(file, state);
+  const save = () => writeAtomic(file, state, encode);
   const bounded = value => String(value || '').trim().slice(0, 8000);
   return {
     get(project = 'default') { return { project: String(project), projectMemory: bounded(state.projects[String(project)] || ''), approvedPreferences: [...state.approvedPreferences] }; },

@@ -1,0 +1,5 @@
+'use strict';
+const fs=require('fs');const path=require('path');
+function write(file,value){fs.mkdirSync(path.dirname(file),{recursive:true,mode:0o700});fs.writeFileSync(file,JSON.stringify(value,null,2),{mode:0o600})}
+function createCrashRecovery(file,windowMs=5*60*1000){let state;try{state=JSON.parse(fs.readFileSync(file,'utf8'))}catch{state={version:1,starts:[],cleanExit:true}};const now=Date.now();state.starts=(state.starts||[]).filter(value=>now-value<windowMs);if(!state.cleanExit)state.starts.push(now);state.cleanExit=false;write(file,state);return{status(){return{crashLoop:state.starts.length>=3,recentUncleanStarts:state.starts.length,lastKnownGood:state.lastKnownGood||null}},markReady(revision){state.lastKnownGood={revision:String(revision||''),at:new Date().toISOString()};write(file,state);return this.status()},markClean(){state.cleanExit=true;write(file,state)},reset(){state.starts=[];state.cleanExit=true;write(file,state)}}}
+module.exports={createCrashRecovery};

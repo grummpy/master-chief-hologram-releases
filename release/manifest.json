@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "product": "master-chief-hologram",
+  "version": "1.39.0",
+  "revision": "438ec34c9c3f2fa4e2e2fbe344d8a203a8383dea",
+  "generatedAt": "2026-09-20T15:13:46.710Z",
+  "files": [
+    {
+      "path": "package.json",
+      "bytes": 5440,
+      "sha256": "154a767f14ab75a20616eb0322f861ae8f97786fd471cd31f9f83ca25727a4f7"
+    },
+    {
+      "path": "package-lock.json",
+      "bytes": 191479,
+      "sha256": "60fdbc41a404e4db52a066b9d47098397a11824a80a3695e79e2d009d304c7f7"
+    },
+    {
+      "path": "build-info.json",
+      "bytes": 297,
+      "sha256": "faec521276da756ec8a67d1763af4b3b637a6bea15fe7e11d1330434c56c068f"
+    }
+  ]
+}

@@ -36,6 +36,10 @@ const { createDiagnosticsStore } = require('./diagnostics-store');
 const { createRagIndex } = require('./rag-index');
 const { createRepositoryIndexer } = require('./repository-index');
 const { SDK_VERSION, discoverRecipes } = require('./extension-sdk');
+const { assessResponse } = require('./response-quality');
+const { createMcpRegistry } = require('./mcp-registry');
+const { createCrashRecovery } = require('./crash-recovery');
+const { safePublicUrl, extractPageEvidence, rankEvidence } = require('./web-evidence');
 const { safeArtifactPath } = require('./artifact-links');
 const { MICROPHONE_SETTINGS_URL, isGranted, recoveryMessage } = require('./microphone-access');
 const { voiceSelfTest } = require('./voice-diagnostics');
@@ -75,9 +79,13 @@ let toolApprovals;
 const scheduler = createSchedulerStore(path.join(app.getPath('userData'), 'scheduled-reminders.json'));
 const monitors = createMonitorStore(path.join(app.getPath('userData'), 'runtime-monitors.json'));
 const agentTasks = createAgentTaskLedger(path.join(app.getPath('userData'), 'agent-tasks.json'));
-const contextMemory = createContextMemoryStore(path.join(app.getPath('userData'), 'context-memory.json'));
+function encodePrivateState(value){if(!safeStorage.isEncryptionAvailable())return JSON.stringify(value,null,2);return JSON.stringify({version:1,encrypted:true,data:safeStorage.encryptString(JSON.stringify(value)).toString('base64')})}
+function decodePrivateState(value){const parsed=JSON.parse(String(value));if(!parsed?.encrypted)return parsed;return JSON.parse(safeStorage.decryptString(Buffer.from(parsed.data,'base64')))}
+const contextMemory = createContextMemoryStore(path.join(app.getPath('userData'), 'context-memory.json'),{encode:encodePrivateState,decode:decodePrivateState});
 const conversations = createConversationStore(path.join(app.getPath('userData'), 'conversations.json'));
 const diagnostics = createDiagnosticsStore(path.join(app.getPath('userData'), 'diagnostics.jsonl'));
+const mcpRegistry = createMcpRegistry(path.join(app.getPath('userData'),'mcp-servers.json'));
+const crashRecovery = createCrashRecovery(path.join(app.getPath('userData'),'crash-recovery.json'));
 let schedulerTimer;
 function runSchedulerTick() {
   for (const job of scheduler.tick()) {
@@ -1404,6 +1412,17 @@ async function runLocalEnsemble(payload = {}) {
   return normalizeProviderResult('ollama',{reply,label:`Local ensemble · ${responses.map(item=>item.model).join(' + ')}`,responses,mergePolicy:policy},startedAt);
 }
 
+async function analyzeLocalImage() {
+  requireToolApproval('files.attach_local_text'); const selected=await dialog.showOpenDialog(mainWindow,{title:'Analyze an image locally',properties:['openFile'],filters:[{name:'Images',extensions:['png','jpg','jpeg','webp']}]});
+  if(selected.canceled||!selected.filePaths[0])return{cancelled:true};const file=selected.filePaths[0],stat=fs.statSync(file);if(stat.size>20*1024*1024)throw new Error('Local image analysis is limited to 20 MB.');
+  const runtime=await ollamaRuntime();const model=runtime.models.find(item=>item.capabilities?.includes('vision'));if(!model)throw new Error('No installed Ollama model advertises vision capability. Install a reviewed local vision model, then retry.');
+  const response=await fetch(`${(process.env.OLLAMA_BASE_URL||'http://127.0.0.1:11434').replace(/\/$/,'')}/api/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:model.name,messages:[{role:'user',content:'Describe this image accurately. Separate directly visible facts from uncertain interpretation.',images:[fs.readFileSync(file).toString('base64')]}],stream:false,keep_alive:'10m'})});const body=await response.json().catch(()=>({}));if(!response.ok)throw new Error(body.error||`Vision model error ${response.status}`);return{cancelled:false,model:model.name,filename:path.basename(file),reply:String(body.message?.content||''),bytes:stat.size};
+}
+
+async function callMcp(id, method, params = {}) { const server=mcpRegistry.list().find(item=>item.id===String(id));if(!server||!server.enabled)throw new Error('MCP server is unavailable.');if(method==='tools/call'){const name=String(params?.name||'');if(!server.permissions?.[name])throw new Error(`Approve MCP tool ${name} before using it.`)}const response=await fetch(server.endpoint,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:require('crypto').randomUUID(),method,params})});const body=await response.json().catch(()=>({}));if(!response.ok||body.error)throw new Error(body.error?.message||`MCP request failed (${response.status}).`);return body.result}
+
+async function fetchPageEvidence(url) { requireToolApproval('research.public_web'); const target=safePublicUrl(url);const response=await fetch(target,{redirect:'follow',signal:AbortSignal.timeout(15000),headers:{'User-Agent':'MasterChiefHologram/1.0 evidence-reader'}});if(!response.ok)throw new Error(`Evidence page returned ${response.status}.`);const length=Number(response.headers.get('content-length')||0);if(length>2_000_000)throw new Error('Evidence page exceeds the 2 MB limit.');const evidence=extractPageEvidence(response.url,await response.text());return{...evidence,qualityScore:rankEvidence(evidence)}}
+
 function memoryCandidates(messages = []) {
   const cues=/\b(?:remember|i prefer|my preference|we decided|the project|always use|do not use|correction|important fact)\b/i; const candidates=[];
   for(const message of validateMessages(messages)) for(const sentence of String(message.content).split(/(?<=[.!?])\s+|\n+/)) if(cues.test(sentence)&&sentence.trim().length>=8)candidates.push(sentence.trim().slice(0,500));
@@ -1429,7 +1448,9 @@ async function routeChat(payload) {
     else if (payload.provider === 'huggingface') result = await callHuggingFace(payload);
     if (!result) throw new Error('Unknown provider selected.');
     if (payload.provider === 'ollama') localAiAudit.record({ model: payload.model || process.env.OLLAMA_MODEL || 'default', outcome: 'success', latencyMs: Date.now() - startedAt });
-    const normalized = normalizeProviderResult(payload.provider, { ...result, contextReport: context.report }, startedAt);
+    const request = [...payload.messages].reverse().find(item => item.role === 'user')?.content || '';
+    const quality = assessResponse({ request, reply: result.reply, sources: payload.sources || [] });
+    const normalized = normalizeProviderResult(payload.provider, { ...result, quality, contextReport: context.report }, startedAt);
     diagnostics.record({ area: 'provider', event: payload.provider, outcome: 'success', durationMs: normalized.durationMs, detail: normalized.label || payload.provider });
     return normalized;
   } catch (error) {
@@ -1477,6 +1498,7 @@ if (!gotLock) {
   app.on('second-instance', showWindow);
   app.whenReady().then(() => {
     createWindow();
+    crashRecovery.markReady(process.env.MASTER_CHIEF_REVISION || APP_VERSION);
     schedulerTimer = setInterval(() => { runSchedulerTick(); runMonitorTick().catch(() => {}); }, 15000); setTimeout(() => { runSchedulerTick(); runMonitorTick().catch(() => {}); }, 1000);
     // Grant Chromium's microphone request after the window/session exists.
     mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback, details) => {
@@ -1504,6 +1526,7 @@ if (!gotLock) {
 }
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+app.on('before-quit', () => { crashRecovery.markClean(); });
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
   showWindow();
@@ -1551,6 +1574,15 @@ secureHandle('conversation-export', async (_event, payload) => {
 });
 secureHandle('conversation-import', async () => { const selected=await dialog.showOpenDialog(mainWindow,{title:'Import conversations',properties:['openFile'],filters:[{name:'Master Chief conversation JSON',extensions:['json']}]});if(selected.canceled||!selected.filePaths[0])return{imported:0};const file=selected.filePaths[0];const stat=fs.statSync(file);if(stat.size>5*1024*1024)throw new Error('Conversation import is limited to 5 MB.');return conversations.importData(fs.readFileSync(file,'utf8')); });
 secureHandle('ensemble-chat', (_event, payload) => runLocalEnsemble(payload));
+secureHandle('analyze-local-image', () => analyzeLocalImage());
+secureHandle('crash-recovery-status', () => crashRecovery.status());
+secureHandle('public-page-evidence', (_event, payload) => fetchPageEvidence(payload?.url));
+secureHandle('mcp-list', () => ({ servers: mcpRegistry.list() }));
+secureHandle('mcp-save', (_event, payload) => mcpRegistry.upsert(payload));
+secureHandle('mcp-remove', (_event, payload) => mcpRegistry.remove(payload?.id));
+secureHandle('mcp-permission', (_event, payload) => mcpRegistry.permission(payload?.id, payload?.tool, payload?.approved));
+secureHandle('mcp-list-tools', (_event, payload) => callMcp(payload?.id, 'tools/list', {}));
+secureHandle('mcp-call-tool', (_event, payload) => callMcp(payload?.id, 'tools/call', { name: payload?.tool, arguments: payload?.arguments || {} }));
 secureHandle('repository-index', () => { requireToolApproval('knowledge.search_local'); return indexRepository({limit:500}); });
 secureHandle('extension-recipes', () => ({sdkVersion:SDK_VERSION,recipes:discoverRecipes(path.join(__dirname,'recipes'))}));
 secureHandle('provider-capabilities', (_event, payload) => providerCapabilities(String(payload?.provider || '')));

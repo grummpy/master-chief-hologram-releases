@@ -1,0 +1,171 @@
+{
+  "schemaVersion": 1,
+  "benchmark": "Codex-style dependable local-first command center",
+  "assessedAt": "2026-09-20T15:13:45.276Z",
+  "score": 87.3,
+  "parity": false,
+  "areas": [
+    {
+      "id": "reasoning",
+      "label": "Reasoning and answer quality",
+      "weight": 14,
+      "target": 100,
+      "score": 88,
+      "gap": "Add model-graded domain benchmarks and citation entailment checks beyond deterministic contradiction and relevance scoring.",
+      "delta": 12
+    },
+    {
+      "id": "context",
+      "label": "Context and durable memory",
+      "weight": 11,
+      "target": 100,
+      "score": 91,
+      "gap": "Add provenance-aware memory summaries and larger retrieval-quality regression suites.",
+      "delta": 9
+    },
+    {
+      "id": "orchestration",
+      "label": "Agent planning and recovery",
+      "weight": 13,
+      "target": 100,
+      "score": 85,
+      "gap": "Resume from the exact interrupted tool step and add richer cross-tool compensation.",
+      "delta": 15
+    },
+    {
+      "id": "tools",
+      "label": "Tools and connectors",
+      "weight": 12,
+      "target": 100,
+      "score": 88,
+      "gap": "Expand the permissioned MCP client into a full typed tool browser with OAuth transports.",
+      "delta": 12
+    },
+    {
+      "id": "artifacts",
+      "label": "Files and artifact production",
+      "weight": 10,
+      "target": 100,
+      "score": 88,
+      "gap": "Add richer live document editing, preview diffs, and broader round-trip visual fidelity tests.",
+      "delta": 12
+    },
+    {
+      "id": "research",
+      "label": "Research and evidence",
+      "weight": 10,
+      "target": 100,
+      "score": 89,
+      "gap": "Add multi-page citation verification and automated temporal-conflict resolution.",
+      "delta": 11
+    },
+    {
+      "id": "multimodal",
+      "label": "Image, audio, and video understanding",
+      "weight": 10,
+      "target": 100,
+      "score": 82,
+      "gap": "Install a reviewed local vision model where absent and finish the external AMD video model/workflow bundle.",
+      "delta": 18
+    },
+    {
+      "id": "recovery",
+      "label": "Reliability and self-repair",
+      "weight": 8,
+      "target": 100,
+      "score": 91,
+      "gap": "Add automatic last-known-good binary rollback rehearsal and exact-step agent replay.",
+      "delta": 9
+    },
+    {
+      "id": "ux",
+      "label": "Ease of use and accessibility",
+      "weight": 7,
+      "target": 100,
+      "score": 89,
+      "gap": "Replace prompt-based MCP setup with a full visual tool browser and add automated screen-reader journeys.",
+      "delta": 11
+    },
+    {
+      "id": "release",
+      "label": "Release and operations",
+      "weight": 5,
+      "target": 100,
+      "score": 79,
+      "gap": "Obtain an Apple Developer ID, notarize production builds, and sign the update manifest with that identity.",
+      "delta": 21
+    }
+  ],
+  "buildList": [
+    {
+      "priority": 1,
+      "area": "Agent planning and recovery",
+      "current": 85,
+      "target": 100,
+      "work": "Resume from the exact interrupted tool step and add richer cross-tool compensation."
+    },
+    {
+      "priority": 2,
+      "area": "Image, audio, and video understanding",
+      "current": 82,
+      "target": 100,
+      "work": "Install a reviewed local vision model where absent and finish the external AMD video model/workflow bundle."
+    },
+    {
+      "priority": 3,
+      "area": "Reasoning and answer quality",
+      "current": 88,
+      "target": 100,
+      "work": "Add model-graded domain benchmarks and citation entailment checks beyond deterministic contradiction and relevance scoring."
+    },
+    {
+      "priority": 4,
+      "area": "Tools and connectors",
+      "current": 88,
+      "target": 100,
+      "work": "Expand the permissioned MCP client into a full typed tool browser with OAuth transports."
+    },
+    {
+      "priority": 5,
+      "area": "Files and artifact production",
+      "current": 88,
+      "target": 100,
+      "work": "Add richer live document editing, preview diffs, and broader round-trip visual fidelity tests."
+    },
+    {
+      "priority": 6,
+      "area": "Research and evidence",
+      "current": 89,
+      "target": 100,
+      "work": "Add multi-page citation verification and automated temporal-conflict resolution."
+    },
+    {
+      "priority": 7,
+      "area": "Release and operations",
+      "current": 79,
+      "target": 100,
+      "work": "Obtain an Apple Developer ID, notarize production builds, and sign the update manifest with that identity."
+    },
+    {
+      "priority": 8,
+      "area": "Context and durable memory",
+      "current": 91,
+      "target": 100,
+      "work": "Add provenance-aware memory summaries and larger retrieval-quality regression suites."
+    },
+    {
+      "priority": 9,
+      "area": "Ease of use and accessibility",
+      "current": 89,
+      "target": 100,
+      "work": "Replace prompt-based MCP setup with a full visual tool browser and add automated screen-reader journeys."
+    },
+    {
+      "priority": 10,
+      "area": "Reliability and self-repair",
+      "current": 91,
+      "target": 100,
+      "work": "Add automatic last-known-good binary rollback rehearsal and exact-step agent replay."
+    }
+  ]
+}

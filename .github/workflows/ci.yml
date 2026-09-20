@@ -1,0 +1,30 @@
+name: Master Chief release gates
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  test-and-package:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run test:p0
+      - run: npm run test:p2
+      - run: npm run test:assets
+      - run: npm run test:visual
+      - run: npm audit --omit=dev
+      - run: npm run dist:mac
+      - run: npm run release:manifest
+      - uses: actions/upload-artifact@v4
+        with:
+          name: master-chief-macos-${{ github.sha }}
+          path: |
+            dist/mac*/Master Chief Hologram.app
+            release/manifest.json
