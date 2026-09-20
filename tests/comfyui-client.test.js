@@ -50,6 +50,7 @@ test('UltraSharp safety plan targets 2x and bounds the longest output edge', () 
   const large = safeUltraSharpPlan(2048, 1536);
   assert.equal(large.preScale, 0.25);
   assert.deepEqual([large.outputWidth, large.outputHeight], [2048, 1536]);
+  assert.throws(() => safeUltraSharpPlan(0, 0), /dimensions/);
 });
 
 test('client uploads revision context and requests GPU cache release', async () => {

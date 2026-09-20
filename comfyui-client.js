@@ -63,9 +63,11 @@ function cloneAndFillWorkflow(template, values) {
 }
 
 function safeUltraSharpPlan(width, height, maxOutputEdge = 2048) {
-  const sourceWidth = Math.max(1, Math.round(Number(width) || 0));
-  const sourceHeight = Math.max(1, Math.round(Number(height) || 0));
-  if (!sourceWidth || !sourceHeight) throw new Error('The source image dimensions could not be read.');
+  const parsedWidth = Number(width);
+  const parsedHeight = Number(height);
+  if (!Number.isFinite(parsedWidth) || !Number.isFinite(parsedHeight) || parsedWidth < 1 || parsedHeight < 1) throw new Error('The source image dimensions could not be read.');
+  const sourceWidth = Math.round(parsedWidth);
+  const sourceHeight = Math.round(parsedHeight);
   const longest = Math.max(sourceWidth, sourceHeight);
   const preScale = Math.max(0.05, Math.min(0.5, maxOutputEdge / (longest * 4)));
   return {
