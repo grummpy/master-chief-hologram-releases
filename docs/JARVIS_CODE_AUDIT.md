@@ -1,31 +1,42 @@
-# Jarvis Extensive Code Audit
+# Jarvis code audit — v1.46.0
 
-This audit reviewed the Master Chief Hologram repository at revision `6f08c4c`, including 284 repository files, 129 JavaScript files, 123 main-process IPC handlers, 122 preload invocations, the packaged release path, and all 168 automated tests.
+Assessed 2026-09-20 against the installed v1.45.0 baseline and the `read ETIMEDOUT` revision failure `7e956011`.
 
-## Verification performed
+## Outcome
 
-- Full automated suite: 168 passed, 0 failed.
-- Instrumented module coverage: 95.98% lines, 68.12% branches, 88.89% functions.
-- IPC contract comparison: no preload invocation lacks a main-process handler; `tool-registry` is the only intentionally unexposed handler.
-- Static DOM lookup check: reported missing IDs are dynamically created P2/P3 controls, not missing runtime elements.
-- Syntax, dependency, asset, visual, P0, and P2 gates were previously green.
-- The audit traced actual renderer use of newly added quality, MCP, evidence, recovery, vision, and release features.
+The observed revision was accepted by ComfyUI and advanced to the transfer stage before the Mac-side socket read timed out. Subsequent jobs succeeded, proving the checkpoint and workflow were healthy. The original ComfyUI history entry has since expired, so that specific output can no longer be resumed from Windows; **Retry as new** is the correct remaining action for it.
 
-## Material conclusion
+The defect class is fixed for future jobs:
 
-The broad module test result is strong, but it overstates end-to-end confidence because Electron entry points and the principal UI controllers are absent from the coverage table. Several features are correctly implemented at the storage or IPC layer but are not complete operator workflows. The authoritative prioritized work is maintained in the **Unified upgrade list** of `CAPABILITY_GAP_AUDIT.md`; this file records the audit method and conclusions without creating a competing backlog.
+- Transient artifact reads retry three times with bounded exponential backoff.
+- A transfer retry reads the already-generated artifact and never requeues inference.
+- **Resume** reconnects to the original durable ComfyUI prompt ID.
+- **Retry as new** creates a lineage-linked child request and deliberately runs new inference.
+- Stale prompt IDs and unchanged revisions remain rejected.
 
-## Highest-risk findings
+## Audit and iteration evidence
 
-1. Public-page retrieval follows redirects after validating only the original URL, leaving redirect and DNS-rebinding protections incomplete.
-2. Release checksums cover metadata files rather than the packaged application users install.
-3. MCP registration exists, but tool discovery, approval, invocation, transport negotiation, and removal are not available as a finished UI journey.
-4. Response-quality evidence is computed in the main process but ignored by the renderer.
-5. Resume changes an agent task back to “understanding” and repopulates the original objective; it does not resume the exact interrupted step.
-6. The coverage headline excludes `main.js`, `preload.js`, `renderer.js`, and `reference-studio.js`, where most integration failures would occur.
+- Full Node suite: 213 tests passed, 0 failed after the final patch.
+- Focused timeout/operator tests: passed.
+- P0 deterministic evaluation: 100/100 across 75 cases.
+- P2 weighted capability audit: 90.5/100; remaining gaps are recorded in `CAPABILITY_GAP_AUDIT.md`.
+- Dependency production audit: 0 known vulnerabilities.
+- Asset and visual regression gates: passed.
+- JavaScript syntax checks: passed.
+- Git whitespace check: passed.
 
-## Maintainability observation
+## Findings closed in this iteration
 
-`main.js` is 1,875 lines and approximately 152 KB. `renderer.js` is approximately 108 KB and contains many compressed one-line workflows. They function, but this structure increases regression risk, makes code review harder, and encourages static-string tests instead of behavior-driven integration testing.
+1. **High — incorrect recovery semantics:** Resume previously submitted a second generation. It now reconnects to the accepted prompt.
+2. **High — transfer timeout lost a completed result:** transient LAN reads now retry without inference duplication.
+3. **Medium — silent Reference Studio failures:** comparison, source, and variant preview errors now remain visible with bounded details; state-load failures are displayed and rethrown.
+4. **Medium — repair-method gap:** Jarvis now requires reproduction, localization, regression tests, minimal patches, failure attribution, bounded iteration, and evidence bundles.
+5. **Medium — research provenance:** ten upstream repositories, observed popularity signals, and adopted patterns are recorded without vendoring code.
 
-No content controls, prompt filters, prompt rewriting, or creative-output restrictions were introduced or changed during this audit.
+## Residual work
+
+- The P2 audit identifies broader product investments—not regressions introduced by this patch—including Electron journey coverage, office-format live editing, AMD video acceptance, accessibility journeys, and module decomposition.
+- Apple Developer ID signing/notarization remains externally blocked until the owner supplies an enrolled signing identity.
+- The main and renderer files remain large. Splitting them safely is a staged refactor, not an appropriate timeout hotfix.
+
+No content, moderation, legal, publishing, or safety control was added or changed.

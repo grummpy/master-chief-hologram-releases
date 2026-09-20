@@ -111,6 +111,23 @@ test('history polling survives a transient worker timeout inside the job deadlin
   assert.equal(polls, 2);
 });
 
+test('artifact transfer retries a transient LAN read without requeueing generation', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'comfy-transfer-retry-'));
+  let reads = 0;
+  const fetchImpl = async url => {
+    assert.match(url, /\/view\?/);
+    reads += 1;
+    if (reads === 1) return { ok: true, arrayBuffer: async () => { const error = new Error('read ETIMEDOUT'); error.code = 'ETIMEDOUT'; throw error; } };
+    return new Response(Buffer.from('recovered-image'), { status: 200 });
+  };
+  try {
+    const client = createComfyUiClient({ baseUrl: 'http://127.0.0.1:8188', artifactDir: root, fetchImpl, timeoutMs: 1000 });
+    const artifacts = await client.download({ outputs: { '9': { images: [{ filename: 'result.png', type: 'output' }] } } }, 'durable-prompt');
+    assert.equal(reads, 2);
+    assert.equal(fs.readFileSync(artifacts[0].path, 'utf8'), 'recovered-image');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
 test('runtime status reports bounded worker, queue, device, and checkpoint evidence', async () => {
   const fetchImpl = async url => {
     if (url.endsWith('/system_stats')) return new Response(JSON.stringify({ system: { os: 'win32', comfyui_version: '0.36.0', python_version: '3.13', pytorch_version: '2.13+rocm', ram_total: 16, ram_free: 8 }, devices: [{ name: 'AMD GPU', type: 'cuda', vram_total: 17, vram_free: 9 }] }), { status: 200 });

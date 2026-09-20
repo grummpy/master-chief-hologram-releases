@@ -170,6 +170,16 @@
     const image = document.createElement('img'); image.alt = alt; image.src = preview.dataUrl; return image;
   }
 
+  function appendPreviewFailure(parent, error, label = 'Preview') {
+    const missing = document.createElement('span');
+    missing.className = 'reference-preview-error';
+    missing.textContent = `${label} unavailable`;
+    missing.title = String(error?.message || error || 'Unknown preview error').slice(0, 500);
+    parent.append(missing);
+    const status = get('referenceQueueStatus');
+    if (status) status.textContent = `${label} could not be loaded. The source remains recorded; use the message tooltip for details.`;
+  }
+
   async function saveView(view, patch) {
     await window.masterChief.saveReferenceView({ ...ids(), view: { ...view, ...patch, id: view.id } });
     await loadState();
@@ -199,7 +209,7 @@
     const chosen = (sheet?.approvedViews || []).filter(view => comparison.has(view.id)).slice(0, limit);
     if (chosen.length !== limit) { get('referenceQueueStatus').textContent = `Select exactly ${limit} reference views first.`; return; }
     const box = get('referenceComparison'); box.hidden = false; box.className = `reference-comparison compare-${limit}`; box.replaceChildren();
-    for (const view of chosen) { const item = document.createElement('figure'); try { item.append(await previewNode(view.artifact, view.label)); } catch {} const caption = document.createElement('figcaption'); caption.textContent = `${view.label} · ${view.status}`; item.append(caption); box.append(item); }
+    for (const view of chosen) { const item = document.createElement('figure'); try { item.append(await previewNode(view.artifact, view.label)); } catch (error) { appendPreviewFailure(item, error, view.label); } const caption = document.createElement('figcaption'); caption.textContent = `${view.label} · ${view.status}`; item.append(caption); box.append(item); }
   }
 
   function sourceForShot(shot) {
@@ -214,7 +224,7 @@
     const box = get('referenceComparison'); box.hidden = false; box.className = 'reference-comparison compare-2'; box.replaceChildren();
     for (const [artifact, label] of [[source, 'Identity source'], [variant.artifact, 'Generated variant']]) {
       const item = document.createElement('figure');
-      try { item.append(await previewNode(artifact, label)); } catch {}
+      try { item.append(await previewNode(artifact, label)); } catch (error) { appendPreviewFailure(item, error, label); }
       const caption = document.createElement('figcaption'); caption.textContent = label; item.append(caption); box.append(item);
     }
     box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -256,7 +266,7 @@
     const strip = document.createElement('div'); strip.className = 'variant-strip';
     for (const variant of shot.variants) {
       const item = document.createElement('figure'); item.className = `variant status-${variant.status}`;
-      try { item.append(await previewNode(variant.artifact, `${shot.title} variant`)); } catch {}
+      try { item.append(await previewNode(variant.artifact, `${shot.title} variant`)); } catch (error) { appendPreviewFailure(item, error, `${shot.title} variant`); }
       const caption = document.createElement('figcaption'); caption.textContent = `${variant.status}${variant.branchLabel ? ` · ${variant.branchLabel}` : ''}`;
       const promote = document.createElement('button'); promote.textContent = 'Promote'; promote.onclick = async () => { await window.masterChief.saveReferenceVariant({ ...ids(shot.id), variant: { ...variant, status: 'approved' } }); await loadState(); };
       const reject = document.createElement('button'); reject.textContent = 'Reject'; reject.onclick = async () => { await window.masterChief.saveReferenceVariant({ ...ids(shot.id), variant: { ...variant, status: 'rejected' } }); await loadState(); };
@@ -287,7 +297,12 @@
   }
 
   async function loadState() {
-    state = await window.masterChief.referenceStudioState(); chooseCurrent(); renderSelectors(); fillHierarchy(); await Promise.all([renderContactSheet(), renderQueue()]);
+    try {
+      state = await window.masterChief.referenceStudioState(); chooseCurrent(); renderSelectors(); fillHierarchy(); await Promise.all([renderContactSheet(), renderQueue()]);
+    } catch (error) {
+      get('referenceQueueStatus').textContent = `Reference Studio state could not be loaded: ${String(error?.message || error).slice(0, 500)}`;
+      throw error;
+    }
   }
 
   async function saveHierarchy() {

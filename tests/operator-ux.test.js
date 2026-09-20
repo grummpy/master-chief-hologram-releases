@@ -174,6 +174,20 @@ test('Reference Studio exposes hierarchy, review, comparison, queue, and runtime
   for (const id of ['shotIdentityReference','shotStyleReference','shotPoseReference','shotCompositionReference','shotDepthReference','shotLightingReference']) assert.match(referenceStudio, new RegExp(id));
 });
 
+test('Reference Studio reports preview and state failures instead of silently discarding them', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'reference-studio.js'), 'utf8');
+  assert.match(source, /appendPreviewFailure/);
+  assert.match(source, /Reference Studio state could not be loaded/);
+  assert.doesNotMatch(source, /previewNode\([^\n]+\); \} catch \{\}/);
+});
+
+test('media resume reconnects to an accepted prompt while retry forks a new request', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  assert.match(main, /recoverQueuedMediaJob/);
+  assert.match(main, /resumeExisting: Boolean\(job\.promptId\)/);
+  assert.match(main, /mediaJobLedger\.fork\(String\(payload\?\.requestId \|\| ''\), 'retry'\)/);
+});
+
 test('live pose extractor gate produces an auditable prepared map', () => {
   const script = fs.readFileSync(path.join(root, 'scripts', 'live-pose-extractor-readiness.js'), 'utf8');
   assert.match(script, /DWPreprocessor/);

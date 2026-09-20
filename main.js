@@ -603,7 +603,34 @@ function mediaContract(payload = {}) {
   throw new Error('Media contract is not supported by the registered local workflow set.');
 }
 
-async function executeMediaJob(requestId) {
+async function recoverQueuedMediaJob(job, contract, controller) {
+  const requestId = job.requestId;
+  const promptId = String(job.promptId || '');
+  if (!promptId) throw new Error('This job has no durable ComfyUI prompt ID to resume. Use Retry as new.');
+  updateMediaJob(requestId, { status: 'generating', stage: 'reconnect', progress: Math.max(40, Number(job.progress || 0)) });
+  const history = await comfyClient.wait(promptId, { signal: controller.signal });
+  updateMediaJob(requestId, { status: 'transferring', stage: 'transfer', progress: 82 });
+  const downloaded = await comfyClient.download(history, promptId, { signal: controller.signal });
+  let artifacts = downloaded.map(item => ({ ...item, path: generatedRelativePath(item.filename), requestId }));
+  if (!artifacts.length) throw new Error('The resumed workflow completed without a downloadable artifact.');
+  if (artifacts.some(item => !item.filename.startsWith(`${promptId}-`))) throw new Error('Stale ComfyUI output was rejected because it did not match the resumed prompt ID.');
+  if (contract !== 'video') {
+    let sourceSha256 = null;
+    if (job.parameters?.sourceArtifact && ['revision', 'rebuild'].includes(contract)) {
+      const source = resolveArtifactPath(job.parameters.sourceArtifact);
+      if (source && fs.existsSync(source)) sourceSha256 = require('crypto').createHash('sha256').update(fs.readFileSync(source)).digest('hex');
+    }
+    artifacts = validateImageOutputs(artifacts.map(item => ({ ...item, path: resolveArtifactPath(item.path) })), {
+      sourceSha256, requireChanged: ['revision', 'rebuild'].includes(contract), imageSize: file => nativeImage.createFromPath(file).getSize()
+    }).map(item => ({ ...item, path: generatedRelativePath(item.filename) }));
+  }
+  updateMediaJob(requestId, { status: 'archiving', stage: 'archive', progress: 95, artifacts });
+  const completed = updateMediaJob(requestId, { status: 'completed', stage: 'complete', progress: 100, artifacts, error: null });
+  auditToolEvent({ id: 'media.generate_local', outcome: 'recovered', detail: `${contract}:${promptId}:${artifacts.length}` });
+  return { requestId, kind: contract, promptId, sessionId: completed.sessionId, revised: contract === 'revision', artifacts, job: completed, recovered: true };
+}
+
+async function executeMediaJob(requestId, { resumeExisting = false } = {}) {
   const job = mediaJobLedger.get(requestId);
   if (!job) throw new Error('Media job was not found.');
   const payload = { ...job.parameters, requestId };
@@ -611,6 +638,10 @@ async function executeMediaJob(requestId) {
   const controller = new AbortController();
   activeMediaJobs.set(requestId, { controller, promptId: null });
   try {
+    if (resumeExisting && job.promptId) {
+      activeMediaJobs.get(requestId).promptId = job.promptId;
+      return await recoverQueuedMediaJob(job, contract, controller);
+    }
     updateMediaJob(requestId, { status: 'loading', stage: 'load', progress: 10 });
     let sourceImage = '';
     let sourceSha256 = null;
@@ -1890,8 +1921,8 @@ secureHandle('media-job-resume', async (_event, payload) => {
   const job = mediaJobLedger.get(requestId);
   if (!job) throw new Error('Media job was not found.');
   if (!['recoverable', 'failed', 'cancelled'].includes(job.status)) throw new Error('Only interrupted, failed, or cancelled jobs can be resumed.');
-  updateMediaJob(requestId, { status: 'queued', stage: 'queue', progress: 0, completedAt: null, attempt: Number(job.attempt || 1) + 1 });
-  return executeMediaJob(requestId);
+  updateMediaJob(requestId, { status: 'queued', stage: job.promptId ? 'reconnect' : 'queue', progress: job.promptId ? Math.max(40, Number(job.progress || 0)) : 0, completedAt: null, attempt: Number(job.attempt || 1) + 1 });
+  return executeMediaJob(requestId, { resumeExisting: Boolean(job.promptId) });
 });
 secureHandle('reference-studio-state', () => referenceStudio.read());
 secureHandle('reference-studio-save-project', (_event, payload) => referenceStudio.saveProject(payload));

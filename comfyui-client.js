@@ -115,6 +115,29 @@ function createComfyUiClient({ baseUrl, fetchImpl = fetch, artifactDir, timeoutM
     if (!response.ok) throw new Error(`ComfyUI request failed (${response.status}).`);
     return response;
   }
+
+  function transientReadError(error) {
+    const code = String(error?.code || error?.cause?.code || '').toUpperCase();
+    const message = String(error?.message || error || '');
+    return ['ETIMEDOUT', 'ECONNRESET', 'EPIPE', 'UND_ERR_SOCKET', 'UND_ERR_CONNECT_TIMEOUT'].includes(code)
+      || /timed?\s*out|socket|connection reset|other side closed/i.test(message);
+  }
+
+  async function downloadBytes(relative, { signal, attempts = 3 } = {}) {
+    let lastError;
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      if (signal?.aborted) throw signal.reason || new Error('Media job cancelled.');
+      try {
+        const response = await request(relative, { signal }, 120000);
+        return Buffer.from(await response.arrayBuffer());
+      } catch (error) {
+        lastError = error;
+        if (signal?.aborted || !transientReadError(error) || attempt === attempts) throw error;
+        await new Promise(resolve => setTimeout(resolve, 500 * (2 ** (attempt - 1))));
+      }
+    }
+    throw lastError;
+  }
   return {
     async health() {
       try {
@@ -226,8 +249,9 @@ function createComfyUiClient({ baseUrl, fetchImpl = fetch, artifactDir, timeoutM
         for (const item of files) {
           const params = new URLSearchParams({ filename: item.filename, subfolder: item.subfolder || '', type: item.type || 'output' });
           if (signal?.aborted) throw signal.reason || new Error('Media job cancelled.');
-          const response = await request(`/view?${params.toString()}`, { signal }, 120000);
-          const bytes = Buffer.from(await response.arrayBuffer());
+          // The worker may finish successfully while a large LAN response is
+          // interrupted. Re-read the durable artifact; never requeue the model.
+          const bytes = await downloadBytes(`/view?${params.toString()}`, { signal });
           if (!bytes.length || bytes.length > 1024 * 1024 * 1024) throw new Error('ComfyUI output is empty or exceeds the 1 GB limit.');
           const filename = `${promptId}-${safeOutputName(item.filename)}`;
           const destination = path.join(outputRoot, filename);
