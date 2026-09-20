@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.36.0
+
+- Added token-budget context assembly using relevance, recency, authority, unresolved-work scoring, deterministic compaction, and a visible Context Inspector.
+- Added separate Fast, Standard, Deep, and Agent reasoning depth plus independent answer-detail controls.
+- Added durable restart-recoverable agent task state with idempotency keys, typed dependencies, 24-step/time/retry/mutation limits, dynamic tool loading, verification, and complete evidence traces.
+- Added explicit local model routing and a 30-minute idle unload policy to keep one primary local model warm without permanently holding unified memory.
+- Added claim, source-quality, completion, and artifact-integrity verification contracts.
+- Added a 75-case deterministic P0 capability suite with a 90-point/no-critical-failure gate and preserved timestamped reports.
+- Completed ARIA tab semantics and keyboard-readable context telemetry without changing the repository's operator-owned prompt policy.
+
 ## 1.23.0
 
 - Added a one-button, local-only Operational Readiness Check to Runtime Center.

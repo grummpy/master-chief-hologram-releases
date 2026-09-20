@@ -1,6 +1,6 @@
 {
   "name": "master-chief-hologram",
-  "version": "1.35.0",
+  "version": "1.36.0",
   "description": "Desktop holographic Master Chief AI companion – multi-model prompt runner",
   "main": "main.js",
   "scripts": {
@@ -16,6 +16,7 @@
     "test": "node --test tests/*.test.js",
     "test:assets": "node scripts/validate-assets.js",
     "test:visual": "node scripts/validate-visual-regression.js",
+    "test:p0": "node scripts/run-p0-evaluation.js",
     "test:comfy-live": "node scripts/live-comfy-acceptance.js 20",
     "test:comfy-fidelity": "node scripts/comfy-prompt-fidelity.js",
     "test:comfy-openpose": "node scripts/live-openpose-readiness.js",
@@ -88,6 +89,12 @@
       "png-workflow-metadata.js",
       "reference-studio-store.js",
       "agent-runner.js",
+      "agent-task-ledger.js",
+      "context-engine.js",
+      "context-memory-store.js",
+      "local-model-router.js",
+      "verification-engine.js",
+      "p0-evaluation.js",
       "artifact-links.js",
       "build-info.json",
       "LICENSE",

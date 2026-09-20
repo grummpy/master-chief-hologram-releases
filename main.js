@@ -24,7 +24,12 @@ const { validateChatPayload, validateMessages, safeProviderError, validSecret } 
 const { createCredentialStore } = require('./credential-store');
 const { getToolRegistry, normalizeApprovals, setToolApproval, isToolApproved } = require('./tool-registry');
 const { createLocalToolExecutor } = require('./local-tool-executor');
-const { normalizeOllamaOptions, ollamaSystemPrompt, comfyPromptSystemPrompt, modelCard, selectBestChatModel, selectToolModel, agentToolSchemas, resolveAgentTool } = require('./ollama-runtime');
+const { normalizeOllamaOptions, ollamaSystemPrompt, comfyPromptSystemPrompt, modelCard, selectBestChatModel, selectToolModel, selectAgentTools, agentToolSchemas, resolveAgentTool } = require('./ollama-runtime');
+const { assembleContext } = require('./context-engine');
+const { createAgentTaskLedger } = require('./agent-task-ledger');
+const { evaluateCompletion } = require('./verification-engine');
+const { routeLocalModel } = require('./local-model-router');
+const { createContextMemoryStore } = require('./context-memory-store');
 const { createRagIndex } = require('./rag-index');
 const { safeArtifactPath } = require('./artifact-links');
 const { MICROPHONE_SETTINGS_URL, isGranted, recoveryMessage } = require('./microphone-access');
@@ -64,6 +69,8 @@ let activeAbortController = null;
 let toolApprovals;
 const scheduler = createSchedulerStore(path.join(app.getPath('userData'), 'scheduled-reminders.json'));
 const monitors = createMonitorStore(path.join(app.getPath('userData'), 'runtime-monitors.json'));
+const agentTasks = createAgentTaskLedger(path.join(app.getPath('userData'), 'agent-tasks.json'));
+const contextMemory = createContextMemoryStore(path.join(app.getPath('userData'), 'context-memory.json'));
 let schedulerTimer;
 function runSchedulerTick() {
   for (const job of scheduler.tick()) {
@@ -1117,7 +1124,7 @@ async function modelCatalog() {
 }
 
 function conversationText(messages) {
-  return messages.slice(-16).map(message => {
+  return messages.map(message => {
     const speaker = message.role === 'assistant' ? 'MASTER CHIEF' : 'COMMANDER';
     return `${speaker}: ${String(message.content).slice(0, 8000)}`;
   }).join('\n\n');
@@ -1193,7 +1200,7 @@ async function callOpenAI({ messages, masterMode }) {
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'gpt-5.6-sol', instructions: systemPrompt,
-      input: messages.slice(-16), max_output_tokens: 1600
+      input: messages, max_output_tokens: 1600
     })
   });
   const body = await response.json().catch(() => ({}));
@@ -1210,7 +1217,7 @@ function emitChatEvent(event, payload) {
 async function streamCompatible({ url, key, model, messages, systemPrompt, label, provider }) {
   activeAbortController = new AbortController();
   const response = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, messages: [{ role: 'system', content: systemPrompt }, ...messages.slice(-16)], stream: true }), signal: activeAbortController.signal });
+    body: JSON.stringify({ model, messages: [{ role: 'system', content: systemPrompt }, ...messages], stream: true }), signal: activeAbortController.signal });
   if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error?.message || body.error || `${provider} error ${response.status}`); }
   if (!response.body) throw new Error(`${provider} returned no stream.`);
   const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ''; let reply = '';
@@ -1238,7 +1245,7 @@ async function callGrok({ messages, masterMode }) {
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'grok-3',
-      messages: [{ role: 'system', content: systemPrompt }, ...messages.slice(-16)],
+      messages: [{ role: 'system', content: systemPrompt }, ...messages],
       stream: false, temperature: 0.7
     })
   });
@@ -1253,8 +1260,8 @@ async function callOllama({ messages, masterMode, model: requestedModel, ollama:
   const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
   const model = requestedModel || process.env.OLLAMA_MODEL || 'llama3.2';
   const settings = normalizeOllamaOptions(requestedOptions);
-  const special = intent === 'comfy-prompt' ? comfyPromptSystemPrompt() : ollamaSystemPrompt({ masterMode, mode: settings.mode });
-  const payload = { model, messages: [{ role: 'system', content: `${special}\n${SKILL_TAG_ROUTING}` }, ...messages.slice(-16)], stream: settings.stream, options: settings.options, keep_alive: -1 };
+  const special = intent === 'comfy-prompt' ? comfyPromptSystemPrompt() : ollamaSystemPrompt({ masterMode, mode: settings.mode, depth: requestedOptions?.depth, detail: requestedOptions?.detail });
+  const payload = { model, messages: [{ role: 'system', content: `${special}\n${SKILL_TAG_ROUTING}` }, ...messages], stream: settings.stream, options: settings.options, keep_alive: settings.keep_alive };
   payload.think = settings.think;
   if (settings.format) payload.format = settings.format;
   activeAbortController = new AbortController();
@@ -1303,9 +1310,9 @@ async function warmBestOllamaModel() {
   const runtime = await ollamaRuntime(); const selected = selectBestChatModel(runtime.models);
   if (!selected) throw new Error('No installed Ollama chat model is available.');
   const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
-  const response = await fetch(`${base}/api/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: selected.name, prompt: '', keep_alive: -1, stream: false }) });
+  const response = await fetch(`${base}/api/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: selected.name, prompt: '', keep_alive: '30m', stream: false }) });
   const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error || `Ollama preload error ${response.status}`);
-  return { model: selected.name, loaded: true, keepAlive: 'always' };
+  return { model: selected.name, loaded: true, keepAlive: '30m' };
 }
 
 async function unloadOllamaModel(model) {
@@ -1320,23 +1327,35 @@ async function runOllamaAgent(payload = {}) {
   requireToolApproval('agents.run_bounded_plan');
   const objective = String(payload.objective || '').trim(); if (!objective || objective.length > 12000) throw new Error('Agent objective is empty or too long.');
   const runtime = await ollamaRuntime(); const requested = String(payload.model || '');
-  const selected = selectToolModel(runtime.models, requested);
+  const routed = routeLocalModel({ objective, models: runtime.models, requested, mode: 'agent' });
+  const selected = selectToolModel(runtime.models, routed.model);
   if (!selected) throw new Error('No installed Ollama model advertises tool-calling capability.');
+  const task = agentTasks.create({ objective, acceptance: payload.acceptance, idempotencyKey: payload.idempotencyKey });
   const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, ''); const settings = normalizeOllamaOptions({ ...(payload.ollama || {}), mode: 'agent', stream: false });
-  const messages = [{ role: 'system', content: ollamaSystemPrompt({ masterMode: true, mode: 'agent' }) }, { role: 'user', content: objective }]; const trace = [];
-  for (let turn = 0; turn < 8; turn++) {
-    const response = await fetch(`${base}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: selected.name, messages, tools: agentToolSchemas(), think: settings.think, stream: false, options: settings.options, keep_alive: settings.keep_alive }) });
+  const selectedTools = selectAgentTools(objective);
+  const messages = [{ role: 'system', content: ollamaSystemPrompt({ masterMode: true, mode: 'agent', depth: 'agent', detail: payload.detail || 'normal' }) }, { role: 'user', content: objective }]; const trace = [];
+  agentTasks.event(task.id, 'plan', { status: 'planning', tools: selectedTools.map(item => item.id) });
+  for (let turn = 0; turn < 24; turn++) {
+    agentTasks.event(task.id, 'execute', { status: 'executing', turn: turn + 1 });
+    const response = await fetch(`${base}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: selected.name, messages, tools: agentToolSchemas(selectedTools), think: settings.think, stream: false, options: settings.options, keep_alive: settings.keep_alive }) });
     const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error || `Ollama agent error ${response.status}`);
     const message = body.message || {}; messages.push(message);
     const calls = Array.isArray(message.tool_calls) ? message.tool_calls : [];
-    if (!calls.length) return { reply: message.content || 'The local agent completed without a text response.', model: selected.name, trace, metrics: ollamaMetrics(body) };
+    if (!calls.length) {
+      const reply = message.content || 'The local agent completed without a text response.';
+      const verification = evaluateCompletion({ objective, acceptance: payload.acceptance || [], output: reply, steps: trace.map(item => ({ status: 'complete', ...item })) });
+      agentTasks.event(task.id, 'verify', { status: verification.pass ? 'complete' : 'failed', verification, error: verification.pass ? undefined : 'Completion gate failed.' });
+      return { reply, model: selected.name, route: routed, taskId: task.id, trace, verification, metrics: ollamaMetrics(body) };
+    }
     for (const call of calls) {
       const alias = call.function?.name; const id = resolveAgentTool(alias); if (!id) throw new Error(`Ollama requested an unavailable tool: ${alias || 'unknown'}.`);
-      const result = await executeAgentTool(id, call.function?.arguments || {}, { model: selected.name }); trace.push({ turn: turn + 1, tool: id, summary: result.summary });
+      const result = await executeAgentTool(id, call.function?.arguments || {}, { model: selected.name, idempotencyKey: `${task.id}:${turn + 1}:${id}` }); trace.push({ turn: turn + 1, tool: id, summary: result.summary });
+      agentTasks.event(task.id, 'observe', { status: 'executing', tool: id, summary: result.summary });
       messages.push({ role: 'tool', tool_name: alias, content: JSON.stringify(result.result) });
     }
   }
-  throw new Error('Ollama agent reached its eight-turn limit before producing a final answer.');
+  agentTasks.event(task.id, 'complete', { status: 'failed', error: 'Agent reached its 24-turn limit.', kind: 'stopping-condition' });
+  throw new Error('Ollama agent reached its 24-turn limit before producing a verified final answer.');
 }
 
 async function callHuggingFace({ messages, masterMode, model: requestedModel }) {
@@ -1345,7 +1364,7 @@ async function callHuggingFace({ messages, masterMode, model: requestedModel }) 
   const key = configured.key;
   const model = requestedModel || configured.model;
   if (!key) throw new Error('Configure a Hugging Face token in Systems.');
-  const response = await chatFetch(`${base}/chat/completions`, { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model, messages: [{ role: 'system', content: masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy.' : 'You are a clear, helpful desktop AI assistant.' }, ...messages.slice(-16)], stream: false }) });
+  const response = await chatFetch(`${base}/chat/completions`, { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model, messages: [{ role: 'system', content: masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy.' : 'You are a clear, helpful desktop AI assistant.' }, ...messages], stream: false }) });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error?.message || body.error || `Hugging Face error ${response.status}`);
   const reply = body.choices?.[0]?.message?.content;
@@ -1366,6 +1385,9 @@ async function callGemini({ messages, masterMode, model: requestedModel }) {
 
 async function routeChat(payload) {
   payload = validateChatPayload(payload);
+  const durableMemory = contextMemory.get(payload.project || 'default');
+  const context = assembleContext({ messages: payload.messages, maxTokens: payload.ollama?.context || 8192, projectMemory: payload.projectMemory || durableMemory.projectMemory, preferences: payload.preferences || durableMemory.approvedPreferences.join('\n'), toolEvidence: payload.toolEvidence });
+  payload = { ...payload, messages: context.messages };
   const startedAt = Date.now();
   try {
     let result;
@@ -1380,7 +1402,7 @@ async function routeChat(payload) {
     else if (payload.provider === 'huggingface') result = await callHuggingFace(payload);
     if (!result) throw new Error('Unknown provider selected.');
     if (payload.provider === 'ollama') localAiAudit.record({ model: payload.model || process.env.OLLAMA_MODEL || 'default', outcome: 'success', latencyMs: Date.now() - startedAt });
-    return result;
+    return { ...result, contextReport: context.report };
   } catch (error) {
     if (payload.provider === 'ollama') localAiAudit.record({ model: payload.model || process.env.OLLAMA_MODEL || 'default', outcome: 'error', latencyMs: Date.now() - startedAt, errorCode: error.name || 'request_failed' });
     throw new Error(safeProviderError(error.message));
@@ -1475,6 +1497,13 @@ secureHandle('ollama-warm-best', warmBestOllamaModel);
 secureHandle('privacy-state', privacyState);
 secureHandle('ollama-unload', (_event, payload) => unloadOllamaModel(payload?.model));
 secureHandle('ollama-agent', (_event, payload) => runOllamaAgent(payload));
+secureHandle('agent-task-list', (_event, payload) => ({ tasks: agentTasks.list(payload?.limit) }));
+secureHandle('agent-task-get', (_event, payload) => agentTasks.get(String(payload?.id || '')));
+secureHandle('agent-task-resume', (_event, payload) => agentTasks.resume(String(payload?.id || '')));
+secureHandle('context-memory-get', (_event, payload) => contextMemory.get(String(payload?.project || 'default')));
+secureHandle('context-memory-save-project', (_event, payload) => contextMemory.setProject(String(payload?.project || 'default'), payload?.value, payload?.approved === true));
+secureHandle('context-memory-save-preferences', (_event, payload) => contextMemory.setPreferences(payload?.values, payload?.approved === true));
+secureHandle('context-memory-clear', (_event, payload) => contextMemory.clear(String(payload?.project || 'default'), payload?.includePreferences === true));
 secureHandle('ollama-evaluate', (_event, payload) => runOllamaEvaluation({ model: String(payload?.model || ''), outputFile: ollamaEvaluationFile(), onProgress: progress => emitChatEvent('evaluation-progress', progress) }));
 secureHandle('ollama-evaluation-status', () => { try { return JSON.parse(fs.readFileSync(ollamaEvaluationFile(), 'utf8')); } catch { return null; } });
 secureHandle('create-document', (_event, payload) => createDocument(payload));

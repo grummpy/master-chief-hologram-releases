@@ -6,7 +6,7 @@ const { validatePlan, runAgentPlan } = require('../agent-runner');
 
 test('agent plan rejects unknown tools and excessive steps', () => {
   assert.throws(() => validatePlan({ steps: [{ tool: 'shell.anything' }] }, ['diagnostics.local_runtime']), /unavailable/);
-  assert.throws(() => validatePlan({ steps: Array.from({ length: 9 }, () => ({ tool: 'safe' })) }, ['safe']), /8-step/);
+  assert.throws(() => validatePlan({ steps: Array.from({ length: 25 }, () => ({ tool: 'safe' })) }, ['safe']), /24-step/);
 });
 
 test('agent plan enforces underlying approval and runs in order', async () => {

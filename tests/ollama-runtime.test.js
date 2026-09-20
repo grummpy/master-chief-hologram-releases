@@ -17,13 +17,13 @@ test('Ollama controls clamp operator values and preserve task mode', () => {
   assert.equal(value.keep_alive, '30m');
 });
 
-test('best local chat model favors capability and remains loaded', () => {
+test('best local chat model favors capability and unloads after an idle window', () => {
   const models = [
     { name: 'plain:14b', size: 20, capabilities: ['completion'], details: { parameter_size: '14B' } },
     { name: 'qwen:8b', size: 10, capabilities: ['completion', 'tools', 'thinking'], details: { parameter_size: '8B' } }
   ];
   assert.equal(selectBestChatModel(models).name, 'qwen:8b');
-  assert.equal(normalizeOllamaOptions({}).keep_alive, -1);
+  assert.equal(normalizeOllamaOptions({}).keep_alive, '30m');
   assert.equal(normalizeOllamaOptions({ keepAlive: '-1' }).keep_alive, -1);
 });
 
