@@ -61,7 +61,7 @@ test('UltraSharp and external VAE workflows bind only named installed models', (
 test('main process recognizes video and reports its gated readiness precisely', () => {
   const fs = require('node:fs');
   const main = fs.readFileSync(path.resolve(__dirname, '..', 'main.js'), 'utf8');
-  assert.match(main, /\['image', 'revision', 'rebuild', 'upscale', 'control', 'faceid', 'canny', 'instantid', 'tile', 'poselora', 'video'\]/);
+  assert.match(main, /\['image', 'revision', 'rebuild', 'upscale', 'control', 'faceid', 'canny', 'instantid', 'hybridid', 'tile', 'poselora', 'video'\]/);
   assert.match(main, /Video generation is not ready on the Windows worker/);
   assert.doesNotMatch(main, /Media contract must be image, revision, rebuild, or upscale\./);
   assert.match(main, /UNREADY_CHECKPOINTS = new Set\(\['ponyDiffusionV6XL_v6StartWithThisOne\.safetensors'\]\)/);
@@ -100,4 +100,11 @@ test('Tile and OpenPose Control-LoRA workflows bind their exact installed models
   const pose = cloneAndFillWorkflow(require(registry.get('sdxl-openpose-lora-v1').file), { prompt: 'pose pass', negativePrompt: 'bad anatomy', sourceImage: 'pose.png', checkpoint: 'model.safetensors', controlStrength: .8 });
   assert.equal(tile['4'].inputs.control_net_name, 'sdxl-tile.safetensors');
   assert.equal(pose['4'].inputs.control_net_name, 'control-lora-openposeXL2-rank256.safetensors');
+});
+
+test('hybrid identity workflow layers FaceID Plus v2 before InstantID', () => {
+  const registry = createWorkflowRegistry(path.resolve(__dirname, '..'));
+  const definition = registry.get('sdxl-hybrid-identity-v1');
+  const result = cloneAndFillWorkflow(require(definition.file), { prompt: 'same adult face', negativePrompt: 'blur', sourceImage: 'face.png', checkpoint: 'model.safetensors', referenceStrength: .85, faceIdV2Strength: 1.05, faceIdLoraStrength: .45, instantIdControlStrength: .78, instantIdNoise: 0 });
+  assert.deepEqual({ faceModel: result['7'].inputs.model, instantModel: result['11'].inputs.model, faceWeight: result['7'].inputs.weight_faceidv2, keypoints: result['11'].inputs.cn_strength }, { faceModel: ['5', 0], instantModel: ['7', 0], faceWeight: 1.05, keypoints: .78 });
 });

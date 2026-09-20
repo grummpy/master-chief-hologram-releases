@@ -1,6 +1,6 @@
 {
   "name": "master-chief-hologram",
-  "version": "1.29.0",
+  "version": "1.30.0",
   "description": "Desktop holographic Master Chief AI companion – multi-model prompt runner",
   "main": "main.js",
   "scripts": {
@@ -23,6 +23,7 @@
     ,"test:comfy-structure": "node scripts/live-structure-controls-readiness.js"
     ,"test:comfy-remacri": "node scripts/live-remacri-readiness.js"
     ,"test:comfy-detail": "node scripts/live-detail-controls-readiness.js"
+    ,"test:comfy-identity": "node scripts/live-identity-benchmark.js"
   },
   "dependencies": {
     "docx": "^9.5.1",

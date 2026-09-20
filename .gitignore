@@ -6,6 +6,7 @@ artifacts/structure-readiness/
 artifacts/upscale-readiness/
 artifacts/detail-readiness/
 artifacts/identity-tests/
+artifacts/identity-benchmark/
 .env
 .DS_Store
 *.log

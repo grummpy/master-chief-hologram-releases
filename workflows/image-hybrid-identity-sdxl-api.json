@@ -1,0 +1,17 @@
+{
+  "1": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": "{{CHECKPOINT}}" } },
+  "2": { "class_type": "CLIPTextEncode", "inputs": { "text": "{{PROMPT}}", "clip": ["1", 1] } },
+  "3": { "class_type": "CLIPTextEncode", "inputs": { "text": "{{NEGATIVE_PROMPT}}", "clip": ["1", 1] } },
+  "4": { "class_type": "LoadImage", "inputs": { "image": "{{SOURCE_IMAGE}}" } },
+  "5": { "class_type": "IPAdapterUnifiedLoaderFaceID", "inputs": { "model": ["1", 0], "preset": "FACEID PLUS V2", "lora_strength": "{{FACEID_LORA_STRENGTH}}", "provider": "ROCM" } },
+  "6": { "class_type": "IPAdapterInsightFaceLoader", "inputs": { "provider": "ROCM", "model_name": "antelopev2" } },
+  "7": { "class_type": "IPAdapterFaceID", "inputs": { "model": ["5", 0], "ipadapter": ["5", 1], "image": ["4", 0], "weight": "{{REFERENCE_STRENGTH}}", "weight_faceidv2": "{{FACEID_V2_STRENGTH}}", "weight_type": "linear", "combine_embeds": "concat", "start_at": "{{CONTROL_START}}", "end_at": "{{CONTROL_END}}", "embeds_scaling": "V only", "insightface": ["6", 0] } },
+  "8": { "class_type": "InstantIDModelLoader", "inputs": { "instantid_file": "ip-adapter.bin" } },
+  "9": { "class_type": "InstantIDFaceAnalysis", "inputs": { "provider": "ROCM" } },
+  "10": { "class_type": "ControlNetLoader", "inputs": { "control_net_name": "instantid-controlnet-sdxl.safetensors" } },
+  "11": { "class_type": "ApplyInstantIDAdvanced", "inputs": { "instantid": ["8", 0], "insightface": ["9", 0], "control_net": ["10", 0], "image": ["4", 0], "model": ["7", 0], "positive": ["2", 0], "negative": ["3", 0], "ip_weight": "{{REFERENCE_STRENGTH}}", "cn_strength": "{{INSTANTID_CONTROL_STRENGTH}}", "start_at": "{{CONTROL_START}}", "end_at": "{{CONTROL_END}}", "noise": "{{INSTANTID_NOISE}}", "combine_embeds": "average" } },
+  "12": { "class_type": "EmptyLatentImage", "inputs": { "width": "{{WIDTH}}", "height": "{{HEIGHT}}", "batch_size": "{{BATCH}}" } },
+  "13": { "class_type": "KSampler", "inputs": { "seed": "{{SEED}}", "steps": "{{STEPS}}", "cfg": "{{CFG}}", "sampler_name": "{{SAMPLER}}", "scheduler": "{{SCHEDULER}}", "denoise": 1, "model": ["11", 0], "positive": ["11", 1], "negative": ["11", 2], "latent_image": ["12", 0] } },
+  "14": { "class_type": "VAEDecode", "inputs": { "samples": ["13", 0], "vae": ["1", 2] } },
+  "15": { "class_type": "SaveImage", "inputs": { "filename_prefix": "MasterChief-HybridIdentity", "images": ["14", 0] } }
+}

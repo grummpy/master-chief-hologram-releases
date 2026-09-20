@@ -229,3 +229,14 @@ Live evidence:
 
 - FaceID prompt: `90d9506a-ee99-48a3-89ef-f18846b543c6`; artifact SHA-256 `93fda2b49fae730b5faf65ba8f32fece2ca855457c230c846c09272bfef53d0b`.
 - InstantID prompt: `438ff7c4-81d4-4c11-a2ef-d61c5d5c7965`; artifact SHA-256 `a57c2408c9ebb1d49a6e3a8e6487348f7d5d3614e6e4ffad9a380118f8928c7f`.
+
+## v1.30 Hybrid Identity Precision
+
+The live worker exposed both the FaceID Plus v2 SDXL adapter/LoRA and the InstantID SDXL identity/control bundle. A combined API graph passed on the AMD ROCm runtime. It applies FaceID Plus v2 to the model first, then applies InstantID identity and facial-keypoint conditioning to the same source reference.
+
+- Promoted workflow: `sdxl-hybrid-identity-v1`.
+- Live prompt: `6f78be49-c7d5-4dc7-9cd2-69f36f72c28e`.
+- Artifact SHA-256: `a73c509769724a2f048cf19821f67114f6889ae12544df7569f8abac049710e9`.
+- Verified preset: reference `0.85`, FaceID v2 `1.05`, FaceID LoRA `0.45`, InstantID keypoints `0.78`, noise `0`, control window `0–0.9`, 30 steps, CFG `5`, DPM++ 2M/Karras.
+- Rollback: `sdxl-instantid-v1`.
+- Important prompt finding: a negative prompt that contradicted a visible identity anchor (eyeglasses) degraded likeness. Correcting that conflict improved retention without any hidden prompt rewriting.

@@ -549,7 +549,7 @@ function updateMediaJob(requestId, patch) { return emitMediaJob(mediaJobLedger.u
 function mediaContract(payload = {}) {
   const kind = String(payload.kind || 'image');
   if (kind === 'image' && payload.sourceArtifact) return 'revision';
-  if (['image', 'revision', 'rebuild', 'upscale', 'control', 'faceid', 'canny', 'instantid', 'tile', 'poselora', 'video'].includes(kind)) return kind;
+  if (['image', 'revision', 'rebuild', 'upscale', 'control', 'faceid', 'canny', 'instantid', 'hybridid', 'tile', 'poselora', 'video'].includes(kind)) return kind;
   throw new Error('Media contract is not supported by the registered local workflow set.');
 }
 
@@ -564,7 +564,7 @@ async function executeMediaJob(requestId) {
     updateMediaJob(requestId, { status: 'loading', stage: 'load', progress: 10 });
     let sourceImage = '';
     let safeUpscale = null;
-    if (['revision', 'upscale', 'control', 'faceid', 'canny', 'instantid', 'tile', 'poselora'].includes(contract)) {
+    if (['revision', 'upscale', 'control', 'faceid', 'canny', 'instantid', 'hybridid', 'tile', 'poselora'].includes(contract)) {
       const localSource = resolveArtifactPath(payload.sourceArtifact);
       if (!localSource || !/\.(png|jpe?g|webp)$/i.test(localSource)) throw new Error('The selected source is unavailable or is not a supported image.');
       if (contract === 'upscale' && ['ultrasharp-upscale-v1', 'remacri-upscale-v1'].includes(payload.workflowId)) {
@@ -711,7 +711,7 @@ async function preflightReferenceShot(payload) {
   if (shot.referenceMode === 'selected' && !sourceArtifact) throw new Error('Selected-reference mode requires a reference artifact.');
   if (shot.referenceMode === 'approved' && !sourceArtifact) throw new Error('No approved reference view is available. Promote a view or use clean generation.');
   const source = artifactFingerprint(sourceArtifact);
-  const contract = source ? ({ pose: 'control', faceid: 'faceid', canny: 'canny', instantid: 'instantid', tile: 'tile', poselora: 'poselora' }[shot.controlMode] || 'revision') : 'image';
+  const contract = source ? ({ pose: 'control', faceid: 'faceid', canny: 'canny', instantid: 'instantid', hybridid: 'hybridid', tile: 'tile', poselora: 'poselora' }[shot.controlMode] || 'revision') : 'image';
   const definition = shot.workflow ? workflowRegistry.get(shot.workflow) : workflowRegistry.forKind(contract);
   if (definition.contract !== contract) throw new Error(`Workflow ${definition.id} does not support ${contract}.`);
   const checkpoints = readyCheckpoints(await comfyClient.checkpoints());
@@ -742,7 +742,7 @@ async function executeReferenceShot(ids, queue) {
     const source = artifactFingerprint(sourceArtifact);
     if (source && shot.referenceSha256 && source.sha256 !== shot.referenceSha256) throw new Error('The selected reference changed after preflight. Review the shot again before running it.');
     const result = await generateLocalMedia({
-      kind: sourceArtifact ? ({ pose: 'control', faceid: 'faceid', canny: 'canny', instantid: 'instantid', tile: 'tile', poselora: 'poselora' }[shot.controlMode] || 'revision') : 'image', requestId, sessionId: queue.id,
+      kind: sourceArtifact ? ({ pose: 'control', faceid: 'faceid', canny: 'canny', instantid: 'instantid', hybridid: 'hybridid', tile: 'tile', poselora: 'poselora' }[shot.controlMode] || 'revision') : 'image', requestId, sessionId: queue.id,
       prompt: effectiveShotPrompt(subject, sheet, shot), negativePrompt: shot.negativePrompt,
       sourceArtifact: sourceArtifact || undefined, parentRevision: sourceArtifact || undefined,
       checkpoint: shot.model || undefined, workflowId: shot.workflow || undefined,
