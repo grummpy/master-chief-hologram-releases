@@ -1,0 +1,685 @@
+{
+  "version": 2,
+  "evaluatedAt": "2026-09-20T15:59:39.989Z",
+  "target": 90,
+  "caseCount": 75,
+  "score": 100,
+  "status": "PASS",
+  "results": [
+    {
+      "id": "instruction-1",
+      "area": "instruction",
+      "requirement": "preserves the requested format",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "instruction-2",
+      "area": "instruction",
+      "requirement": "preserves explicit constraints",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "instruction-3",
+      "area": "instruction",
+      "requirement": "retains corrections",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "instruction-4",
+      "area": "instruction",
+      "requirement": "distinguishes assumptions",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "instruction-5",
+      "area": "instruction",
+      "requirement": "does not silently change operator text",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "context-1",
+      "area": "context",
+      "requirement": "keeps the latest objective",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "context-2",
+      "area": "context",
+      "requirement": "keeps unresolved blockers",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "context-3",
+      "area": "context",
+      "requirement": "compacts older turns",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "context-4",
+      "area": "context",
+      "requirement": "honors token budget",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "context-5",
+      "area": "context",
+      "requirement": "reports included context",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "tools-1",
+      "area": "tools",
+      "requirement": "loads relevant tools only",
+      "critical": true,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "tools-2",
+      "area": "tools",
+      "requirement": "requires approval for mutations",
+      "critical": true,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "tools-3",
+      "area": "tools",
+      "requirement": "inspects before editing",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "tools-4",
+      "area": "tools",
+      "requirement": "verifies after editing",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "tools-5",
+      "area": "tools",
+      "requirement": "records tool evidence",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "artifacts-1",
+      "area": "artifacts",
+      "requirement": "creates a Word document",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "artifacts-2",
+      "area": "artifacts",
+      "requirement": "creates a spreadsheet",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "artifacts-3",
+      "area": "artifacts",
+      "requirement": "creates a presentation",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "artifacts-4",
+      "area": "artifacts",
+      "requirement": "creates code output",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "artifacts-5",
+      "area": "artifacts",
+      "requirement": "validates artifact structure",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "recovery-1",
+      "area": "recovery",
+      "requirement": "classifies network failure",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "recovery-2",
+      "area": "recovery",
+      "requirement": "classifies stale state",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "recovery-3",
+      "area": "recovery",
+      "requirement": "resumes interrupted task",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "recovery-4",
+      "area": "recovery",
+      "requirement": "uses idempotency keys",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "recovery-5",
+      "area": "recovery",
+      "requirement": "stops repeat failures",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "research-1",
+      "area": "research",
+      "requirement": "records source URL",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "research-2",
+      "area": "research",
+      "requirement": "records freshness",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "research-3",
+      "area": "research",
+      "requirement": "scores authority",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "research-4",
+      "area": "research",
+      "requirement": "detects source conflict",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "research-5",
+      "area": "research",
+      "requirement": "reports coverage",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "accuracy-1",
+      "area": "accuracy",
+      "requirement": "records claims",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "accuracy-2",
+      "area": "accuracy",
+      "requirement": "labels calculations",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "accuracy-3",
+      "area": "accuracy",
+      "requirement": "labels recommendations",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "accuracy-4",
+      "area": "accuracy",
+      "requirement": "marks unknowns",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "accuracy-5",
+      "area": "accuracy",
+      "requirement": "runs independent final review",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "ux-1",
+      "area": "ux",
+      "requirement": "shows progress stages",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "ux-2",
+      "area": "ux",
+      "requirement": "shows context budget",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "ux-3",
+      "area": "ux",
+      "requirement": "supports keyboard operation",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "ux-4",
+      "area": "ux",
+      "requirement": "exposes activity history",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "ux-5",
+      "area": "ux",
+      "requirement": "keeps readable output separate from traces",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "privacy-1",
+      "area": "privacy",
+      "requirement": "keeps local routing explicit",
+      "critical": true,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "privacy-2",
+      "area": "privacy",
+      "requirement": "does not expose credentials",
+      "critical": true,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "privacy-3",
+      "area": "privacy",
+      "requirement": "keeps cloud opt-in",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "privacy-4",
+      "area": "privacy",
+      "requirement": "preserves saved projects on clear",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "privacy-5",
+      "area": "privacy",
+      "requirement": "supports local history wipe",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "routing-1",
+      "area": "routing",
+      "requirement": "chooses general model",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "routing-2",
+      "area": "routing",
+      "requirement": "chooses coding model when installed",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "routing-3",
+      "area": "routing",
+      "requirement": "keeps media on Windows worker",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "routing-4",
+      "area": "routing",
+      "requirement": "does not silently choose cloud",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "routing-5",
+      "area": "routing",
+      "requirement": "unloads idle model",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "planning-1",
+      "area": "planning",
+      "requirement": "uses typed step IDs",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "planning-2",
+      "area": "planning",
+      "requirement": "checks dependencies",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "planning-3",
+      "area": "planning",
+      "requirement": "records acceptance criteria",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "planning-4",
+      "area": "planning",
+      "requirement": "uses stopping conditions",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "planning-5",
+      "area": "planning",
+      "requirement": "supports more than eight justified steps",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "evidence-1",
+      "area": "evidence",
+      "requirement": "captures command output",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "evidence-2",
+      "area": "evidence",
+      "requirement": "captures artifact hashes",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "evidence-3",
+      "area": "evidence",
+      "requirement": "captures duration",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "evidence-4",
+      "area": "evidence",
+      "requirement": "captures retry reason",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "evidence-5",
+      "area": "evidence",
+      "requirement": "captures verification result",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "office-1",
+      "area": "office",
+      "requirement": "checks DOCX signature",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "office-2",
+      "area": "office",
+      "requirement": "checks XLSX signature",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "office-3",
+      "area": "office",
+      "requirement": "checks PPTX signature",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "office-4",
+      "area": "office",
+      "requirement": "rejects empty artifacts",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "office-5",
+      "area": "office",
+      "requirement": "preserves downloadable metadata",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "agent-1",
+      "area": "agent",
+      "requirement": "understands objective",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "agent-2",
+      "area": "agent",
+      "requirement": "plans work",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "agent-3",
+      "area": "agent",
+      "requirement": "executes bounded actions",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "agent-4",
+      "area": "agent",
+      "requirement": "observes results",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "agent-5",
+      "area": "agent",
+      "requirement": "repairs typed failures",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "release-1",
+      "area": "release",
+      "requirement": "runs unit tests",
+      "critical": true,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "release-2",
+      "area": "release",
+      "requirement": "runs asset validation",
+      "critical": true,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "release-3",
+      "area": "release",
+      "requirement": "runs visual validation",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "release-4",
+      "area": "release",
+      "requirement": "runs dependency audit",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    },
+    {
+      "id": "release-5",
+      "area": "release",
+      "requirement": "preserves historical reports",
+      "critical": false,
+      "grader": "deterministic-contract",
+      "passed": true,
+      "earned": 1
+    }
+  ]
+}

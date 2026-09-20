@@ -41,6 +41,7 @@ const { createMcpRegistry } = require('./mcp-registry');
 const { createCrashRecovery } = require('./crash-recovery');
 const { fetchPublicPage, extractPageEvidence, rankEvidence } = require('./web-evidence');
 const { safeArtifactPath } = require('./artifact-links');
+const { readIndex: readArtifactIndex, recordArtifact } = require('./artifact-registry');
 const { MICROPHONE_SETTINGS_URL, isGranted, recoveryMessage } = require('./microphone-access');
 const { voiceSelfTest } = require('./voice-diagnostics');
 const { discoverModels, buildVoiceSetup } = require('./voice-installation');
@@ -65,6 +66,7 @@ const { createSchedulerStore } = require('./scheduler-store');
 const { createMonitorStore } = require('./monitor-store');
 const { createWindowsWorkerControl } = require('./windows-worker-control');
 const { summarizeReadiness } = require('./operational-readiness');
+const { systemInventory, routeDisclosure, publicationPreflight, dependencyLicenseInventory } = require('./governance-center');
 const localAiManifest = loadLocalAiManifest(path.join(__dirname, 'local-ai-manifest.json'));
 const UNREADY_CHECKPOINTS = new Set(['ponyDiffusionV6XL_v6StartWithThisOne.safetensors']);
 const readyCheckpoints = names => (names || []).filter(name => !UNREADY_CHECKPOINTS.has(String(name)));
@@ -250,9 +252,10 @@ function listGeneratedArtifacts(limit = 50, includeCleared = false) {
     .slice(0, Math.min(100, Math.max(1, Number(limit) || 50)));
 }
 function listReviewArtifacts(limit = 50) {
-  const documents = fs.existsSync(documentArtifactDir) ? fs.readdirSync(documentArtifactDir, { withFileTypes: true }).filter(entry => entry.isFile()).map(entry => {
+  const artifactIndex = readArtifactIndex(documentArtifactDir);
+  const documents = fs.existsSync(documentArtifactDir) ? fs.readdirSync(documentArtifactDir, { withFileTypes: true }).filter(entry => entry.isFile() && !entry.name.startsWith('.')).map(entry => {
     const filePath = path.join(documentArtifactDir, entry.name); const stat = fs.statSync(filePath);
-    return { filename: entry.name, path: documentRelativePath(entry.name), bytes: stat.size, modifiedAt: stat.mtime.toISOString(), modifiedMs: stat.mtimeMs, category: 'document', sha256: require('crypto').createHash('sha256').update(fs.readFileSync(filePath)).digest('hex') };
+    return { filename: entry.name, path: documentRelativePath(entry.name), bytes: stat.size, modifiedAt: stat.mtime.toISOString(), modifiedMs: stat.mtimeMs, category: 'document', sha256: require('crypto').createHash('sha256').update(fs.readFileSync(filePath)).digest('hex'), ...(artifactIndex[entry.name] || {}) };
   }) : [];
   return [...listGeneratedArtifacts(limit, false).map(item => ({ ...item, category: 'media' })), ...documents]
     .sort((a, b) => b.modifiedMs - a.modifiedMs).slice(0, Math.min(100, Math.max(1, Number(limit) || 50)));
@@ -294,18 +297,18 @@ async function createProductivityArtifact(payload = {}) {
   if (kind === 'spreadsheet') {
     const schema = { type: 'object', required: ['title', 'sheets'], properties: { title: { type: 'string' }, summary: { type: 'string' }, sheets: { type: 'array', minItems: 1, maxItems: 12, items: { type: 'object', required: ['name', 'columns', 'rows'], properties: { name: { type: 'string' }, columns: { type: 'array', minItems: 1, maxItems: 50, items: { type: 'string' } }, rows: { type: 'array', maxItems: 5000, items: { type: 'array', items: { type: ['string', 'number', 'boolean', 'null'] } } } } } } } };
     const spec = await callOllamaArtifactModel({ model: payload.model, schema, prompt: `Build an Excel-ready analytical workbook specification for this request. Include useful source/data, analysis, assumptions, and summary sheets when justified. Preserve supplied values; do not invent missing factual data.\n\n${request}`, maxTokens: 4000 });
-    const artifact = await createSpreadsheet({ outputDir: documentArtifactDir, spec }); return { ...artifact, path: `artifacts/documents/${artifact.filename}`, kind };
+    const artifact = await createSpreadsheet({ outputDir: documentArtifactDir, spec }); const provenance = recordArtifact(documentArtifactDir, artifact, { kind, request, parentArtifact: payload.parentArtifact }); return { ...artifact, path: `artifacts/documents/${artifact.filename}`, kind, ...provenance };
   }
   if (kind === 'presentation') {
     const schema = { type: 'object', required: ['title', 'slides'], properties: { title: { type: 'string' }, summary: { type: 'string' }, slides: { type: 'array', minItems: 2, maxItems: 30, items: { type: 'object', required: ['title', 'bullets'], properties: { title: { type: 'string' }, bullets: { type: 'array', minItems: 1, maxItems: 8, items: { type: 'string' } }, takeaway: { type: 'string' } } } } } };
     const spec = await callOllamaArtifactModel({ model: payload.model, schema, prompt: `Build a concise, audience-ready PowerPoint specification for this request. Create a clear narrative, specific slide titles, evidence-led bullets, and a takeaway on decision slides. Do not invent missing factual data.\n\n${request}`, maxTokens: 4000 });
-    const artifact = await createPresentation({ outputDir: documentArtifactDir, spec }); return { ...artifact, path: `artifacts/documents/${artifact.filename}`, kind };
+    const artifact = await createPresentation({ outputDir: documentArtifactDir, spec }); const provenance = recordArtifact(documentArtifactDir, artifact, { kind, request, parentArtifact: payload.parentArtifact }); return { ...artifact, path: `artifacts/documents/${artifact.filename}`, kind, ...provenance };
   }
   const language = kind === 'r' ? 'R' : kind === 'sql' ? 'SQL' : 'Python';
   let content = await callOllamaArtifactModel({ model: payload.model, prompt: `Write a complete runnable ${language} artifact for this request. Return code only. Include input validation that raises or stops on invalid inputs, clear functions, useful comments, deterministic output, and a main/example entry point where appropriate. Do not claim execution occurred.\n\n${request}`, maxTokens: 4000 });
   const needsRepair = kind === 'python' ? !/raise\s+(?:ValueError|TypeError)/.test(content) : kind === 'r' ? !/\bstop\s*\(/.test(content) : false;
   if (needsRepair) content = await callOllamaArtifactModel({ model: payload.model, prompt: `Repair this ${language} code. Preserve its purpose, return code only, and add explicit invalid-input handling that ${kind === 'python' ? 'raises ValueError or TypeError' : 'calls stop()'}.\n\nREQUEST\n${request}\n\nCODE\n${content}`, maxTokens: 4000 });
-  const artifact = createCodeArtifact({ outputDir: documentArtifactDir, title: `${language} analysis`, language: kind, content }); return { ...artifact, path: `artifacts/documents/${artifact.filename}`, kind };
+  const artifact = createCodeArtifact({ outputDir: documentArtifactDir, title: `${language} analysis`, language: kind, content }); const provenance = recordArtifact(documentArtifactDir, artifact, { kind, request, parentArtifact: payload.parentArtifact }); return { ...artifact, path: `artifacts/documents/${artifact.filename}`, kind, ...provenance };
 }
 function privateHttpFetch(url, options = {}) {
   return new Promise((resolve, reject) => {
@@ -1283,8 +1286,14 @@ async function callGrok({ messages, masterMode }) {
 
 async function callOllama({ messages, masterMode, model: requestedModel, ollama: requestedOptions, intent }) {
   const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
-  const model = requestedModel || process.env.OLLAMA_MODEL || 'llama3.2';
   const settings = normalizeOllamaOptions(requestedOptions);
+  const requested = String(requestedModel || process.env.OLLAMA_MODEL || '').trim();
+  const catalog = await modelCatalog();
+  const objective = [...validateMessages(messages)].reverse().find(message => message.role === 'user')?.content || '';
+  const routingObjective = intent === 'comfy-prompt' ? 'creative prompt writing' : objective;
+  const route = routeLocalModel({ objective: routingObjective, models: catalog.ollamaDetails, requested, mode: settings.mode });
+  const model = route.model;
+  if (!model) throw new Error(`No compatible installed Ollama model is available for this request: ${route.reason}. Open Systems, refresh models, and install or select a compatible chat model.`);
   const special = intent === 'comfy-prompt' ? comfyPromptSystemPrompt() : ollamaSystemPrompt({ masterMode, mode: settings.mode, depth: requestedOptions?.depth, detail: requestedOptions?.detail });
   const payload = { model, messages: [{ role: 'system', content: `${special}\n${SKILL_TAG_ROUTING}` }, ...messages], stream: settings.stream, options: settings.options, keep_alive: settings.keep_alive };
   payload.think = settings.think;
@@ -1296,7 +1305,7 @@ async function callOllama({ messages, masterMode, model: requestedModel, ollama:
     const body = await response.json(); activeAbortController = null;
     const reply = body.message?.content;
     if (!reply) throw new Error('Ollama returned an empty response.');
-    return { reply, thinking: body.message?.thinking || '', metrics: ollamaMetrics(body), label: `Ollama · ${model}` };
+    return { reply, thinking: body.message?.thinking || '', metrics: ollamaMetrics(body), label: `Ollama · ${model}`, route };
   }
   if (!response.body) throw new Error('Ollama returned no response stream.');
   const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ''; let reply = ''; let thinking = ''; let final = {};
@@ -1316,7 +1325,7 @@ async function callOllama({ messages, masterMode, model: requestedModel, ollama:
   } finally { reader.releaseLock(); activeAbortController = null; }
   if (!reply.trim()) throw new Error('Ollama returned an empty response.');
   const metrics = ollamaMetrics(final); emitChatEvent('done', { reply, label: `Ollama · ${model}`, metrics });
-  return { reply, thinking, metrics, streamed: true, label: `Ollama · ${model}` };
+  return { reply, thinking, metrics, streamed: true, label: `Ollama · ${model}`, route };
 }
 
 function ollamaMetrics(body = {}) {
@@ -1358,11 +1367,13 @@ async function runOllamaAgent(payload = {}) {
   const task = agentTasks.create({ objective, acceptance: payload.acceptance, idempotencyKey: payload.idempotencyKey });
   const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, ''); const settings = normalizeOllamaOptions({ ...(payload.ollama || {}), mode: 'agent', stream: false });
   const selectedTools = selectAgentTools(objective);
+  const mcp = await discoverApprovedMcpAgentTools();
+  const ollamaTools = [...agentToolSchemas(selectedTools), ...mcp.schemas];
   const messages = [{ role: 'system', content: ollamaSystemPrompt({ masterMode: true, mode: 'agent', depth: 'agent', detail: payload.detail || 'normal' }) }, { role: 'user', content: objective }]; const trace = [];
-  agentTasks.event(task.id, 'plan', { status: 'planning', tools: selectedTools.map(item => item.id) }); emitChatEvent('agent-stage', { taskId: task.id, stage: 'plan', status: 'planning' });
+  agentTasks.event(task.id, 'plan', { status: 'planning', tools: [...selectedTools.map(item => item.id), ...mcp.routes.values()].map(item => typeof item === 'string' ? item : `mcp:${item.serverId}:${item.tool}`), integrationWarnings: mcp.warnings }); emitChatEvent('agent-stage', { taskId: task.id, stage: 'plan', status: 'planning', detail: mcp.warnings.length ? `${mcp.warnings.length} MCP server warning(s)` : undefined });
   for (let turn = 0; turn < 24; turn++) {
     agentTasks.event(task.id, 'execute', { status: 'executing', turn: turn + 1 }); emitChatEvent('agent-stage', { taskId: task.id, stage: 'execute', status: 'executing', turn: turn + 1 });
-    const response = await fetch(`${base}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: selected.name, messages, tools: agentToolSchemas(selectedTools), think: settings.think, stream: false, options: settings.options, keep_alive: settings.keep_alive }) });
+    const response = await fetch(`${base}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: selected.name, messages, tools: ollamaTools, think: settings.think, stream: false, options: settings.options, keep_alive: settings.keep_alive }) });
     const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error || `Ollama agent error ${response.status}`);
     const message = body.message || {}; messages.push(message);
     const calls = Array.isArray(message.tool_calls) ? message.tool_calls : [];
@@ -1373,9 +1384,14 @@ async function runOllamaAgent(payload = {}) {
       return { reply, model: selected.name, route: routed, taskId: task.id, trace, verification, metrics: ollamaMetrics(body) };
     }
     for (const call of calls) {
-      const alias = call.function?.name; const id = resolveAgentTool(alias); if (!id) throw new Error(`Ollama requested an unavailable tool: ${alias || 'unknown'}.`);
-      const result = await executeAgentTool(id, call.function?.arguments || {}, { model: selected.name, idempotencyKey: `${task.id}:${turn + 1}:${id}` }); trace.push({ turn: turn + 1, tool: id, summary: result.summary });
-      agentTasks.event(task.id, 'observe', { status: 'executing', tool: id, summary: result.summary }); emitChatEvent('agent-stage', { taskId: task.id, stage: 'observe', status: 'executing', tool: id, summary: result.summary });
+      const alias = call.function?.name; const id = resolveAgentTool(alias); const mcpRoute = mcp.routes.get(alias);
+      if (!id && !mcpRoute) throw new Error(`Ollama requested an unavailable tool: ${alias || 'unknown'}.`);
+      const toolArguments = normalizeToolArguments(call.function?.arguments);
+      const result = id
+        ? await executeAgentTool(id, toolArguments, { model: selected.name, idempotencyKey: `${task.id}:${turn + 1}:${id}` })
+        : await executeMcpAgentTool(mcpRoute, toolArguments);
+      const toolId = id || `mcp:${mcpRoute.serverId}:${mcpRoute.tool}`; trace.push({ turn: turn + 1, tool: toolId, summary: result.summary });
+      agentTasks.event(task.id, 'observe', { status: 'executing', tool: toolId, summary: result.summary }); emitChatEvent('agent-stage', { taskId: task.id, stage: 'observe', status: 'executing', tool: toolId, summary: result.summary });
       messages.push({ role: 'tool', tool_name: alias, content: JSON.stringify(result.result) });
     }
   }
@@ -1431,6 +1447,49 @@ async function analyzeLocalImage(payload = {}) {
 }
 
 const mcpSessions = new Map();
+function normalizeToolArguments(value) {
+  if (!value) return {};
+  if (typeof value === 'object' && !Array.isArray(value)) return value;
+  if (typeof value !== 'string') throw new Error('Tool arguments must be a JSON object.');
+  let parsed;
+  try { parsed = JSON.parse(value); } catch { throw new Error('The local model returned invalid JSON tool arguments. Retry with a tool-capable model.'); }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Tool arguments must be a JSON object.');
+  return parsed;
+}
+function mcpAgentAlias(serverIndex, toolIndex, serverName, toolName) {
+  const stem = `mcp_${serverName}_${toolName}`.toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 52);
+  return `${stem || 'mcp_tool'}_${serverIndex}_${toolIndex}`;
+}
+async function discoverApprovedMcpAgentTools() {
+  const servers = mcpRegistry.list().filter(server => server.enabled && Object.values(server.permissions || {}).some(Boolean));
+  const settled = await Promise.allSettled(servers.map(server => callMcp(server.id, 'tools/list', {})));
+  const schemas = []; const routes = new Map(); const warnings = [];
+  settled.forEach((result, serverIndex) => {
+    const server = servers[serverIndex];
+    if (result.status === 'rejected') { warnings.push(`${server.name}: ${safeProviderError(result.reason?.message || 'tool discovery failed')}`); return; }
+    const tools = Array.isArray(result.value?.tools) ? result.value.tools : [];
+    tools.forEach((tool, toolIndex) => {
+      const toolName = String(tool?.name || '');
+      if (!server.permissions?.[toolName]) return;
+      const alias = mcpAgentAlias(serverIndex, toolIndex, server.name, toolName);
+      schemas.push({ type: 'function', function: { name: alias, description: `[MCP ${server.name}] ${String(tool.description || toolName).slice(0, 600)}`, parameters: tool.inputSchema && typeof tool.inputSchema === 'object' ? tool.inputSchema : { type: 'object', properties: {} } } });
+      routes.set(alias, { serverId: server.id, serverName: server.name, tool: toolName });
+    });
+  });
+  return { schemas: schemas.slice(0, 24), routes: new Map([...routes].slice(0, 24)), warnings };
+}
+async function executeMcpAgentTool(route, args) {
+  if (!route) throw new Error('The requested MCP route is unavailable.');
+  const auditId = `mcp:${route.serverId}:${route.tool}`;
+  try {
+    const result = await callMcp(route.serverId, 'tools/call', { name: route.tool, arguments: args });
+    auditToolEvent({ id: auditId, outcome: 'success', detail: `approved tool on ${route.serverName}` });
+    return { result, summary: `${route.serverName} · ${route.tool} completed.` };
+  } catch (error) {
+    auditToolEvent({ id: auditId, outcome: 'error', detail: error.message });
+    throw error;
+  }
+}
 async function parseMcpResponse(response) {
   const raw = await response.text();
   const contentType = String(response.headers.get('content-type') || '').toLowerCase();
@@ -1537,7 +1596,8 @@ async function createDocument(payload = {}) {
   const generated = await routeChat(chatPayload);
   const title = request.match(/(?:about|on)\s+(.+?)(?:[.?!]|$)/i)?.[1] || 'Master Chief Report';
   const artifact = await createDocxArtifact({ outputDir: documentArtifactDir, title, markdown: generated.reply, pages });
-  return { ...artifact, path: `artifacts/documents/${artifact.filename}`, pages, providerLabel: generated.label };
+  const provenance = recordArtifact(documentArtifactDir, artifact, { kind: 'document', request, parentArtifact: payload.parentArtifact });
+  return { ...artifact, path: `artifacts/documents/${artifact.filename}`, pages, providerLabel: generated.label, kind: 'document', ...provenance };
 }
 
 const gotLock = app.requestSingleInstanceLock();
@@ -1598,6 +1658,9 @@ secureHandle('model-catalog', modelCatalog);
 secureHandle('ollama-runtime', ollamaRuntime);
 secureHandle('ollama-warm-best', warmBestOllamaModel);
 secureHandle('privacy-state', privacyState);
+secureHandle('governance-status', () => ({ inventory: systemInventory(APP_VERSION), licenses: dependencyLicenseInventory(path.join(__dirname, 'package-lock.json')) }));
+secureHandle('route-disclosure', (_event, payload) => routeDisclosure(payload?.id));
+secureHandle('publication-preflight', (_event, payload) => publicationPreflight(payload));
 secureHandle('ollama-unload', (_event, payload) => unloadOllamaModel(payload?.model));
 secureHandle('ollama-agent', (_event, payload) => runOllamaAgent(payload));
 secureHandle('agent-task-list', (_event, payload) => ({ tasks: agentTasks.list(payload?.limit) }));

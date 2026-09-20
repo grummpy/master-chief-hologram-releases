@@ -192,7 +192,8 @@ test('Ollama Command Center exposes native generation and agent controls', () =>
 test('explicit report requests create downloadable Word artifacts', () => {
   assert.match(renderer, /function isDocumentRequest/);
   assert.match(renderer, /window\.masterChief\.createDocument/);
-  assert.match(renderer, /Open Word document/);
+  assert.match(renderer, /Word document/);
+  assert.match(renderer, /aria-label.*artifactName/);
   const preload = fs.readFileSync(path.join(root, 'preload.js'), 'utf8');
   const main = fs.readFileSync(path.join(root, 'main.js'), 'utf8');
   assert.match(preload, /create-document/);

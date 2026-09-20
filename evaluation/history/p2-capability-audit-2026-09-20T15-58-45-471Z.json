@@ -1,0 +1,242 @@
+{
+  "schemaVersion": 3,
+  "benchmark": "Codex-style dependable local-first command center",
+  "assessedAt": "2026-09-20T15:58:45.471Z",
+  "score": 90.5,
+  "threshold": 95,
+  "thresholdMet": false,
+  "parity": false,
+  "coverage": {
+    "line": 95.94,
+    "branch": 67.52,
+    "functions": 89.65,
+    "scopeWarning": "Core Electron main, preload, renderer, and Reference Studio files are not present in the module coverage table."
+  },
+  "areas": [
+    {
+      "id": "reasoning",
+      "label": "Reasoning and answer quality",
+      "weight": 14,
+      "target": 95,
+      "score": 88,
+      "gap": "Add a versioned domain evaluation set, citation-entailment checks, and answer comparison in the primary chat.",
+      "delta": 7
+    },
+    {
+      "id": "context",
+      "label": "Context and durable memory",
+      "weight": 11,
+      "target": 95,
+      "score": 90,
+      "gap": "Add reusable knowledge collections with chunk/source inspection, reindex controls, and migration-failure reporting.",
+      "delta": 5
+    },
+    {
+      "id": "orchestration",
+      "label": "Agent planning and recovery",
+      "weight": 13,
+      "target": 95,
+      "score": 96,
+      "gap": "Add packaged Electron restart journeys for exact-step resume and mutation receipt review.",
+      "delta": 0
+    },
+    {
+      "id": "tools",
+      "label": "Tools and connectors",
+      "weight": 12,
+      "target": 95,
+      "score": 93,
+      "gap": "Add OAuth and stdio MCP transports, per-chat tool enablement, argument preview, and provider-loop tool routing.",
+      "delta": 2
+    },
+    {
+      "id": "artifacts",
+      "label": "Files and artifact production",
+      "weight": 10,
+      "target": 95,
+      "score": 86,
+      "gap": "Add live editing, preview diffs, and round-trip fidelity tests for every generated office format.",
+      "delta": 9
+    },
+    {
+      "id": "research",
+      "label": "Research and evidence",
+      "weight": 10,
+      "target": 95,
+      "score": 94,
+      "gap": "Add citation-to-source entailment verification and a reproducible multi-source research evaluation.",
+      "delta": 1
+    },
+    {
+      "id": "multimodal",
+      "label": "Image, audio, and video understanding",
+      "weight": 10,
+      "target": 95,
+      "score": 88,
+      "gap": "Complete the external AMD video bundle, live acceptance run, and image-understanding evaluation.",
+      "delta": 7
+    },
+    {
+      "id": "recovery",
+      "label": "Reliability and self-repair",
+      "weight": 8,
+      "target": 95,
+      "score": 96,
+      "gap": "Exercise last-known-good rollback from the installed app in an automated Electron journey.",
+      "delta": 0
+    },
+    {
+      "id": "ux",
+      "label": "Ease of use and accessibility",
+      "weight": 7,
+      "target": 95,
+      "score": 92,
+      "gap": "Add screen-reader Electron journeys, narrow-window drawer behavior, and complete keyboard navigation.",
+      "delta": 3
+    },
+    {
+      "id": "release",
+      "label": "Release and operations",
+      "weight": 5,
+      "target": 95,
+      "score": 75,
+      "gap": "Obtain Developer ID, notarize, staple, and verify the installed bundle on a clean Mac.",
+      "delta": 20
+    }
+  ],
+  "codeFindings": [
+    {
+      "id": "core-runtime-coverage",
+      "severity": "high",
+      "area": "Reliability and self-repair",
+      "evidence": "Coverage reports 95.98% only for imported modules; main.js, preload.js, renderer.js, and reference-studio.js are absent.",
+      "work": "Add Electron integration tests that launch the packaged app and exercise every IPC, clear/restart, attachment, agent, and media journey."
+    },
+    {
+      "id": "silent-failures",
+      "severity": "medium",
+      "area": "Reliability and self-repair",
+      "evidence": "Reference preview and state-load paths contain empty catch blocks that suppress actionable failures.",
+      "work": "Record bounded diagnostics and show recoverable UI errors instead of silently dropping failed previews or migrations."
+    },
+    {
+      "id": "monoliths",
+      "severity": "medium",
+      "area": "Maintainability",
+      "evidence": "main.js is 1,875 lines/152 KB and renderer.js is 108 KB with many one-line functions.",
+      "work": "Split provider, IPC, privacy, research, media, and renderer controllers into typed modules with dependency injection."
+    },
+    {
+      "id": "test-branch-gaps",
+      "severity": "medium",
+      "area": "Verification",
+      "evidence": "Overall branch coverage is 67.52%; core high-risk modules and the Electron renderer still lack the required 85% branch evidence.",
+      "work": "Raise branch coverage on network, credential, parsing, extension, and failure paths to at least 85%, including Electron journeys."
+    },
+    {
+      "id": "release-signing",
+      "severity": "external",
+      "area": "Release and operations",
+      "evidence": "Release readiness reports no Apple Developer ID Application identity; current package is ad hoc signed.",
+      "work": "Install the owner Developer ID certificate, notarize, staple, and verify with codesign and spctl before distribution."
+    }
+  ],
+  "buildList": [
+    {
+      "priority": 1,
+      "kind": "code-audit",
+      "area": "Reliability and self-repair",
+      "severity": "high",
+      "evidence": "Coverage reports 95.98% only for imported modules; main.js, preload.js, renderer.js, and reference-studio.js are absent.",
+      "work": "Add Electron integration tests that launch the packaged app and exercise every IPC, clear/restart, attachment, agent, and media journey."
+    },
+    {
+      "priority": 2,
+      "kind": "code-audit",
+      "area": "Reliability and self-repair",
+      "severity": "medium",
+      "evidence": "Reference preview and state-load paths contain empty catch blocks that suppress actionable failures.",
+      "work": "Record bounded diagnostics and show recoverable UI errors instead of silently dropping failed previews or migrations."
+    },
+    {
+      "priority": 3,
+      "kind": "code-audit",
+      "area": "Maintainability",
+      "severity": "medium",
+      "evidence": "main.js is 1,875 lines/152 KB and renderer.js is 108 KB with many one-line functions.",
+      "work": "Split provider, IPC, privacy, research, media, and renderer controllers into typed modules with dependency injection."
+    },
+    {
+      "priority": 4,
+      "kind": "code-audit",
+      "area": "Verification",
+      "severity": "medium",
+      "evidence": "Overall branch coverage is 67.52%; core high-risk modules and the Electron renderer still lack the required 85% branch evidence.",
+      "work": "Raise branch coverage on network, credential, parsing, extension, and failure paths to at least 85%, including Electron journeys."
+    },
+    {
+      "priority": 5,
+      "kind": "code-audit",
+      "area": "Release and operations",
+      "severity": "external",
+      "evidence": "Release readiness reports no Apple Developer ID Application identity; current package is ad hoc signed.",
+      "work": "Install the owner Developer ID certificate, notarize, staple, and verify with codesign and spctl before distribution."
+    },
+    {
+      "priority": 6,
+      "kind": "capability",
+      "area": "Reasoning and answer quality",
+      "current": 88,
+      "target": 95,
+      "work": "Add a versioned domain evaluation set, citation-entailment checks, and answer comparison in the primary chat."
+    },
+    {
+      "priority": 7,
+      "kind": "capability",
+      "area": "Files and artifact production",
+      "current": 86,
+      "target": 95,
+      "work": "Add live editing, preview diffs, and round-trip fidelity tests for every generated office format."
+    },
+    {
+      "priority": 8,
+      "kind": "capability",
+      "area": "Image, audio, and video understanding",
+      "current": 88,
+      "target": 95,
+      "work": "Complete the external AMD video bundle, live acceptance run, and image-understanding evaluation."
+    },
+    {
+      "priority": 9,
+      "kind": "capability",
+      "area": "Context and durable memory",
+      "current": 90,
+      "target": 95,
+      "work": "Add reusable knowledge collections with chunk/source inspection, reindex controls, and migration-failure reporting."
+    },
+    {
+      "priority": 10,
+      "kind": "capability",
+      "area": "Tools and connectors",
+      "current": 93,
+      "target": 95,
+      "work": "Add OAuth and stdio MCP transports, per-chat tool enablement, argument preview, and provider-loop tool routing."
+    },
+    {
+      "priority": 11,
+      "kind": "capability",
+      "area": "Ease of use and accessibility",
+      "current": 92,
+      "target": 95,
+      "work": "Add screen-reader Electron journeys, narrow-window drawer behavior, and complete keyboard navigation."
+    },
+    {
+      "priority": 12,
+      "kind": "capability",
+      "area": "Research and evidence",
+      "current": 94,
+      "target": 95,
+      "work": "Add citation-to-source entailment verification and a reproducible multi-source research evaluation."
+    }
+  ]
+}

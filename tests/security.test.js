@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { validateChatPayload, safeProviderError, validSecret } = require('../security');
+const { validateChatPayload, safeProviderError, validSecret, redactSecrets } = require('../security');
 
 test('accepts a bounded provider request and normalizes content', () => {
   const payload = validateChatPayload({ provider: 'ollama', messages: [{ role: 'user', content: '  hello  ' }], masterMode: 1 });
@@ -20,4 +20,13 @@ test('redacts credentials from provider errors', () => {
   assert.equal(message.includes('xai-'), false);
   assert.match(message, /redacted credential/);
   assert.equal(validSecret('sk-123456789012'), true);
+});
+
+test('redacts common provider secrets from structured text and URLs', () => {
+  const source = 'api_key=plain-secret-123 token: visible-token-456 https://example.test?a=1&access_token=url-secret-789 AIzaSyExampleCredential1234567890';
+  const result = redactSecrets(source);
+  assert.equal(result.includes('plain-secret'), false);
+  assert.equal(result.includes('visible-token'), false);
+  assert.equal(result.includes('url-secret'), false);
+  assert.equal(result.includes('AIzaSy'), false);
 });

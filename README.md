@@ -1,6 +1,6 @@
 # Master Chief Hologram — Midnight Command
 
-Current local release: **1.2.0**
+Current local release: **1.42.0**
 
 Midnight Command is a private macOS command interface for local and explicitly selected cloud AI routes. Commander Nova is the original in-app command operator; the navy-and-gold mascot remains the launcher seal and Master Chief orchestration identity.
 
@@ -75,5 +75,7 @@ npm run release:readiness
 `release:local` runs automated tests, asset and visual contracts, production dependency audit, packaging, and package inspection. `release:readiness` checks for an Apple Developer ID certificate. The current Desktop package is an ad-hoc-signed personal build; public distribution still requires Developer ID signing, notarization, stapling, and Gatekeeper evidence.
 
 See the [Windows remote operator runbook](docs/WINDOWS_INSTALL_SEQUENCE.md), [complete capability overhaul plan](docs/MASTER_CHIEF_COMPLETE_OVERHAUL_PLAN.md), [release evidence](docs/RELEASE_V1.2.0.md), [connector and agent plan](docs/CONNECTOR_AGENT_PLAN.md), [local creative model guidance](docs/LOCAL_CREATIVE_MODELS.md), [system flow](docs/SYSTEM_FLOW.md), [art provenance](docs/ART_PROVENANCE.md), and [technical learning guide](docs/TECHNICAL_LEARNING_GUIDE.md).
+
+For privacy, data residency, publishing review, model limitations, incident response, and human-oversight procedures, use the in-app **Privacy and publishing review** center and the [governance operator runbook](docs/GOVERNANCE_PRIVACY_PUBLISHING_RUNBOOK.md).
 
 Built for Commander grummpy · 2026
