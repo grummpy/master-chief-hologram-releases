@@ -126,6 +126,12 @@ test('media controls expose explicit prompts, upscale, and Reference Studio', ()
   assert.ok(fs.existsSync(path.join(root, 'workflows', 'image-upscale-api.json')));
 });
 
+test('blank media seed remains random instead of becoming seed zero', () => {
+  const renderer = fs.readFileSync(path.join(root, 'renderer.js'), 'utf8');
+  assert.match(renderer, /if\(raw===undefined\|\|raw===null\|\|raw==='\'\)return undefined/);
+  assert.doesNotMatch(renderer, /const value=Number\(\$\(id\)\?\.value\)/);
+});
+
 test('Reference Studio exposes hierarchy, review, comparison, queue, and runtime controls', () => {
   for (const id of ['referenceProjectSelect','referenceSubjectSelect','referenceSheetSelect','referenceContactSheet','referenceComparison','runReferenceQueue','cancelReferenceQueue','resumeReferenceQueue','clearReferenceQueue','closeReferenceRuntime','shotReferenceStrength','shotDenoise']) assert.match(html, new RegExp(`id="${id}"`));
   assert.match(referenceStudio, /onReferenceQueueEvent/);
