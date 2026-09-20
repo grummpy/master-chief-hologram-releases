@@ -70,6 +70,23 @@ test('project patch refuses stale preview and rollback receipts', async () => {
   await assert.rejects(() => executor.execute('project.replace_text', { previewId: preview.result.previewId }), /changed after preview/);
 });
 
+test('multi-file patch set previews, applies, and rolls back as one receipt', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-patch-set-')); const history = path.join(root, '.history');
+  fs.writeFileSync(path.join(root, 'a.txt'), 'alpha old'); fs.writeFileSync(path.join(root, 'b.txt'), 'beta old');
+  const executor = createLocalToolExecutor({ appVersion: '1.2.3', projectDir: root, editHistoryDir: history, execFile: async () => ({ stdout: '' }) });
+  const preview = await executor.execute('project.preview_patch_set', { changes: [{ path: 'a.txt', oldText: 'old', newText: 'new' }, { path: 'b.txt', oldText: 'old', newText: 'new' }] });
+  assert.equal(preview.result.changes.length, 2); assert.equal(fs.readFileSync(path.join(root, 'a.txt'), 'utf8'), 'alpha old');
+  const applied = await executor.execute('project.apply_patch_set', { previewId: preview.result.previewId }); assert.equal(fs.readFileSync(path.join(root, 'b.txt'), 'utf8'), 'beta new');
+  const rolledBack = await executor.execute('project.rollback_patch_set', { rollbackId: applied.result.rollbackId }); assert.equal(rolledBack.result.files.length, 2); assert.equal(fs.readFileSync(path.join(root, 'a.txt'), 'utf8'), 'alpha old');
+});
+
+test('multi-file patch set writes nothing when any preview is stale', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-patch-stale-')); fs.writeFileSync(path.join(root, 'a.txt'), 'alpha old'); fs.writeFileSync(path.join(root, 'b.txt'), 'beta old');
+  const executor = createLocalToolExecutor({ appVersion: '1.2.3', projectDir: root, editHistoryDir: path.join(root, '.history'), execFile: async () => ({ stdout: '' }) });
+  const preview = await executor.execute('project.preview_patch_set', { changes: [{ path: 'a.txt', oldText: 'old', newText: 'new' }, { path: 'b.txt', oldText: 'old', newText: 'new' }] });
+  fs.writeFileSync(path.join(root, 'b.txt'), 'newer work'); await assert.rejects(() => executor.execute('project.apply_patch_set', { previewId: preview.result.previewId }), /No files were written/); assert.equal(fs.readFileSync(path.join(root, 'a.txt'), 'utf8'), 'alpha old');
+});
+
 test('project test runner invokes only npm test in the approved root', async () => {
   let received; const executor = createLocalToolExecutor({ appVersion: '1.2.3', projectDir: '/tmp/project', execFile: async (...args) => { received = args; return { stdout: 'pass' }; } });
   await executor.execute('project.run_tests');

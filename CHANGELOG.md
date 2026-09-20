@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.16.0
+
+- Added combined previews for atomic patch sets spanning up to ten different project files.
+- Multi-file apply verifies every source hash before writing any file and restores partial writes if a filesystem failure occurs.
+- Whole-set rollback refuses to overwrite newer work when any applied file has changed.
+- Added separate Tool Access approvals and typed Ollama tools for multi-file preview, apply, and rollback.
+
 ## 1.15.0
 
 - Added durable, quiet health monitors for local Ollama and the private-LAN Windows ComfyUI worker.

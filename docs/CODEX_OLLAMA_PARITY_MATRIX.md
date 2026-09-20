@@ -9,7 +9,7 @@ Master Chief uses Ollama as its local reasoning engine. Ollama alone is not equi
 | Word, Excel, PowerPoint, Python, R, and SQL artifacts | Available | Deterministic generators with saved downloadable artifacts; R execution needs an R runtime |
 | Local image generation and revision | Available when ComfyUI is healthy | Versioned workflows, job ledger, lineage, preview, save, download, and hashes |
 | Video generation | Conditional | Requires an enabled compatible workflow, model bundle, and healthy worker |
-| Repository work | Partial, bounded | Ollama can list files, read bounded text, inspect Git status, preview one exact replacement as a diff, apply only its hash-bound receipt, roll it back when no newer work exists, and run the fixed project test suite. Arbitrary shell commands remain unavailable. |
+| Repository work | Partial, bounded | Ollama can list/read project text, inspect Git status, preview exact changes, atomically apply and roll back one file or a verified set of up to ten files, and run the fixed test suite. Arbitrary shell commands remain unavailable. |
 | Generated-artifact discovery | Available | Ollama can list generated document and media metadata |
 | Web research | Partial, no-key public connector | Ollama can search DuckDuckGo Instant Answer and English Wikipedia with linked results after network approval. This is narrower than a commercial search index and never falls back to a paid AI provider. |
 | General code editing and command execution | Not yet available to local Ollama | Requires workspace-scoped patch and process tools, review, timeouts, and rollback |

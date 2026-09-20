@@ -14,6 +14,9 @@ const LOCAL_TOOL_IDS = Object.freeze([
   'project.preview_replace',
   'project.replace_text',
   'project.rollback_edit',
+  'project.preview_patch_set',
+  'project.apply_patch_set',
+  'project.rollback_patch_set',
   'project.run_tests',
   'artifacts.list'
 ]);
@@ -114,6 +117,32 @@ function createLocalToolExecutor({ appVersion, projectDir, artifactDirs = [], ed
         if (sha256(current) !== rollback.afterSha256) throw new Error('The file changed after this edit. Rollback stopped to preserve newer work.');
         atomicWrite(target, rollback.original, stat.mode); fs.unlinkSync(rollbackFile);
         return { tool: id, result: { path: rollback.path, rollbackId: rollback.rollbackId, restoredSha256: rollback.beforeSha256 }, summary: `Rolled back the verified edit to ${rollback.path}.` };
+      }
+      if (id === 'project.preview_patch_set') {
+        const requested = Array.isArray(input.changes) ? input.changes : []; if (!requested.length || requested.length > 10) throw new Error('A patch set requires between 1 and 10 file changes.');
+        const seen = new Set(); const changes = requested.map((item, index) => {
+          const relativePath = String(item?.path || '').trim(); const oldText = String(item?.oldText || ''); const newText = String(item?.newText || '');
+          if (!relativePath || !oldText) throw new Error(`Change ${index + 1} requires a path and non-empty oldText.`); if (seen.has(relativePath)) throw new Error('A patch set may change each file only once.'); seen.add(relativePath);
+          if (oldText.length > 20000 || newText.length > 20000) throw new Error('Each replacement is limited to 20,000 characters.');
+          const target = containedPath(safeProjectDir, relativePath); const stat = fs.statSync(target); if (!stat.isFile() || stat.size > 512 * 1024) throw new Error('Every target must be a text file no larger than 512 KB.');
+          const original = fs.readFileSync(target, 'utf8'); if (original.includes('\u0000')) throw new Error('Binary files are not supported by this tool.'); const occurrences = original.split(oldText).length - 1;
+          if (occurrences !== 1) throw new Error(`${relativePath}: oldText must match exactly once; found ${occurrences}.`); const updated = original.replace(oldText, newText);
+          return { path: relativePath, oldText, newText, beforeSha256: sha256(original), afterSha256: sha256(updated), changedBytes: Buffer.byteLength(updated) - Buffer.byteLength(original), diff: replacementDiff(relativePath, oldText, newText) };
+        });
+        const previewId = crypto.randomUUID(); writeReceipt('patch-preview', previewId, { previewId, changes, createdAt: new Date().toISOString() });
+        return { tool: id, result: { previewId, changes: changes.map(({ oldText, newText, ...item }) => item) }, summary: `Previewed ${changes.length} verified file changes; apply with patch receipt ${previewId}.` };
+      }
+      if (id === 'project.apply_patch_set') {
+        const { file: previewFile, value: preview } = readReceipt('patch-preview', input.previewId); const prepared = [];
+        for (const change of preview.changes) { const target = containedPath(safeProjectDir, change.path); const stat = fs.statSync(target); const original = fs.readFileSync(target, 'utf8'); if (sha256(original) !== change.beforeSha256) throw new Error(`${change.path} changed after preview. No files were written.`); const updated = original.replace(change.oldText, change.newText); if (sha256(updated) !== change.afterSha256) throw new Error(`${change.path} failed preview verification. No files were written.`); prepared.push({ ...change, target, mode: stat.mode, original, updated }); }
+        const applied = []; try { for (const item of prepared) { atomicWrite(item.target, item.updated, item.mode); applied.push(item); } } catch (error) { for (const item of applied.reverse()) atomicWrite(item.target, item.original, item.mode); throw new Error(`Patch set failed and applied files were restored: ${error.message}`); }
+        const rollbackId = crypto.randomUUID(); writeReceipt('patch-rollback', rollbackId, { rollbackId, files: prepared.map(item => ({ path: item.path, beforeSha256: item.beforeSha256, afterSha256: item.afterSha256, original: item.original })), createdAt: new Date().toISOString() }); fs.unlinkSync(previewFile);
+        return { tool: id, result: { previewId: preview.previewId, rollbackId, files: prepared.map(item => ({ path: item.path, beforeSha256: item.beforeSha256, afterSha256: item.afterSha256 })) }, summary: `Applied ${prepared.length} verified file changes atomically. Rollback receipt: ${rollbackId}.` };
+      }
+      if (id === 'project.rollback_patch_set') {
+        const { file: rollbackFile, value: rollback } = readReceipt('patch-rollback', input.rollbackId); const prepared = rollback.files.map(item => { const target = containedPath(safeProjectDir, item.path); const stat = fs.statSync(target); const current = fs.readFileSync(target, 'utf8'); if (sha256(current) !== item.afterSha256) throw new Error(`${item.path} changed after the patch set. No files were rolled back.`); return { ...item, target, mode: stat.mode }; });
+        for (const item of prepared) atomicWrite(item.target, item.original, item.mode); fs.unlinkSync(rollbackFile);
+        return { tool: id, result: { rollbackId: rollback.rollbackId, files: prepared.map(item => ({ path: item.path, restoredSha256: item.beforeSha256 })) }, summary: `Rolled back ${prepared.length} verified project files.` };
       }
       if (id === 'project.run_tests') {
         const result = await execFile('npm', ['test'], { cwd: safeProjectDir, timeout: 180000, maxBuffer: 2 * 1024 * 1024, windowsHide: true });
