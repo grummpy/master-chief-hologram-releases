@@ -81,12 +81,17 @@ test('Systems and connector status rows open preselected credential setup', () =
 });
 
 test('Runtime Center exposes live evidence and confirmed fixed worker controls', () => {
-  for (const id of ['runtimeCenterBtn','runtimeCenter','runtimeCenterGrid','runtimeCheckpointList','runtimeRefreshBtn','runtimeOpenBtn','runtimeConfigureBtn','runtimeRestartBtn','gamingModeBtn','runtimeResumeBtn']) assert.match(html, new RegExp(`id="${id}"`));
+  for (const id of ['runtimeCenterBtn','runtimeCenter','runtimeCenterGrid','runtimeCheckpointList','runtimeRefreshBtn','runtimeOpenBtn','runtimeConfigureBtn','runtimeRestartBtn','gamingModeBtn','runtimeResumeBtn','runtimeReadinessBtn','runtimeReadinessList']) assert.match(html, new RegExp(`id="${id}"`));
   assert.match(renderer, /getComfyUiRuntimeStatus/);
   assert.match(renderer, /queue\.running/);
   assert.match(renderer, /vramFree/);
   assert.match(renderer, /confirm\(`/);
   assert.match(renderer, /controlComfyUiRuntime/);
+  assert.match(renderer, /getOperationalReadiness/);
+  const preload = fs.readFileSync(path.join(root, 'preload.js'), 'utf8');
+  const main = fs.readFileSync(path.join(root, 'main.js'), 'utf8');
+  assert.match(preload, /operational-readiness/);
+  assert.match(main, /secureHandle\('operational-readiness'/);
 });
 
 test('Scheduled workspace creates and manages durable local reminders', () => {

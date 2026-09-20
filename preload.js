@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('masterChief', {
   ingestAttachment: payload => ipcRenderer.invoke('ingest-attachment', payload),
   getConnectorStatus: () => ipcRenderer.invoke('connector-status'),
   getComfyUiRuntimeStatus: () => ipcRenderer.invoke('comfyui-runtime-status'),
+  getOperationalReadiness: () => ipcRenderer.invoke('operational-readiness'),
   openComfyUiRuntime: () => ipcRenderer.invoke('comfyui-runtime-open'),
   controlComfyUiRuntime: action => ipcRenderer.invoke('comfyui-runtime-control', { action }),
   getConnectorSetupStatus: () => ipcRenderer.invoke('connector-setup-status'),

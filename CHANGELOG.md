@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.23.0
+
+- Added a one-button, local-only Operational Readiness Check to Runtime Center.
+- Scores Ollama, SearXNG, ComfyUI, SSH control, queue state, RAM/VRAM reserve, promoted models, archive storage, and offline transcription on a fixed 100-point model with a 90-point readiness gate.
+- Displays bounded evidence and an exact repair action for every warning or failure without logging prompts, files, or credentials.
+- Records only the aggregate readiness outcome in the existing secret-free worker operations log.
+
 ## 1.22.0
 
 - Replaced the unbounded UltraSharp 4× action with a memory-bounded **UltraSharp Safe 2×** profile.

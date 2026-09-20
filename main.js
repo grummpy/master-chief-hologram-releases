@@ -49,6 +49,7 @@ const { discoverPlugins } = require('./plugin-catalog');
 const { createSchedulerStore } = require('./scheduler-store');
 const { createMonitorStore } = require('./monitor-store');
 const { createWindowsWorkerControl } = require('./windows-worker-control');
+const { summarizeReadiness } = require('./operational-readiness');
 const localAiManifest = loadLocalAiManifest(path.join(__dirname, 'local-ai-manifest.json'));
 
 let mainWindow;
@@ -728,6 +729,51 @@ async function comfyRuntimeStatus() {
   return { endpoint: comfyBaseUrl, endpointHistory: Array.isArray(connectorSettings.comfyuiEndpointHistory) ? connectorSettings.comfyuiEndpointHistory.slice(-5) : [comfyBaseUrl], remote, ...(await comfyClient.runtimeStatus()), checkedAt: new Date().toISOString() };
 }
 
+async function operationalReadiness() {
+  const ollamaBase = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
+  const [ollama, search, runtimeResult, modelResult, voiceResult] = await Promise.allSettled([
+    checkJson(`${ollamaBase}/api/tags`),
+    checkHttp('http://127.0.0.1:8888/'),
+    comfyRuntimeStatus(),
+    comfyClient ? Promise.all([comfyClient.checkpoints(), comfyClient.modelNames('vae'), comfyClient.modelNames('upscale_models')]) : Promise.reject(new Error('ComfyUI is not configured.')),
+    localWhisperConfig()
+  ]);
+  const runtime = runtimeResult.status === 'fulfilled' ? runtimeResult.value : null;
+  const models = modelResult.status === 'fulfilled' ? modelResult.value : [[], [], []];
+  const ollamaBody = ollama.status === 'fulfilled' && !ollama.value.error && ollama.value.response?.ok ? ollama.value.body : null;
+  const ollamaNames = Array.isArray(ollamaBody?.models) ? ollamaBody.models.map(item => String(item.name || item.model || '')).filter(Boolean) : [];
+  const primary = primaryInstalledModel(localAiManifest, ollamaNames);
+  const device = runtime?.devices?.[0];
+  const ramReady = Number(runtime?.system?.ramFree || 0) >= 1536 * 1024 * 1024;
+  const vramReady = Number(device?.vramFree || 0) >= 4 * 1024 * 1024 * 1024;
+  const requiredModels = {
+    checkpoint: models[0].find(name => /juggernaut.*xl.*v9/i.test(name)) || '',
+    vae: models[1].includes('sdxl_vae.safetensors'),
+    upscaler: models[2].includes('4x-UltraSharp.pth')
+  };
+  let storage = { ready: false, free: 0, detail: '' };
+  try {
+    for (const directory of [generatedArtifactDir, documentArtifactDir, projectStore.root]) { fs.mkdirSync(directory, { recursive: true, mode: 0o700 }); fs.accessSync(directory, fs.constants.R_OK | fs.constants.W_OK); }
+    const stat = fs.statfsSync(generatedArtifactDir); storage = { ready: true, free: Number(stat.bavail) * Number(stat.bsize), detail: 'Generated media, documents, and Projects are readable and writable.' };
+  } catch (error) { storage.detail = String(error.message || 'Storage access failed.').slice(0, 240); }
+  const voice = voiceResult.status === 'fulfilled' ? voiceResult.value : null;
+  const checks = [
+    { id: 'ollama.local', label: 'Local language AI', weight: 20, state: primary ? 'ready' : ollamaBody ? 'warning' : 'error', evidence: primary ? `${primary.id} is installed and selected by the local manifest.` : ollamaBody ? `${ollamaNames.length} Ollama models found but no enabled primary manifest match.` : 'Ollama did not answer /api/tags.', repair: 'Start Ollama and install or enable the primary model recorded in the local AI manifest.' },
+    { id: 'searxng.local', label: 'Private search', weight: 10, state: search.status === 'fulfilled' && !search.value.error && search.value.response?.ok ? 'ready' : 'error', evidence: search.status === 'fulfilled' && search.value.response?.ok ? 'Local SearXNG answered on port 8888.' : 'Local SearXNG did not answer on port 8888.', repair: 'Start the local SearXNG container, then rerun readiness.' },
+    { id: 'comfyui.api', label: 'Windows media worker', weight: 15, state: runtime ? 'ready' : 'error', evidence: runtime ? `ComfyUI ${runtime.system.comfyuiVersion} on ${device?.name || 'reported device'}.` : String(runtimeResult.reason?.message || 'ComfyUI runtime status failed.'), repair: 'Use Resume AI worker, then refresh Runtime Center.' },
+    { id: 'comfyui.ssh', label: 'Remote maintenance channel', weight: 10, state: runtime?.remote?.state === 'ready' ? 'ready' : 'error', evidence: runtime?.remote?.label || 'SSH control evidence unavailable.', repair: 'Restore the Windows OpenSSH service and authorized Master Chief key.' },
+    { id: 'comfyui.queue', label: 'Media queue', weight: 10, state: !runtime ? 'error' : runtime.queue.running || runtime.queue.pending ? 'warning' : 'ready', evidence: runtime ? `${runtime.queue.running} running and ${runtime.queue.pending} pending.` : 'Queue unavailable.', repair: 'Let active work finish or cancel it before maintenance or high-memory generation.' },
+    { id: 'comfyui.capacity', label: 'GPU and memory reserve', weight: 10, state: ramReady && vramReady ? 'ready' : runtime ? 'warning' : 'error', evidence: runtime ? `${Math.round(runtime.system.ramFree / 1073741824 * 10) / 10} GB RAM and ${Math.round((device?.vramFree || 0) / 1073741824 * 10) / 10} GB VRAM free.` : 'Capacity unavailable.', repair: 'Close games and GPU-heavy programs, then use Release VRAM or restart the worker.' },
+    { id: 'comfyui.models', label: 'Promoted image models', weight: 15, state: requiredModels.checkpoint && requiredModels.vae && requiredModels.upscaler ? 'ready' : modelResult.status === 'fulfilled' ? 'warning' : 'error', evidence: `Juggernaut: ${requiredModels.checkpoint || 'missing'}; SDXL VAE: ${requiredModels.vae ? 'ready' : 'missing'}; UltraSharp: ${requiredModels.upscaler ? 'ready' : 'missing'}.`, repair: 'Restore the missing promoted model to its declared ComfyUI model folder and verify its checksum.' },
+    { id: 'storage.local', label: 'Local archives and Projects', weight: 5, state: storage.ready && storage.free >= 5 * 1024 * 1024 * 1024 ? 'ready' : storage.ready ? 'warning' : 'error', evidence: storage.ready ? `${storage.detail} ${Math.round(storage.free / 1073741824)} GB free.` : storage.detail, repair: 'Free at least 5 GB or restore write access to Application Support and the Projects folder.' },
+    { id: 'voice.local', label: 'Offline speech-to-text', weight: 5, state: voice?.ready ? 'ready' : 'warning', evidence: voice?.ready ? `whisper.cpp, ${path.basename(voice.model)}, and ffmpeg are ready.` : 'One or more offline transcription components are unavailable.', repair: 'Open Offline voice setup and complete the missing whisper.cpp, model, or ffmpeg step.' }
+  ];
+  const report = summarizeReadiness(checks);
+  const result = { ...report, checkedAt: new Date().toISOString(), gate: 90, localOnly: true };
+  recordWorkerOperation('readiness-check', report.status.toLowerCase().replace(/ /g, '-'), `${report.score}/100; ${report.failed} failed; ${report.warnings} warnings`);
+  return result;
+}
+
 async function controlComfyRuntime(action) {
   const allowed = new Set(['restart', 'gaming-stop', 'gaming-resume']);
   if (!allowed.has(action)) throw new Error('Unsupported Runtime Center action.');
@@ -1299,6 +1345,7 @@ secureHandle('create-productivity-artifact', (_event, payload) => createProducti
 secureHandle('ingest-attachment', (_event, payload) => ingestAttachment(payload));
 secureHandle('connector-status', connectorStatus);
 secureHandle('comfyui-runtime-status', comfyRuntimeStatus);
+secureHandle('operational-readiness', operationalReadiness);
 secureHandle('comfyui-runtime-open', async () => { if (!comfyClient) throw new Error('ComfyUI worker is not configured.'); await shell.openExternal(comfyBaseUrl); return true; });
 secureHandle('comfyui-runtime-control', (_event, payload = {}) => controlComfyRuntime(String(payload.action || '')));
 secureHandle('connector-setup-status', () => connectorSetupStatus());
