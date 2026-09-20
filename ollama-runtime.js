@@ -50,9 +50,12 @@ function modelCard(model = {}, running = []) {
 
 const AGENT_TOOLS = Object.freeze([
   Object.freeze({ alias: 'diagnostics_local_runtime', id: 'diagnostics.local_runtime', description: 'Inspect the local Master Chief application runtime and versions.' }),
-  Object.freeze({ alias: 'diagnostics_git_status', id: 'diagnostics.git_status', description: 'Read the Git status of the Master Chief application repository.' })
+  Object.freeze({ alias: 'diagnostics_git_status', id: 'diagnostics.git_status', description: 'Read the Git status of the Master Chief application repository.' }),
+  Object.freeze({ alias: 'project_list_files', id: 'project.list_files', description: 'List files inside the Master Chief project.', properties: { directory: { type: 'string', description: 'Project-relative directory, or . for the project root.' } } }),
+  Object.freeze({ alias: 'project_read_text_file', id: 'project.read_text_file', description: 'Read a bounded text file inside the Master Chief project.', properties: { path: { type: 'string', description: 'Project-relative text file path.' } }, required: ['path'] }),
+  Object.freeze({ alias: 'artifacts_list', id: 'artifacts.list', description: 'List generated documents, spreadsheets, presentations, code, and media artifacts.' })
 ]);
-function agentToolSchemas() { return AGENT_TOOLS.map(tool => ({ type: 'function', function: { name: tool.alias, description: tool.description, parameters: { type: 'object', properties: {} } } })); }
+function agentToolSchemas() { return AGENT_TOOLS.map(tool => ({ type: 'function', function: { name: tool.alias, description: tool.description, parameters: { type: 'object', properties: tool.properties || {}, required: tool.required || [] } } })); }
 function resolveAgentTool(alias) { return AGENT_TOOLS.find(tool => tool.alias === alias)?.id || null; }
 
 module.exports = { MODES, normalizeOllamaOptions, ollamaSystemPrompt, modelCard, agentToolSchemas, resolveAgentTool };

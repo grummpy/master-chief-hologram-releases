@@ -189,7 +189,7 @@ function requireToolApproval(id) {
   }
 }
 const ragIndex = createRagIndex(path.join(app.getPath('userData'), 'local-index.json'));
-const localTools = createLocalToolExecutor({ appVersion: APP_VERSION, projectDir: __dirname, execFile: execFileAsync });
+const localTools = createLocalToolExecutor({ appVersion: APP_VERSION, projectDir: __dirname, artifactDirs: [generatedArtifactDir, documentArtifactDir], execFile: execFileAsync });
 const localAiAudit = createLocalAiAudit(path.join(app.getPath('userData'), 'local-ai-audit.jsonl'));
 function toolAuditFile() { return path.join(app.getPath('userData'), 'tool-audit.jsonl'); }
 function microphoneStatus() { try { return process.platform === 'darwin' ? systemPreferences.getMediaAccessStatus('microphone') : 'granted'; } catch { return 'unknown'; } }
@@ -211,7 +211,7 @@ function auditToolEvent({ id, outcome, detail }) {
     if (stat.size > 256 * 1024) fs.renameSync(toolAuditFile(), `${toolAuditFile()}.previous`);
   } catch { /* Diagnostics must never prevent the app from functioning. */ }
 }
-async function executeLocalTool(id) {
+async function executeLocalTool(id, input = {}) {
   const toolId = String(id || '');
   const registered = getToolRegistry().find(tool => tool.id === toolId);
   if (!registered || !localTools.ids.includes(toolId)) {
@@ -223,7 +223,7 @@ async function executeLocalTool(id) {
     throw new Error('Approve this tool in Tool access before running it.');
   }
   try {
-    const report = await localTools.execute(toolId);
+    const report = await localTools.execute(toolId, input);
     auditToolEvent({ id: toolId, outcome: 'success', detail: 'completed' });
     return report;
   } catch (error) {
@@ -921,7 +921,7 @@ async function runOllamaAgent(payload = {}) {
     if (!calls.length) return { reply: message.content || 'The local agent completed without a text response.', model: selected.name, trace, metrics: ollamaMetrics(body) };
     for (const call of calls) {
       const alias = call.function?.name; const id = resolveAgentTool(alias); if (!id) throw new Error(`Ollama requested an unavailable tool: ${alias || 'unknown'}.`);
-      const result = await executeLocalTool(id); trace.push({ turn: turn + 1, tool: id, summary: result.summary });
+      const result = await executeLocalTool(id, call.function?.arguments || {}); trace.push({ turn: turn + 1, tool: id, summary: result.summary });
       messages.push({ role: 'tool', tool_name: alias, content: JSON.stringify(result.result) });
     }
   }

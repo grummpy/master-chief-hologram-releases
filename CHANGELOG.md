@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.10.1
+
+- Added a truthful Codex-to-Ollama capability parity matrix.
+- Expanded Ollama's bounded agent tools with project file listing, bounded project text reads, and generated-artifact inventory.
+- Added path-containment, text-size, approval, audit, and regression coverage for the new local tools.
+
 ## 1.10.0
 
 - Added deterministic local Word, Excel, PowerPoint, Python, R, and SQL artifact routes with Open, Reveal, Save As, hashes, and explicit slash commands.
