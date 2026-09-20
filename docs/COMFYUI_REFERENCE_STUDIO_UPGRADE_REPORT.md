@@ -199,6 +199,13 @@ The failure pattern is typical of text-only SDXL. More prose alone will not reli
 - Added a memory-bounded Remacri portrait upscale with a 2,048-pixel maximum edge, resource reserve checks, rollback, and post-job cache release.
 - Kept Depth, Tile, Control-LoRA OpenPose, and the still-downloading Pony checkpoint out of promoted workflows pending their own readiness evidence.
 - Model provenance, checksums, licenses, limitations, and rollback details are recorded in `docs/COMFYUI_MODEL_READINESS_2026-09-20.md`.
+
+## v1.28 implementation evidence
+
+- Added live-tested Tile detail/layout preservation and a lower-memory OpenPose Control-LoRA route.
+- Extended durable Reference Studio modes and preflight explanations for both workflows.
+- Added checkpoint probation: actively downloading or unverified Pony weights are hidden and rejected rather than exposed as selectable merely because ComfyUI lists the filename.
+- Depth remains staged because the disabled auxiliary preprocessor package means there is no verified one-click depth-map extraction path.
 3. Productize prepared-map OpenPose ControlNet.
 4. Seek explicit approval for an OpenPose preprocessor after compatibility/license review.
 5. Add masked inpaint/outpaint and regional controls.

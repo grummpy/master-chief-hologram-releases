@@ -61,9 +61,10 @@ test('UltraSharp and external VAE workflows bind only named installed models', (
 test('main process recognizes video and reports its gated readiness precisely', () => {
   const fs = require('node:fs');
   const main = fs.readFileSync(path.resolve(__dirname, '..', 'main.js'), 'utf8');
-  assert.match(main, /\['image', 'revision', 'rebuild', 'upscale', 'control', 'faceid', 'canny', 'instantid', 'video'\]/);
+  assert.match(main, /\['image', 'revision', 'rebuild', 'upscale', 'control', 'faceid', 'canny', 'instantid', 'tile', 'poselora', 'video'\]/);
   assert.match(main, /Video generation is not ready on the Windows worker/);
   assert.doesNotMatch(main, /Media contract must be image, revision, rebuild, or upscale\./);
+  assert.match(main, /UNREADY_CHECKPOINTS = new Set\(\['ponyDiffusionV6XL_v6StartWithThisOne\.safetensors'\]\)/);
 });
 
 test('workflow readiness requires every declared node and model', () => {
@@ -91,4 +92,12 @@ test('Canny and InstantID workflows bind installed structure controls', () => {
   assert.deepEqual({ low: canny['6'].inputs.low_threshold, high: canny['6'].inputs.high_threshold, model: canny['4'].inputs.control_net_name }, { low: .2, high: .7, model: 'sdxl-canny.safetensors' });
   const instant = cloneAndFillWorkflow(require(registry.get('sdxl-instantid-v1').file), { prompt: 'identity prompt', negativePrompt: 'duplicate', sourceImage: 'face.png', checkpoint: 'model.safetensors', referenceStrength: .9, instantIdControlStrength: .7, instantIdNoise: .1 });
   assert.deepEqual({ identity: instant['8'].inputs.ip_weight, keypoints: instant['8'].inputs.cn_strength, noise: instant['8'].inputs.noise }, { identity: .9, keypoints: .7, noise: .1 });
+});
+
+test('Tile and OpenPose Control-LoRA workflows bind their exact installed models', () => {
+  const registry = createWorkflowRegistry(path.resolve(__dirname, '..'));
+  const tile = cloneAndFillWorkflow(require(registry.get('sdxl-tile-control-v1').file), { prompt: 'detail pass', negativePrompt: 'blur', sourceImage: 'source.png', checkpoint: 'model.safetensors', controlStrength: .55 });
+  const pose = cloneAndFillWorkflow(require(registry.get('sdxl-openpose-lora-v1').file), { prompt: 'pose pass', negativePrompt: 'bad anatomy', sourceImage: 'pose.png', checkpoint: 'model.safetensors', controlStrength: .8 });
+  assert.equal(tile['4'].inputs.control_net_name, 'sdxl-tile.safetensors');
+  assert.equal(pose['4'].inputs.control_net_name, 'control-lora-openposeXL2-rank256.safetensors');
 });

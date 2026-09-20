@@ -51,6 +51,8 @@ const { createMonitorStore } = require('./monitor-store');
 const { createWindowsWorkerControl } = require('./windows-worker-control');
 const { summarizeReadiness } = require('./operational-readiness');
 const localAiManifest = loadLocalAiManifest(path.join(__dirname, 'local-ai-manifest.json'));
+const UNREADY_CHECKPOINTS = new Set(['ponyDiffusionV6XL_v6StartWithThisOne.safetensors']);
+const readyCheckpoints = names => (names || []).filter(name => !UNREADY_CHECKPOINTS.has(String(name)));
 
 let mainWindow;
 let tray;
@@ -547,8 +549,8 @@ function updateMediaJob(requestId, patch) { return emitMediaJob(mediaJobLedger.u
 function mediaContract(payload = {}) {
   const kind = String(payload.kind || 'image');
   if (kind === 'image' && payload.sourceArtifact) return 'revision';
-  if (['image', 'revision', 'rebuild', 'upscale', 'control', 'faceid', 'canny', 'instantid', 'video'].includes(kind)) return kind;
-  throw new Error('Media contract must be image, revision, rebuild, upscale, control, faceid, canny, instantid, or video.');
+  if (['image', 'revision', 'rebuild', 'upscale', 'control', 'faceid', 'canny', 'instantid', 'tile', 'poselora', 'video'].includes(kind)) return kind;
+  throw new Error('Media contract is not supported by the registered local workflow set.');
 }
 
 async function executeMediaJob(requestId) {
@@ -562,7 +564,7 @@ async function executeMediaJob(requestId) {
     updateMediaJob(requestId, { status: 'loading', stage: 'load', progress: 10 });
     let sourceImage = '';
     let safeUpscale = null;
-    if (['revision', 'upscale', 'control', 'faceid', 'canny', 'instantid'].includes(contract)) {
+    if (['revision', 'upscale', 'control', 'faceid', 'canny', 'instantid', 'tile', 'poselora'].includes(contract)) {
       const localSource = resolveArtifactPath(payload.sourceArtifact);
       if (!localSource || !/\.(png|jpe?g|webp)$/i.test(localSource)) throw new Error('The selected source is unavailable or is not a supported image.');
       if (contract === 'upscale' && ['ultrasharp-upscale-v1', 'remacri-upscale-v1'].includes(payload.workflowId)) {
@@ -593,7 +595,8 @@ async function executeMediaJob(requestId) {
     }
     if (definition.contract !== contract) throw new Error(`Workflow ${definition.id} does not support the ${contract} contract.`);
     const template = JSON.parse(fs.readFileSync(definition.file, 'utf8'));
-    const checkpoints = definition.modelFamily === 'sdxl' ? await comfyClient.checkpoints() : [];
+    const checkpoints = definition.modelFamily === 'sdxl' ? readyCheckpoints(await comfyClient.checkpoints()) : [];
+    if (payload.checkpoint && UNREADY_CHECKPOINTS.has(String(payload.checkpoint))) throw new Error('That checkpoint is still downloading or has not passed the local readiness gate.');
     const selectedCheckpoint = payload.checkpoint || checkpoints.find(name => /juggernaut.*xl.*v9/i.test(name)) || checkpoints.find(name => /juggernaut.*xl/i.test(name)) || checkpoints.find(name => /sd.?xl/i.test(name));
     if (definition.modelFamily === 'sdxl' && (!selectedCheckpoint || !checkpoints.includes(selectedCheckpoint))) throw new Error('The selected checkpoint is not installed on the live ComfyUI worker.');
     if (payload.vae && !(await comfyClient.modelNames('vae')).includes(payload.vae)) throw new Error('The selected VAE is not installed on the live ComfyUI worker.');
@@ -708,10 +711,10 @@ async function preflightReferenceShot(payload) {
   if (shot.referenceMode === 'selected' && !sourceArtifact) throw new Error('Selected-reference mode requires a reference artifact.');
   if (shot.referenceMode === 'approved' && !sourceArtifact) throw new Error('No approved reference view is available. Promote a view or use clean generation.');
   const source = artifactFingerprint(sourceArtifact);
-  const contract = source ? ({ pose: 'control', faceid: 'faceid', canny: 'canny', instantid: 'instantid' }[shot.controlMode] || 'revision') : 'image';
+  const contract = source ? ({ pose: 'control', faceid: 'faceid', canny: 'canny', instantid: 'instantid', tile: 'tile', poselora: 'poselora' }[shot.controlMode] || 'revision') : 'image';
   const definition = shot.workflow ? workflowRegistry.get(shot.workflow) : workflowRegistry.forKind(contract);
   if (definition.contract !== contract) throw new Error(`Workflow ${definition.id} does not support ${contract}.`);
-  const checkpoints = await comfyClient.checkpoints();
+  const checkpoints = readyCheckpoints(await comfyClient.checkpoints());
   const checkpoint = shot.model || checkpoints.find(name => /juggernaut.*xl.*v9/i.test(name)) || checkpoints.find(name => /juggernaut.*xl/i.test(name)) || checkpoints.find(name => /sd.?xl/i.test(name));
   if (!checkpoint || !checkpoints.includes(checkpoint)) throw new Error('No compatible installed checkpoint is available.');
   const seed = Number.isSafeInteger(shot.seed) ? shot.seed : require('crypto').randomInt(1, 2147483646);
@@ -739,7 +742,7 @@ async function executeReferenceShot(ids, queue) {
     const source = artifactFingerprint(sourceArtifact);
     if (source && shot.referenceSha256 && source.sha256 !== shot.referenceSha256) throw new Error('The selected reference changed after preflight. Review the shot again before running it.');
     const result = await generateLocalMedia({
-      kind: sourceArtifact ? ({ pose: 'control', faceid: 'faceid', canny: 'canny', instantid: 'instantid' }[shot.controlMode] || 'revision') : 'image', requestId, sessionId: queue.id,
+      kind: sourceArtifact ? ({ pose: 'control', faceid: 'faceid', canny: 'canny', instantid: 'instantid', tile: 'tile', poselora: 'poselora' }[shot.controlMode] || 'revision') : 'image', requestId, sessionId: queue.id,
       prompt: effectiveShotPrompt(subject, sheet, shot), negativePrompt: shot.negativePrompt,
       sourceArtifact: sourceArtifact || undefined, parentRevision: sourceArtifact || undefined,
       checkpoint: shot.model || undefined, workflowId: shot.workflow || undefined,
@@ -1498,12 +1501,13 @@ secureHandle('media-job-list', (_event, payload) => mediaJobLedger.list(payload?
 secureHandle('media-job-get', (_event, payload) => mediaJobLedger.get(payload?.requestId));
 secureHandle('media-catalog', async () => {
   const video = workflowRegistry.list().some(item => item.contract === 'video' && item.enabled !== false);
-  const [checkpoints, vaes, upscalers, controlnets, clipVision, loras, ipAdapters, detected] = comfyClient ? await Promise.all([
+  const [allCheckpoints, vaes, upscalers, controlnets, clipVision, loras, ipAdapters, detected] = comfyClient ? await Promise.all([
     comfyClient.checkpoints(), comfyClient.modelNames('vae'), comfyClient.modelNames('upscale_models'),
     comfyClient.modelNames('controlnet'), comfyClient.modelNames('clip_vision'), comfyClient.modelNames('loras'), comfyClient.modelNames('ipadapter'), comfyClient.capabilities()
   ]) : [[], [], [], [], [], [], [], {}];
+  const checkpoints = readyCheckpoints(allCheckpoints);
   const workflows = evaluateWorkflowReadiness(workflowRegistry.list(), detected.availableNodes, { checkpoints, vaes, upscalers, controlnets });
-  return { checkpoints, vaes, upscalers, controlnets, clipVision, loras, ipAdapters, workflows, detected,
+  return { checkpoints, probationaryCheckpoints: allCheckpoints.filter(name => UNREADY_CHECKPOINTS.has(String(name))), vaes, upscalers, controlnets, clipVision, loras, ipAdapters, workflows, detected,
     capabilities: { image: true, revision: true, rebuild: true, upscale: true, video },
     videoReadiness: video ? 'ready' : 'missing approved AMD workflow and model bundle' };
 });

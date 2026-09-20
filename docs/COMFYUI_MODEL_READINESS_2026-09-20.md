@@ -33,10 +33,28 @@ This inventory separates live execution evidence from provenance and license rev
 ## Installed but not promoted
 
 - `sdxl-depth.safetensors`: model present, but no verified depth-map preprocessor is active.
-- `sdxl-tile.safetensors`: model present; tile workflow and seam-quality evaluation are pending.
-- `control-lora-openposeXL2-rank256.safetensors`: model present; the current full OpenPose model remains the known-good route.
 - Pony Diffusion XL checkpoint: download was still in progress during inventory and therefore was not selected, tested, or promoted.
 - `comfyui_controlnet_aux.disabled`: intentionally remains disabled; no package activation was performed in this batch.
+
+## v1.28 promoted controls
+
+### SDXL Tile — adopted locally
+
+- File: `sdxl-tile.safetensors` (2,502,139,104 bytes, SHA-256 `9f23ba7be22bf8796c12565e00ea4b287acac982cdf384d368a8b18b6990e011`).
+- Workflow: `sdxl-tile-control-v1`; rollback: `sdxl-revision-v1`.
+- Live evidence: prompt `2a00e473-d072-447a-909d-e425644cb4d0`; artifact SHA-256 `a4cc93ae6579cc7be942f087c027fa2019cd40f5588d0eebc5db0a681b265984`.
+- Observed behavior: retained the reference layout and armor structure while redrawing surface detail.
+
+### OpenPose Control-LoRA rank 256 — execution ready
+
+- File: `control-lora-openposeXL2-rank256.safetensors` (774,423,024 bytes, SHA-256 `8afa079285bf9384eaf8f6322884cb4f24bbe405da490f91f5540d3bff585e75`).
+- Workflow: `sdxl-openpose-lora-v1`; rollback: `sdxl-openpose-control-v1`.
+- Live evidence: prompt `4d17f0cc-bd78-4edb-8f45-c63f5be6de7c`; artifact SHA-256 `8aa001d7b42283e5eaef2c26940e4d0ec815b3ac486a6250e9d858d8ac9424ab`.
+- Status: model loading and AMD execution passed. Semantic pose fidelity remains conditional on supplying a real OpenPose skeleton map; an ordinary photograph is not a valid fidelity fixture.
+
+### Checkpoint probation
+
+- `ponyDiffusionV6XL_v6StartWithThisOne.safetensors` remained actively growing during the v1.28 audit. Master Chief now hides it from selectors and rejects direct requests until a later release removes it from the probation set after size stabilization, checksum capture, license review, and a load/generation test.
 
 ## Recovery
 

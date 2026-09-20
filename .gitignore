@@ -4,6 +4,7 @@ artifacts/prompt-fidelity/
 artifacts/faceid-readiness/
 artifacts/structure-readiness/
 artifacts/upscale-readiness/
+artifacts/detail-readiness/
 .env
 .DS_Store
 *.log

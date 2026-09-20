@@ -7,7 +7,7 @@ const path = require('path');
 const SHOT_STATUSES = new Set(['draft', 'queued', 'running', 'complete', 'failed', 'cancelled', 'recoverable']);
 const REVIEW_STATUSES = new Set(['candidate', 'approved', 'rejected']);
 const REFERENCE_MODES = new Set(['approved', 'selected', 'none']);
-const CONTROL_MODES = new Set(['revision', 'pose', 'faceid', 'canny', 'instantid']);
+const CONTROL_MODES = new Set(['revision', 'pose', 'faceid', 'canny', 'instantid', 'tile', 'poselora']);
 const iso = () => new Date().toISOString();
 const id = value => cleanText(value, 100) || crypto.randomUUID();
 function cleanText(value, max = 4000) { return String(value || '').trim().slice(0, max); }
