@@ -5,6 +5,7 @@ artifacts/faceid-readiness/
 artifacts/structure-readiness/
 artifacts/upscale-readiness/
 artifacts/detail-readiness/
+artifacts/identity-tests/
 .env
 .DS_Store
 *.log
