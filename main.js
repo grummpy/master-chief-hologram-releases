@@ -32,7 +32,7 @@ const { voiceSelfTest } = require('./voice-diagnostics');
 const { discoverModels, buildVoiceSetup } = require('./voice-installation');
 const { loadLocalAiManifest, primaryInstalledModel } = require('./local-ai-manifest');
 const { createLocalAiAudit } = require('./local-ai-audit');
-const { withConnectorState } = require('./connector-registry');
+const { withConnectorState, getConnectorRegistry } = require('./connector-registry');
 const { cloneAndFillWorkflow, createComfyUiClient } = require('./comfyui-client');
 const { runAgentPlan } = require('./agent-runner');
 const { createReferenceStudioStore } = require('./reference-studio-store');
@@ -100,6 +100,18 @@ function connectorSetupStatus() {
   };
   configured.cursor.cliDetected = Boolean(cursorAgentPath());
   return configured;
+}
+function boundedDirectoryNames(directory, limit = 100) {
+  try { return fs.readdirSync(directory, { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => entry.name).filter(name => !name.startsWith('.')).sort().slice(0, limit); }
+  catch { return []; }
+}
+function workspaceLibrary(kind) {
+  const codexRoot = process.env.CODEX_HOME || path.join(app.getPath('home'), '.codex');
+  if (kind === 'scheduled') return { kind, title: 'Scheduled', path: path.join(codexRoot, 'automations'), items: boundedDirectoryNames(path.join(codexRoot, 'automations')).map(name => ({ name, type: 'automation' })) };
+  if (kind === 'plugins') return { kind, title: 'Plugins', path: path.join(codexRoot, 'plugins'), items: boundedDirectoryNames(path.join(codexRoot, 'plugins')).map(name => ({ name, type: 'plugin' })) };
+  if (kind === 'explore') return { kind, title: 'Explore', items: getConnectorRegistry().map(item => ({ name: item.label, type: item.kind, detail: item.capabilities.join(' · ') })) };
+  if (kind === 'pull-requests') return { kind, title: 'Pull requests', url: 'https://github.com/grummpy/master-chief-hologram/pulls', items: [] };
+  throw new Error('Unknown workspace library.');
 }
 async function saveConnectorSetup(payload = {}) {
   const id = String(payload.id || ''); const item = CONNECTOR_SETUP[id];
@@ -1174,6 +1186,14 @@ secureHandle('project-save-artifact', (_event, payload) => {
   const source = resolveArtifactPath(payload?.artifact);
   if (!source) throw new Error('Artifact is unavailable.');
   return projectStore.importFile(payload?.project, source);
+});
+secureHandle('workspace-library', (_event, payload) => workspaceLibrary(String(payload?.kind || '')));
+secureHandle('workspace-library-open', async (_event, payload) => {
+  const library = workspaceLibrary(String(payload?.kind || ''));
+  if (library.url) { await shell.openExternal(library.url); return { opened: true, destination: library.url }; }
+  if (!library.path || !fs.existsSync(library.path)) throw new Error(`${library.title} library is not available on this Mac yet.`);
+  const result = await shell.openPath(library.path); if (result) throw new Error(`${library.title} could not be opened.`);
+  return { opened: true, destination: library.path };
 });
 secureHandle('voice-self-test', async () => voiceSelfTest(await localWhisperConfig(), {
   name: 'command-reference.webm',

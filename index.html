@@ -11,10 +11,17 @@
     <label class="mc-toggle"><input type="checkbox" id="masterMode" checked><span><strong>Master Chief Mode</strong><small>Plan · route · verify</small></span></label>
   </div>
   <div id="filesPanel" class="left-panel-view files-panel" hidden>
-    <div class="files-heading"><div><span class="eyebrow">DURABLE WORKSPACE</span><h2>Projects</h2></div><button id="newProjectBtn" aria-label="Create project">＋</button></div>
+    <nav class="workspace-nav" aria-label="Workspace libraries">
+      <button id="newChatNavBtn"><span class="workspace-nav-icon">✎</span><span>New chat</span></button>
+      <button id="pullRequestsNavBtn"><span class="workspace-nav-icon">⑂</span><span>Pull requests</span></button>
+      <button id="scheduledNavBtn"><span class="workspace-nav-icon">◷</span><span>Scheduled</span></button>
+      <button id="pluginsNavBtn"><span class="workspace-nav-icon">◉</span><span>Plugins</span></button>
+      <button id="exploreNavBtn"><span class="workspace-nav-icon">•••</span><span>Explore</span></button>
+    </nav>
+    <div class="files-heading"><div><span id="workspaceSectionTitle" class="workspace-section-title">Projects</span></div><button id="newProjectBtn" aria-label="Create project">＋</button></div>
     <p class="hint">Saved Projects survive Clear and Clear All.</p>
     <div id="projectTree" class="project-tree" aria-live="polite"></div>
-    <button id="openProjectsBtn" type="button">Open Projects folder</button>
+    <div class="files-footer"><button id="refreshProjectsBtn" type="button">Refresh</button><button id="openProjectsBtn" type="button">Open Projects folder</button></div>
   </div>
 </aside>
 <section class="conversation-panel" aria-label="Mission conversation"><div class="routebar"><div class="route-status"><span id="statusDot" class="status-dot" aria-hidden="true"></span><span id="routeState">Checking route…</span></div><label for="modelSelect" class="sr-only">AI model</label><select id="modelSelect"><option value="ollama">Ollama · Local · no provider charge</option><option value="gemini">Google Gemini · account/API plan</option><option value="codex">Codex Desktop · selected cloud plan</option><option value="openai">OpenAI API · provider billed</option><option value="grok">Grok · provider billed</option><option value="huggingface">Hugging Face · provider billing may apply</option></select><span id="residencyBadge" class="residency-badge">LOCAL</span></div><section id="chat" aria-label="Conversation" role="log" aria-live="polite" aria-relevant="additions"></section>

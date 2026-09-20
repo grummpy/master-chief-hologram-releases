@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.12.1
+
+- Fixed Files mode so the Commander Nova hologram panel is fully removed rather than visually overlapping the workspace.
+- Added Codex-style New chat, Pull requests, Scheduled, Plugins, Explore, recent conversations, and Projects navigation.
+- Added read-only discovery of local automation and plugin libraries plus direct access to the private repository pull-request page.
+- New chat now archives the current conversation locally for reopening instead of destroying it.
+
 ## 1.12.0
 
 - Added a three-mode left rail: Professional, Personal, and a full Projects file browser.

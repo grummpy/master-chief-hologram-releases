@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('masterChief', {
   openProjectsRoot: () => ipcRenderer.invoke('project-open-root'),
   openProject: name => ipcRenderer.invoke('project-open', { name }),
   saveArtifactToProject: payload => ipcRenderer.invoke('project-save-artifact', payload),
+  getWorkspaceLibrary: kind => ipcRenderer.invoke('workspace-library', { kind }),
+  openWorkspaceLibrary: kind => ipcRenderer.invoke('workspace-library-open', { kind }),
   voiceSelfTest: () => ipcRenderer.invoke('voice-self-test'),
   voiceSetup: () => ipcRenderer.invoke('voice-setup'),
   audioHealth: () => ipcRenderer.invoke('audio-health'),

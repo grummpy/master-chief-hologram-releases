@@ -57,6 +57,12 @@ test('workspace shell exposes protected Projects, right-side previews, and conne
   assert.match(html, /id="connectorSetup"/);
   assert.match(renderer, /saveArtifactToProject/);
   assert.match(renderer, /refreshProjects/);
+  assert.match(html, /id="pullRequestsNavBtn"/);
+  assert.match(html, /id="scheduledNavBtn"/);
+  assert.match(html, /id="pluginsNavBtn"/);
+  assert.match(html, /id="exploreNavBtn"/);
+  assert.match(css, /left-panel-view\[hidden\].*display:none!important/);
+  assert.match(renderer, /archiveCurrentThread/);
 });
 
 test('personal hologram removes the local-display banner', () => {
