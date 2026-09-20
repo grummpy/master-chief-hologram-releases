@@ -1,0 +1,369 @@
+{
+  "schemaVersion": 2,
+  "benchmark": "Codex-style dependable local-first command center",
+  "assessedAt": "2026-09-20T15:18:02.517Z",
+  "score": 80.4,
+  "parity": false,
+  "coverage": {
+    "line": 95.98,
+    "branch": 68.12,
+    "functions": 88.89,
+    "scopeWarning": "Core Electron main, preload, renderer, and Reference Studio files are not present in the coverage table."
+  },
+  "areas": [
+    {
+      "id": "reasoning",
+      "label": "Reasoning and answer quality",
+      "weight": 14,
+      "target": 100,
+      "score": 82,
+      "gap": "Render and act on response-quality results; add model-graded domain and citation-entailment benchmarks.",
+      "delta": 18
+    },
+    {
+      "id": "context",
+      "label": "Context and durable memory",
+      "weight": 11,
+      "target": 100,
+      "score": 88,
+      "gap": "Add provenance-aware memory summaries, migration failure reporting, and retrieval regression suites.",
+      "delta": 12
+    },
+    {
+      "id": "orchestration",
+      "label": "Agent planning and recovery",
+      "weight": 13,
+      "target": 100,
+      "score": 80,
+      "gap": "Resume the exact interrupted tool step instead of returning the objective to the composer.",
+      "delta": 20
+    },
+    {
+      "id": "tools",
+      "label": "Tools and connectors",
+      "weight": 12,
+      "target": 100,
+      "score": 79,
+      "gap": "Finish MCP initialization, discovery, per-tool approval, invocation UI, transport support, and authentication.",
+      "delta": 21
+    },
+    {
+      "id": "artifacts",
+      "label": "Files and artifact production",
+      "weight": 10,
+      "target": 100,
+      "score": 84,
+      "gap": "Add live editing, preview diffs, and round-trip fidelity tests for every generated office format.",
+      "delta": 16
+    },
+    {
+      "id": "research",
+      "label": "Research and evidence",
+      "weight": 10,
+      "target": 100,
+      "score": 78,
+      "gap": "Revalidate every redirect and resolved address, preserve source links, and verify citations against page text.",
+      "delta": 22
+    },
+    {
+      "id": "multimodal",
+      "label": "Image, audio, and video understanding",
+      "weight": 10,
+      "target": 100,
+      "score": 76,
+      "gap": "Use a dedicated vision permission and model selector; finish the external AMD video bundle and acceptance run.",
+      "delta": 24
+    },
+    {
+      "id": "recovery",
+      "label": "Reliability and self-repair",
+      "weight": 8,
+      "target": 100,
+      "score": 84,
+      "gap": "Exercise crash-loop recovery, clear timers on shutdown, and rehearse automatic last-known-good rollback.",
+      "delta": 16
+    },
+    {
+      "id": "ux",
+      "label": "Ease of use and accessibility",
+      "weight": 7,
+      "target": 100,
+      "score": 82,
+      "gap": "Replace prompt-based setup with validated forms and add keyboard plus screen-reader end-to-end tests.",
+      "delta": 18
+    },
+    {
+      "id": "release",
+      "label": "Release and operations",
+      "weight": 5,
+      "target": 100,
+      "score": 62,
+      "gap": "Hash the packaged app, verify signatures in CI, obtain Developer ID, notarize, and test the installed bundle.",
+      "delta": 38
+    }
+  ],
+  "codeFindings": [
+    {
+      "id": "redirect-revalidation",
+      "severity": "critical",
+      "area": "Research and evidence",
+      "evidence": "main.js:1424 follows redirects after validating only the initial URL.",
+      "work": "Disable automatic redirects; validate every Location target and resolved IP before each bounded fetch."
+    },
+    {
+      "id": "release-artifact-integrity",
+      "severity": "critical",
+      "area": "Release and operations",
+      "evidence": "scripts/generate-release-manifest.js hashes three source metadata files, not the packaged .app or app.asar.",
+      "work": "Generate SHA-256 values after packaging for the app archive and app.asar; verify them before installation and in CI."
+    },
+    {
+      "id": "mcp-incomplete-ui",
+      "severity": "high",
+      "area": "Tools and connectors",
+      "evidence": "renderer.js registers an MCP endpoint but never calls listMcpTools, setMcpPermission, callMcpTool, removeMcpServer.",
+      "work": "Build a typed MCP server/tool screen with initialize handshake, discovery, approval, invocation, disable, and removal."
+    },
+    {
+      "id": "mcp-transport",
+      "severity": "high",
+      "area": "Tools and connectors",
+      "evidence": "main.js callMcp assumes every response is JSON although the Accept header includes text/event-stream.",
+      "work": "Implement MCP Streamable HTTP/SSE framing, protocol initialization, timeouts, cancellation, and structured errors."
+    },
+    {
+      "id": "quality-result-ignored",
+      "severity": "high",
+      "area": "Reasoning and answer quality",
+      "evidence": "main.js attaches result.quality; renderer.js never reads result.quality.",
+      "work": "Show quality evidence, allow review/retry, and keep low-confidence output from being presented as silently verified."
+    },
+    {
+      "id": "core-runtime-coverage",
+      "severity": "high",
+      "area": "Reliability and self-repair",
+      "evidence": "Coverage reports 95.98% only for imported modules; main.js, preload.js, renderer.js, and reference-studio.js are absent.",
+      "work": "Add Electron integration tests that launch the packaged app and exercise every IPC, clear/restart, attachment, agent, and media journey."
+    },
+    {
+      "id": "resume-not-execution",
+      "severity": "high",
+      "area": "Agent planning and recovery",
+      "evidence": "agent-task-ledger.js resume changes status to understanding; renderer.js places the original objective back in the composer.",
+      "work": "Persist the completed-step cursor, inputs, receipts, and compensation state; resume from the first incomplete step with the same idempotency key."
+    },
+    {
+      "id": "vision-permission-routing",
+      "severity": "medium",
+      "area": "Image, audio, and video understanding",
+      "evidence": "main.js analyzeLocalImage requires files.attach_local_text and silently chooses the first vision-capable model.",
+      "work": "Create a dedicated local-vision permission, explicit model selection, configurable analysis instruction, and image-result evaluation."
+    },
+    {
+      "id": "silent-failures",
+      "severity": "medium",
+      "area": "Reliability and self-repair",
+      "evidence": "Reference preview and state-load paths contain empty catch blocks that suppress actionable failures.",
+      "work": "Record bounded diagnostics and show recoverable UI errors instead of silently dropping failed previews or migrations."
+    },
+    {
+      "id": "monoliths",
+      "severity": "medium",
+      "area": "Maintainability",
+      "evidence": "main.js is 1,875 lines/152 KB and renderer.js is 108 KB with many one-line functions.",
+      "work": "Split provider, IPC, privacy, research, media, and renderer controllers into typed modules with dependency injection."
+    },
+    {
+      "id": "test-branch-gaps",
+      "severity": "medium",
+      "area": "Verification",
+      "evidence": "Overall branch coverage is 68.12%; web-evidence is 28.57%, provider-contract 36.36%, and extension-sdk 42.86%.",
+      "work": "Raise branch coverage on network, credential, parsing, extension, and failure paths to at least 85%."
+    },
+    {
+      "id": "release-signing",
+      "severity": "external",
+      "area": "Release and operations",
+      "evidence": "Release readiness reports no Apple Developer ID Application identity; current package is ad hoc signed.",
+      "work": "Install the owner Developer ID certificate, notarize, staple, and verify with codesign and spctl before distribution."
+    }
+  ],
+  "buildList": [
+    {
+      "priority": 1,
+      "kind": "capability",
+      "area": "Agent planning and recovery",
+      "current": 80,
+      "target": 100,
+      "work": "Resume the exact interrupted tool step instead of returning the objective to the composer."
+    },
+    {
+      "priority": 2,
+      "kind": "capability",
+      "area": "Reasoning and answer quality",
+      "current": 82,
+      "target": 100,
+      "work": "Render and act on response-quality results; add model-graded domain and citation-entailment benchmarks."
+    },
+    {
+      "priority": 3,
+      "kind": "capability",
+      "area": "Tools and connectors",
+      "current": 79,
+      "target": 100,
+      "work": "Finish MCP initialization, discovery, per-tool approval, invocation UI, transport support, and authentication."
+    },
+    {
+      "priority": 4,
+      "kind": "capability",
+      "area": "Image, audio, and video understanding",
+      "current": 76,
+      "target": 100,
+      "work": "Use a dedicated vision permission and model selector; finish the external AMD video bundle and acceptance run."
+    },
+    {
+      "priority": 5,
+      "kind": "capability",
+      "area": "Research and evidence",
+      "current": 78,
+      "target": 100,
+      "work": "Revalidate every redirect and resolved address, preserve source links, and verify citations against page text."
+    },
+    {
+      "priority": 6,
+      "kind": "capability",
+      "area": "Release and operations",
+      "current": 62,
+      "target": 100,
+      "work": "Hash the packaged app, verify signatures in CI, obtain Developer ID, notarize, and test the installed bundle."
+    },
+    {
+      "priority": 7,
+      "kind": "capability",
+      "area": "Files and artifact production",
+      "current": 84,
+      "target": 100,
+      "work": "Add live editing, preview diffs, and round-trip fidelity tests for every generated office format."
+    },
+    {
+      "priority": 8,
+      "kind": "capability",
+      "area": "Context and durable memory",
+      "current": 88,
+      "target": 100,
+      "work": "Add provenance-aware memory summaries, migration failure reporting, and retrieval regression suites."
+    },
+    {
+      "priority": 9,
+      "kind": "capability",
+      "area": "Reliability and self-repair",
+      "current": 84,
+      "target": 100,
+      "work": "Exercise crash-loop recovery, clear timers on shutdown, and rehearse automatic last-known-good rollback."
+    },
+    {
+      "priority": 10,
+      "kind": "capability",
+      "area": "Ease of use and accessibility",
+      "current": 82,
+      "target": 100,
+      "work": "Replace prompt-based setup with validated forms and add keyboard plus screen-reader end-to-end tests."
+    },
+    {
+      "priority": 11,
+      "kind": "code-audit",
+      "area": "Research and evidence",
+      "severity": "critical",
+      "evidence": "main.js:1424 follows redirects after validating only the initial URL.",
+      "work": "Disable automatic redirects; validate every Location target and resolved IP before each bounded fetch."
+    },
+    {
+      "priority": 12,
+      "kind": "code-audit",
+      "area": "Release and operations",
+      "severity": "critical",
+      "evidence": "scripts/generate-release-manifest.js hashes three source metadata files, not the packaged .app or app.asar.",
+      "work": "Generate SHA-256 values after packaging for the app archive and app.asar; verify them before installation and in CI."
+    },
+    {
+      "priority": 13,
+      "kind": "code-audit",
+      "area": "Tools and connectors",
+      "severity": "high",
+      "evidence": "renderer.js registers an MCP endpoint but never calls listMcpTools, setMcpPermission, callMcpTool, removeMcpServer.",
+      "work": "Build a typed MCP server/tool screen with initialize handshake, discovery, approval, invocation, disable, and removal."
+    },
+    {
+      "priority": 14,
+      "kind": "code-audit",
+      "area": "Tools and connectors",
+      "severity": "high",
+      "evidence": "main.js callMcp assumes every response is JSON although the Accept header includes text/event-stream.",
+      "work": "Implement MCP Streamable HTTP/SSE framing, protocol initialization, timeouts, cancellation, and structured errors."
+    },
+    {
+      "priority": 15,
+      "kind": "code-audit",
+      "area": "Reasoning and answer quality",
+      "severity": "high",
+      "evidence": "main.js attaches result.quality; renderer.js never reads result.quality.",
+      "work": "Show quality evidence, allow review/retry, and keep low-confidence output from being presented as silently verified."
+    },
+    {
+      "priority": 16,
+      "kind": "code-audit",
+      "area": "Reliability and self-repair",
+      "severity": "high",
+      "evidence": "Coverage reports 95.98% only for imported modules; main.js, preload.js, renderer.js, and reference-studio.js are absent.",
+      "work": "Add Electron integration tests that launch the packaged app and exercise every IPC, clear/restart, attachment, agent, and media journey."
+    },
+    {
+      "priority": 17,
+      "kind": "code-audit",
+      "area": "Agent planning and recovery",
+      "severity": "high",
+      "evidence": "agent-task-ledger.js resume changes status to understanding; renderer.js places the original objective back in the composer.",
+      "work": "Persist the completed-step cursor, inputs, receipts, and compensation state; resume from the first incomplete step with the same idempotency key."
+    },
+    {
+      "priority": 18,
+      "kind": "code-audit",
+      "area": "Image, audio, and video understanding",
+      "severity": "medium",
+      "evidence": "main.js analyzeLocalImage requires files.attach_local_text and silently chooses the first vision-capable model.",
+      "work": "Create a dedicated local-vision permission, explicit model selection, configurable analysis instruction, and image-result evaluation."
+    },
+    {
+      "priority": 19,
+      "kind": "code-audit",
+      "area": "Reliability and self-repair",
+      "severity": "medium",
+      "evidence": "Reference preview and state-load paths contain empty catch blocks that suppress actionable failures.",
+      "work": "Record bounded diagnostics and show recoverable UI errors instead of silently dropping failed previews or migrations."
+    },
+    {
+      "priority": 20,
+      "kind": "code-audit",
+      "area": "Maintainability",
+      "severity": "medium",
+      "evidence": "main.js is 1,875 lines/152 KB and renderer.js is 108 KB with many one-line functions.",
+      "work": "Split provider, IPC, privacy, research, media, and renderer controllers into typed modules with dependency injection."
+    },
+    {
+      "priority": 21,
+      "kind": "code-audit",
+      "area": "Verification",
+      "severity": "medium",
+      "evidence": "Overall branch coverage is 68.12%; web-evidence is 28.57%, provider-contract 36.36%, and extension-sdk 42.86%.",
+      "work": "Raise branch coverage on network, credential, parsing, extension, and failure paths to at least 85%."
+    },
+    {
+      "priority": 22,
+      "kind": "code-audit",
+      "area": "Release and operations",
+      "severity": "external",
+      "evidence": "Release readiness reports no Apple Developer ID Application identity; current package is ad hoc signed.",
+      "work": "Install the owner Developer ID certificate, notarize, staple, and verify with codesign and spctl before distribution."
+    }
+  ]
+}
