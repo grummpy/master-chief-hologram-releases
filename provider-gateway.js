@@ -7,6 +7,7 @@ const DEFAULT_PROVIDERS = Object.freeze({
   llamacpp:{local:true,capabilities:['chat','reason','code','embedding'],privacy:'local'},
   vllm:{local:true,capabilities:['chat','reason','code','vision','tools','embedding','rerank'],privacy:'local'},
   comfyui:{local:true,capabilities:['image','video'],privacy:'local'},
+  localaudio:{local:true,capabilities:['speech'],privacy:'local'},
   huggingface:{local:false,capabilities:['chat','reason','code','vision','embedding','rerank','image','speech'],privacy:'cloud'},
   gemini:{local:false,capabilities:['chat','reason','code','vision','tools'],privacy:'cloud'},
   codex:{local:false,capabilities:['chat','reason','code','tools'],privacy:'cloud'},

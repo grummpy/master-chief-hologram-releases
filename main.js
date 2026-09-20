@@ -1654,6 +1654,23 @@ function secureHandle(channel, handler) {
     return handler(event, ...args);
   });
 }
+async function runTrackedJob(kind, payload, executor, options = {}) {
+  const provider=String(options.provider || payload?.provider || (['image','video'].includes(kind)?'comfyui':'ollama'));
+  const requestInput={requestId:payload?.requestId,idempotencyKey:payload?.idempotencyKey,kind,objective:String(options.objective || payload?.objective || payload?.request || payload?.prompt || payload?.url || ''),provider,model:payload?.model,projectId:payload?.projectId||payload?.project,capabilities:options.capabilities||[],privacy:options.privacy||(provider==='ollama'||provider==='comfyui'?'local':'cloud'),attachments:payload?.attachments,parameters:options.parameters||{}};
+  const submitted=jobs.submit(requestInput),id=submitted.job.request.requestId;
+  if(!submitted.created&&submitted.job.status==='complete')return submitted.job.result;
+  try {
+    const decision=providerGateway.route(submitted.job.request,{[provider]:{available:true,model:payload?.model||null,latencyMs:1000,memoryPressure:0}});
+    if(decision.selected)jobs.setRoute(id,{...decision.selected,reason:decision.reason,candidates:decision.candidates});
+    jobs.event(id,options.stage||'executing',{message:options.message||`${kind} execution started`,progress:20});
+    const result=await executor();
+    if(result?.path||result?.artifact){jobs.addArtifact(id,{id:result.artifactId||result.sha256||result.path,path:result.path||result.artifact,filename:result.filename||null,sha256:result.sha256||null,parentArtifact:result.parentArtifact||null});}
+    jobs.event(id,'validating',{message:'Output validated',progress:90});
+    jobs.setResult(id,result);
+    const complete=jobs.event(id,'complete',{message:'Job complete',progress:100,receipt:{provider,artifact:result?.path||result?.artifact||null}});
+    return {...result,requestId:id,job:complete};
+  } catch(error){jobs.fail(id,error,{provider});throw error;}
+}
 
 secureHandle('provider-status', providerStatus);
 secureHandle('credential-status', () => credentials().status());
@@ -1699,7 +1716,7 @@ secureHandle('ensemble-chat', (_event, payload) => runLocalEnsemble(payload));
 secureHandle('vision-models', () => visionModels());
 secureHandle('analyze-local-image', (_event, payload) => analyzeLocalImage(payload));
 secureHandle('crash-recovery-status', () => crashRecovery.status());
-secureHandle('public-page-evidence', (_event, payload) => fetchPageEvidence(payload?.url));
+secureHandle('public-page-evidence', (_event, payload) => runTrackedJob('research',payload,()=>fetchPageEvidence(payload?.url),{capabilities:['tools'],message:'Retrieving public evidence'}));
 secureHandle('mcp-list', () => ({ servers: mcpRegistry.list() }));
 secureHandle('mcp-save', (_event, payload) => mcpRegistry.upsert(payload));
 secureHandle('mcp-remove', (_event, payload) => mcpRegistry.remove(payload?.id));
@@ -1717,8 +1734,8 @@ secureHandle('diagnostics-export', async () => {
 });
 secureHandle('ollama-evaluate', (_event, payload) => runOllamaEvaluation({ model: String(payload?.model || ''), outputFile: ollamaEvaluationFile(), onProgress: progress => emitChatEvent('evaluation-progress', progress) }));
 secureHandle('ollama-evaluation-status', () => { try { return JSON.parse(fs.readFileSync(ollamaEvaluationFile(), 'utf8')); } catch { return null; } });
-secureHandle('create-document', (_event, payload) => createDocument(payload));
-secureHandle('create-productivity-artifact', (_event, payload) => createProductivityArtifact(payload));
+secureHandle('create-document', (_event, payload) => runTrackedJob('artifact',payload,()=>createDocument(payload),{capabilities:['chat'],message:'Creating document artifact'}));
+secureHandle('create-productivity-artifact', (_event, payload) => {const kind=['python','r','sql'].includes(String(payload?.kind))?'code':String(payload?.kind)==='spreadsheet'?'data':'artifact';return runTrackedJob(kind,payload,()=>createProductivityArtifact(payload),{capabilities:[kind==='code'?'code':'chat'],message:`Creating ${payload?.kind||'productivity'} artifact`})});
 secureHandle('ingest-attachment', (_event, payload) => ingestAttachment(payload));
 secureHandle('connector-status', connectorStatus);
 secureHandle('comfyui-runtime-status', comfyRuntimeStatus);
@@ -1767,7 +1784,7 @@ secureHandle('huggingface-setup-status', huggingFaceSetupStatus);
 secureHandle('huggingface-setup-save', (_event, payload) => saveHuggingFaceSetup(payload));
 secureHandle('audio-job-list', (_event, payload) => audioJobs.list(payload?.limit));
 secureHandle('audio-job-get', (_event, payload) => audioJobs.get(payload?.id));
-secureHandle('audio-synthesize', (_event, payload) => synthesizeSpeech(payload));
+secureHandle('audio-synthesize', (_event, payload) => runTrackedJob('audio',payload,()=>synthesizeSpeech(payload),{provider:payload?.provider||'localaudio',capabilities:['speech'],stage:'generating',message:'Generating speech'}));
 secureHandle('audio-register-job', (_event, payload) => {
   requireToolApproval('media.generate_local');
   const job = audioJobs.create(payload); const bytes = Buffer.from(payload?.bytes || []); if (!bytes.length) return job;
@@ -1781,7 +1798,7 @@ secureHandle('tool-registry', () => getToolRegistry());
 secureHandle('tool-approvals', () => ({ approvals: { ...loadToolApprovals() }, registry: getToolRegistry() }));
 secureHandle('set-tool-approval', (_event, payload) => { toolApprovals = setToolApproval(loadToolApprovals(), String(payload?.id || ''), payload?.approved); saveToolApprovals(); return { approvals: { ...toolApprovals } }; });
 secureHandle('execute-local-tool', (_event, payload) => executeLocalTool(payload?.id));
-secureHandle('generate-local-media', (_event, payload) => generateLocalMedia(payload));
+secureHandle('generate-local-media', (_event, payload) => {const kind=String(payload?.kind||'image')==='video'?'video':'image';return runTrackedJob(kind,payload,()=>generateLocalMedia(payload),{provider:'comfyui',capabilities:[kind],stage:'generating',message:`Generating local ${kind}`})});
 secureHandle('list-generated-media', (_event, payload) => listGeneratedArtifacts(payload?.limit, Boolean(payload?.includeCleared)));
 secureHandle('list-review-artifacts', (_event, payload) => listReviewArtifacts(payload?.limit));
 secureHandle('media-job-list', (_event, payload) => mediaJobLedger.list(payload?.limit));
@@ -1885,11 +1902,11 @@ secureHandle('clear-creative-session', async () => {
 });
 secureHandle('run-agent-plan', (_event, payload) => {
   requireToolApproval('agents.run_bounded_plan');
-  return runAgentPlan(payload, {
+  return runTrackedJob('agent',payload,()=>runAgentPlan(payload, {
     knownTools: [...localTools.ids, 'knowledge.search_local', 'connectors.status', 'artifacts.create', 'research.public_web', 'media.generate_local'],
     approved: id => isToolApproved(loadToolApprovals(), id),
     execute: executeAgentTool
-  });
+  }),{capabilities:['reason','tools'],message:'Executing bounded agent plan'});
 });
 secureHandle('chat', async (_event, payload) => {
   requireToolApproval('chat.send_to_configured_provider');
