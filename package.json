@@ -1,6 +1,6 @@
 {
   "name": "master-chief-hologram",
-  "version": "1.8.3",
+  "version": "1.9.0",
   "description": "Desktop holographic Master Chief AI companion – multi-model prompt runner",
   "main": "main.js",
   "scripts": {
@@ -49,6 +49,7 @@
       "autocomplete.js",
       "local-routing.js",
       "local-ai-manifest.js",
+      "ollama-runtime.js",
       "local-ai-manifest.json",
       "local-ai-audit.js",
       "connector-registry.js",

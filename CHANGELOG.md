@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.9.0
+
+- Added an Ollama Command Center with balanced, precise, creative, coding, and agentic prompt profiles.
+- Replaced generic compatibility chat with Ollama's native streaming API, separate thinking display, structured JSON mode, adjustable temperature/top-p/context/output/seed/keep-alive, and response performance metrics.
+- Added capability-aware installed and loaded model telemetry, persistent per-model selection, refresh, and explicit model unload.
+- Added natural-language `/agent` execution using an installed tool-capable Ollama model and the existing approved, bounded local-tool layer.
+- Added Command/Ctrl+Enter transmit and Command/Ctrl+L composer-focus shortcuts.
+
 ## 1.8.3
 
 - Clear now purges every provider conversation, drafts, temporary attachment indexes, creative-session pointers, Chromium conversation storage, and cache instead of clearing only the visible provider. Generated media stays in Archive.

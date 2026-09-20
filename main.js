@@ -24,6 +24,7 @@ const { validateChatPayload, validateMessages, safeProviderError, validSecret } 
 const { createCredentialStore } = require('./credential-store');
 const { getToolRegistry, normalizeApprovals, setToolApproval, isToolApproved } = require('./tool-registry');
 const { createLocalToolExecutor } = require('./local-tool-executor');
+const { normalizeOllamaOptions, ollamaSystemPrompt, modelCard, agentToolSchemas, resolveAgentTool } = require('./ollama-runtime');
 const { createRagIndex } = require('./rag-index');
 const { safeArtifactPath } = require('./artifact-links');
 const { MICROPHONE_SETTINGS_URL, isGranted, recoveryMessage } = require('./microphone-access');
@@ -657,11 +658,12 @@ async function transcribeWithWhisper(bytes, contentType) {
 // Discover local models without exposing credentials to the renderer. Failure is
 // intentionally represented as an empty catalog so the built-in fallback remains usable.
 async function modelCatalog() {
-  const catalog = { ollama: [], huggingface: [] };
+  const catalog = { ollama: [], ollamaDetails: [], huggingface: [] };
   const ollamaUrl = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
-  const ollama = await checkJson(`${ollamaUrl}/api/tags`);
+  const [ollama, running] = await Promise.all([checkJson(`${ollamaUrl}/api/tags`), checkJson(`${ollamaUrl}/api/ps`)]);
   if (!ollama.error && ollama.response.ok && Array.isArray(ollama.body.models)) {
     catalog.ollama = ollama.body.models.map(model => String(model.name || model.model || '')).filter(Boolean);
+    catalog.ollamaDetails = ollama.body.models.map(model => modelCard(model, Array.isArray(running.body?.models) ? running.body.models : []));
   }
   const configured = huggingFaceConfig().model;
   if (configured) catalog.huggingface.push(configured);
@@ -801,15 +803,84 @@ async function callGrok({ messages, masterMode }) {
   return { reply, label: 'Grok · xAI' };
 }
 
-async function callOllama({ messages, masterMode, model: requestedModel }) {
+async function callOllama({ messages, masterMode, model: requestedModel, ollama: requestedOptions }) {
   const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
   const model = requestedModel || process.env.OLLAMA_MODEL || 'llama3.2';
-  const response = await chatFetch(`${base}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model, messages: [{ role: 'system', content: masterMode ? `You are Master Chief, a program-control assistant. ${SKILL_TAG_ROUTING} Preserve intent and privacy. When an existing local repository artifact is useful, cite it as [label](artifact:docs/file.md); do not invent file creation.` : 'You are a clear, helpful desktop AI assistant.' }, ...messages.slice(-16)], stream: false }) });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error || `Ollama error ${response.status}`);
-  const reply = body.message?.content;
-  if (!reply) throw new Error('Ollama returned an empty response.');
-  return { reply, label: `Ollama · ${model}` };
+  const settings = normalizeOllamaOptions(requestedOptions);
+  const payload = { model, messages: [{ role: 'system', content: `${ollamaSystemPrompt({ masterMode, mode: settings.mode })}\n${SKILL_TAG_ROUTING}` }, ...messages.slice(-16)], stream: settings.stream, options: settings.options, keep_alive: settings.keep_alive };
+  payload.think = settings.think;
+  if (settings.format) payload.format = settings.format;
+  activeAbortController = new AbortController();
+  const response = await fetch(`${base}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: activeAbortController.signal });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); activeAbortController = null; throw new Error(body.error || `Ollama error ${response.status}`); }
+  if (!settings.stream) {
+    const body = await response.json(); activeAbortController = null;
+    const reply = body.message?.content;
+    if (!reply) throw new Error('Ollama returned an empty response.');
+    return { reply, thinking: body.message?.thinking || '', metrics: ollamaMetrics(body), label: `Ollama · ${model}` };
+  }
+  if (!response.body) throw new Error('Ollama returned no response stream.');
+  const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ''; let reply = ''; let thinking = ''; let final = {};
+  try {
+    while (true) {
+      const { value, done } = await reader.read(); if (done) break;
+      buffer += decoder.decode(value, { stream: true }); const lines = buffer.split(/\r?\n/); buffer = lines.pop() || '';
+      for (const line of lines) {
+        if (!line.trim()) continue; let chunk; try { chunk = JSON.parse(line); } catch { continue; }
+        if (chunk.error) throw new Error(chunk.error);
+        const thought = chunk.message?.thinking || ''; const content = chunk.message?.content || '';
+        if (thought) { thinking += thought; emitChatEvent('thinking', { delta: thought, provider: 'ollama' }); }
+        if (content) { reply += content; emitChatEvent('delta', { delta: content, provider: 'ollama' }); }
+        if (chunk.done) final = chunk;
+      }
+    }
+  } finally { reader.releaseLock(); activeAbortController = null; }
+  if (!reply.trim()) throw new Error('Ollama returned an empty response.');
+  const metrics = ollamaMetrics(final); emitChatEvent('done', { reply, label: `Ollama · ${model}`, metrics });
+  return { reply, thinking, metrics, streamed: true, label: `Ollama · ${model}` };
+}
+
+function ollamaMetrics(body = {}) {
+  const seconds = Number(body.eval_duration || 0) / 1e9; const generated = Number(body.eval_count || 0);
+  return { promptTokens: Number(body.prompt_eval_count || 0), cachedPromptTokens: Number(body.prompt_eval_cached_count || 0), generatedTokens: generated, tokensPerSecond: seconds > 0 ? Number((generated / seconds).toFixed(1)) : 0, totalMs: Math.round(Number(body.total_duration || 0) / 1e6), loadMs: Math.round(Number(body.load_duration || 0) / 1e6), doneReason: String(body.done_reason || '') };
+}
+
+async function ollamaRuntime() {
+  const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
+  const [version, catalog] = await Promise.all([checkJson(`${base}/api/version`), modelCatalog()]);
+  if (version.error || !version.response.ok) throw new Error('Ollama is not reachable.');
+  return { version: version.body.version || 'unknown', models: catalog.ollamaDetails };
+}
+
+async function unloadOllamaModel(model) {
+  const name = String(model || '').trim(); if (!name) throw new Error('Select an Ollama model first.');
+  const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
+  const response = await fetch(`${base}/api/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: name, keep_alive: 0, stream: false }) });
+  const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error || `Ollama error ${response.status}`);
+  return { unloaded: true, model: name };
+}
+
+async function runOllamaAgent(payload = {}) {
+  requireToolApproval('agents.run_bounded_plan');
+  const objective = String(payload.objective || '').trim(); if (!objective || objective.length > 12000) throw new Error('Agent objective is empty or too long.');
+  const runtime = await ollamaRuntime(); const requested = String(payload.model || '');
+  const selected = runtime.models.find(item => item.name === requested && item.capabilities.includes('tools')) || runtime.models.find(item => item.capabilities.includes('tools'));
+  if (!selected) throw new Error('No installed Ollama model advertises tool-calling capability.');
+  const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, ''); const settings = normalizeOllamaOptions({ ...(payload.ollama || {}), mode: 'agent', stream: false });
+  const messages = [{ role: 'system', content: ollamaSystemPrompt({ masterMode: true, mode: 'agent' }) }, { role: 'user', content: objective }]; const trace = [];
+  for (let turn = 0; turn < 4; turn++) {
+    const response = await fetch(`${base}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: selected.name, messages, tools: agentToolSchemas(), stream: false, options: settings.options, keep_alive: settings.keep_alive }) });
+    const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error || `Ollama agent error ${response.status}`);
+    const message = body.message || {}; messages.push(message);
+    const calls = Array.isArray(message.tool_calls) ? message.tool_calls : [];
+    if (!calls.length) return { reply: message.content || 'The local agent completed without a text response.', model: selected.name, trace, metrics: ollamaMetrics(body) };
+    for (const call of calls) {
+      const alias = call.function?.name; const id = resolveAgentTool(alias); if (!id) throw new Error(`Ollama requested an unavailable tool: ${alias || 'unknown'}.`);
+      const result = await executeLocalTool(id); trace.push({ turn: turn + 1, tool: id, summary: result.summary });
+      messages.push({ role: 'tool', tool_name: alias, content: JSON.stringify(result.result) });
+    }
+  }
+  throw new Error('Ollama agent reached its four-turn limit before producing a final answer.');
 }
 
 async function callHuggingFace({ messages, masterMode, model: requestedModel }) {
@@ -835,7 +906,7 @@ async function routeChat(payload) {
     else if (payload.provider === 'openai') result = await callOpenAI(payload);
     else if (payload.stream && payload.provider === 'grok') result = await streamCompatible({ url: 'https://api.x.ai/v1/chat/completions', key: (process.env.XAI_API_KEY || '').trim(), model: 'grok-3', messages: payload.messages, systemPrompt: payload.masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy.' : 'You are a clear, helpful desktop AI assistant.', label: 'Grok · xAI', provider: 'Grok' });
     else if (payload.stream && payload.provider === 'huggingface') { const configured = huggingFaceConfig(); if (!configured.key) throw new Error('Configure a Hugging Face token in Systems.'); const model = payload.model || configured.model; result = await streamCompatible({ url: `${configured.baseUrl}/chat/completions`, key: configured.key, model, messages: payload.messages, systemPrompt: payload.masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy.' : 'You are a clear, helpful desktop AI assistant.', label: `Hugging Face · ${model}`, provider: 'Hugging Face' }); }
-    else if (payload.stream && payload.provider === 'ollama') { const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, ''); const model = payload.model || process.env.OLLAMA_MODEL || 'llama3.2'; result = await streamCompatible({ url: `${base}/v1/chat/completions`, key: 'ollama', model, messages: payload.messages, systemPrompt: payload.masterMode ? 'You are Master Chief, a program-control assistant. Preserve intent and privacy.' : 'You are a clear, helpful desktop AI assistant.', label: `Ollama · ${model}`, provider: 'Ollama' }); }
+    else if (payload.stream && payload.provider === 'ollama') result = await callOllama(payload);
     else if (payload.provider === 'grok') result = await callGrok(payload);
     else if (payload.provider === 'ollama') result = await callOllama(payload);
     else if (payload.provider === 'huggingface') result = await callHuggingFace(payload);
@@ -900,6 +971,9 @@ function secureHandle(channel, handler) {
 secureHandle('provider-status', providerStatus);
 secureHandle('credential-status', () => credentials().status());
 secureHandle('model-catalog', modelCatalog);
+secureHandle('ollama-runtime', ollamaRuntime);
+secureHandle('ollama-unload', (_event, payload) => unloadOllamaModel(payload?.model));
+secureHandle('ollama-agent', (_event, payload) => runOllamaAgent(payload));
 secureHandle('connector-status', async () => ({ connectors: getConnectorRegistry(), comfyui: comfyClient ? await comfyClient.health() : { state: 'missing', label: 'ComfyUI · worker not configured' } }));
 secureHandle('voice-self-test', async () => voiceSelfTest(await localWhisperConfig(), {
   name: 'command-reference.webm',

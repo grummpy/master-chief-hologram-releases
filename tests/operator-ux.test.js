@@ -53,3 +53,10 @@ test('Reference Studio exposes hierarchy, review, comparison, queue, and runtime
   assert.match(referenceStudio, /onReferenceQueueEvent/);
   assert.match(referenceStudio, /saveReferenceVariant/);
 });
+
+test('Ollama Command Center exposes native generation and agent controls', () => {
+  for (const id of ['ollamaControls','ollamaMode','ollamaThink','ollamaFormat','ollamaTemperature','ollamaTopP','ollamaContext','ollamaMaxTokens','ollamaSeed','ollamaKeepAlive','ollamaRefreshBtn','ollamaUnloadBtn']) assert.match(html, new RegExp(`id="${id}"`));
+  assert.match(renderer, /runOllamaAgent/);
+  assert.match(renderer, /stream:p==='ollama'/);
+  assert.match(renderer, /renderOllamaMetrics/);
+});

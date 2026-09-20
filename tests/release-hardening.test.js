@@ -14,12 +14,12 @@ test('protected capabilities are enforced in the main process', () => {
   assert.match(source, /function trustedIpc\(event\)/);
 });
 
-test('all non-stream provider fetches use the cancellable request path', () => {
+test('provider chat requests use cancellable request paths', () => {
   const source = read('main.js');
   assert.match(source, /async function chatFetch/);
   assert.match(source, /chatFetch\('https:\/\/api\.openai\.com\/v1\/responses'/);
   assert.match(source, /chatFetch\('https:\/\/api\.x\.ai\/v1\/chat\/completions'/);
-  assert.match(source, /chatFetch\(`\$\{base\}\/api\/chat`/);
+  assert.match(source, /fetch\(`\$\{base\}\/api\/chat`.*signal: activeAbortController\.signal/s);
   assert.doesNotMatch(source, /execFileAsync\('ffmpeg'/);
 });
 

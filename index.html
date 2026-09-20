@@ -7,6 +7,22 @@
 <section class="conversation-panel" aria-label="Mission conversation"><div class="routebar"><div class="route-status"><span id="statusDot" class="status-dot" aria-hidden="true"></span><span id="routeState">Checking route…</span></div><label for="modelSelect" class="sr-only">AI model</label><select id="modelSelect"><option value="ollama">Ollama · Local first</option><option value="codex">Codex Desktop</option><option value="openai">OpenAI API</option><option value="grok">Grok · xAI</option><option value="huggingface">Hugging Face · Endpoint</option></select><span id="residencyBadge" class="residency-badge">LOCAL</span></div><section id="chat" aria-label="Conversation" role="log" aria-live="polite" aria-relevant="additions"></section>
 <section class="composer">
   <div id="generationStatus" class="generation-status" hidden role="status" aria-live="polite"><progress id="generationProgress" max="100" value="0"></progress><span id="generationStatusText">Preparing creative job…</span><button id="cancelMediaBtn" type="button" hidden>Cancel</button></div>
+  <details id="ollamaControls" class="ollama-controls" open>
+    <summary>Ollama Command Center <span id="ollamaCapabilitySummary">checking local models…</span></summary>
+    <div class="ollama-control-grid">
+      <label>Task mode<select id="ollamaMode"><option value="balanced">Balanced</option><option value="precise">Precise / factual</option><option value="creative">Creative</option><option value="coding">Coding</option><option value="agent">Agentic</option></select></label>
+      <label>Thinking<select id="ollamaThink"><option value="false">Off / model default</option><option value="true">On</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
+      <label>Output<select id="ollamaFormat"><option value="text">Text</option><option value="json">Structured JSON</option></select></label>
+      <label>Temperature<input id="ollamaTemperature" type="number" min="0" max="2" step="0.05" value="0.6"></label>
+      <label>Top P<input id="ollamaTopP" type="number" min="0" max="1" step="0.05" value="0.9"></label>
+      <label>Context<input id="ollamaContext" type="number" min="1024" max="131072" step="1024" value="8192"></label>
+      <label>Max output<input id="ollamaMaxTokens" type="number" min="64" max="8192" step="64" value="1024"></label>
+      <label>Seed<input id="ollamaSeed" type="number" min="0" placeholder="Random"></label>
+      <label>Keep loaded<select id="ollamaKeepAlive"><option value="5m">5 minutes</option><option value="30m">30 minutes</option><option value="1h">1 hour</option><option value="0">Unload after reply</option></select></label>
+    </div>
+    <div class="ollama-runtime-bar"><span id="ollamaRuntimeStatus">Runtime details unavailable</span><button id="ollamaRefreshBtn" type="button">Refresh models</button><button id="ollamaUnloadBtn" type="button">Unload selected</button></div>
+    <p class="hint">Native local streaming is on. Use <strong>/agent your objective</strong> for approved tool selection. ⌘/Ctrl+Enter sends; ⌘/Ctrl+L focuses the command box.</p>
+  </details>
   <details id="mediaPromptControls" class="media-prompt-controls">
     <summary>Media model and prompt controls</summary>
     <div class="prompt-field-grid"><label>Positive prompt<textarea id="positivePrompt" spellcheck="true" placeholder="Exact text sent as the positive prompt"></textarea></label><label>Negative prompt<textarea id="negativePrompt" spellcheck="true" placeholder="Exact text sent as the negative prompt"></textarea></label></div>
