@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 
 const INDEX_NAME = '.master-chief-artifacts.json';
 
@@ -30,9 +31,17 @@ function recordArtifact(directory, artifact, metadata = {}) {
     createdAt: String(metadata.createdAt || new Date().toISOString()),
     bytes: Number(artifact.bytes || 0),
     sha256: String(artifact.sha256 || '')
+    ,requestId: metadata.requestId ? String(metadata.requestId) : null
+    ,artifactId: String(metadata.artifactId || crypto.randomUUID())
+    ,mediaType: String(metadata.mediaType || '')
+    ,provider: metadata.provider ? String(metadata.provider) : null
+    ,model: metadata.model ? String(metadata.model) : null
+    ,lineage: Array.isArray(metadata.lineage) ? metadata.lineage.map(String) : []
   };
   writeIndex(directory, index);
   return index[filename];
 }
 
-module.exports = { INDEX_NAME, readIndex, recordArtifact };
+function listArtifacts(directory) { return Object.values(readIndex(directory)).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt))); }
+
+module.exports = { INDEX_NAME, readIndex, recordArtifact, listArtifacts };

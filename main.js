@@ -52,6 +52,8 @@ const { cloneAndFillWorkflow, safeUltraSharpPlan, createComfyUiClient } = requir
 const { runAgentPlan } = require('./agent-runner');
 const { createReferenceStudioStore } = require('./reference-studio-store');
 const { createMediaJobLedger } = require('./media-job-ledger');
+const { createJobOrchestrator } = require('./job-orchestrator');
+const { createProviderGateway } = require('./provider-gateway');
 const { createWorkflowRegistry, evaluateWorkflowReadiness } = require('./workflow-registry');
 const { validateImageOutputs } = require('./image-output-validator');
 const { normalizeSpeechContract, createAudioJobStore } = require('./audio-production');
@@ -80,6 +82,8 @@ let toolApprovals;
 const scheduler = createSchedulerStore(path.join(app.getPath('userData'), 'scheduled-reminders.json'));
 const monitors = createMonitorStore(path.join(app.getPath('userData'), 'runtime-monitors.json'));
 const agentTasks = createAgentTaskLedger(path.join(app.getPath('userData'), 'agent-tasks.json'));
+const jobs = createJobOrchestrator(path.join(app.getPath('userData'), 'jobs.json'));
+const providerGateway = createProviderGateway();
 function encodePrivateState(value){if(!safeStorage.isEncryptionAvailable())return JSON.stringify(value,null,2);return JSON.stringify({version:1,encrypted:true,data:safeStorage.encryptString(JSON.stringify(value)).toString('base64')})}
 function decodePrivateState(value){const parsed=JSON.parse(String(value));if(!parsed?.encrypted)return parsed;return JSON.parse(safeStorage.decryptString(Buffer.from(parsed.data,'base64')))}
 const contextMemory = createContextMemoryStore(path.join(app.getPath('userData'), 'context-memory.json'),{encode:encodePrivateState,decode:decodePrivateState});
@@ -1663,6 +1667,16 @@ secureHandle('agent-task-list', (_event, payload) => ({ tasks: agentTasks.list(p
 secureHandle('agent-task-get', (_event, payload) => agentTasks.get(String(payload?.id || '')));
 secureHandle('agent-task-resume', (_event, payload) => agentTasks.resume(String(payload?.id || '')));
 secureHandle('agent-task-action', (_event, payload) => agentTasks.action(String(payload?.id || ''), String(payload?.action || '')));
+secureHandle('job-submit', (_event, payload) => jobs.submit(payload));
+secureHandle('job-list', (_event, payload) => ({ jobs: jobs.list(payload?.limit) }));
+secureHandle('job-get', (_event, payload) => jobs.get(String(payload?.requestId || '')));
+secureHandle('job-action', (_event, payload) => jobs.action(String(payload?.requestId || ''), String(payload?.action || ''), payload));
+secureHandle('provider-catalog', () => ({ capabilities: require('./job-contract').CAPABILITIES, providers: providerGateway.catalog() }));
+secureHandle('provider-route-explain', (_event, payload) => {
+  const submitted = jobs.submit(payload); const decision = providerGateway.route(submitted.job.request, payload?.metrics || {});
+  if (decision.selected) jobs.setRoute(submitted.job.request.requestId, { ...decision.selected, reason: decision.reason, candidates: decision.candidates });
+  return { job: jobs.get(submitted.job.request.requestId), decision };
+});
 secureHandle('context-memory-get', (_event, payload) => contextMemory.get(String(payload?.project || 'default')));
 secureHandle('context-memory-save-project', (_event, payload) => contextMemory.setProject(String(payload?.project || 'default'), payload?.value, payload?.approved === true));
 secureHandle('context-memory-save-preferences', (_event, payload) => contextMemory.setPreferences(payload?.values, payload?.approved === true));
@@ -1877,7 +1891,21 @@ secureHandle('run-agent-plan', (_event, payload) => {
     execute: executeAgentTool
   });
 });
-secureHandle('chat', (_event, payload) => { requireToolApproval('chat.send_to_configured_provider'); return routeChatWithRepair(payload); });
+secureHandle('chat', async (_event, payload) => {
+  requireToolApproval('chat.send_to_configured_provider');
+  const objective=[...(payload?.messages||[])].reverse().find(item=>item.role==='user')?.content||'';
+  const submitted=jobs.submit({requestId:payload?.requestId,idempotencyKey:payload?.idempotencyKey,kind:'chat',objective,provider:payload?.provider,model:payload?.model,projectId:payload?.project,capabilities:['chat'],privacy:payload?.provider==='ollama'?'local':'cloud',attachments:payload?.attachments});
+  const id=submitted.job.request.requestId;
+  try {
+    const decision=providerGateway.route(submitted.job.request,{[payload.provider]:{available:true,model:payload.model,latencyMs:1000,memoryPressure:0}});
+    if(decision.selected)jobs.setRoute(id,{...decision.selected,reason:decision.reason,candidates:decision.candidates});
+    jobs.event(id,'executing',{message:'Provider request started',progress:25});
+    const result=await routeChatWithRepair(payload);
+    jobs.event(id,'validating',{message:'Response received and normalized',progress:90});
+    const complete=jobs.event(id,'complete',{message:'Response ready',progress:100,receipt:{provider:result.provider,model:payload.model||null,durationMs:result.durationMs}});
+    return {...result,requestId:id,job:complete};
+  } catch(error) { jobs.fail(id,error,{provider:payload?.provider}); throw error; }
+});
 secureHandle('cancel-chat', () => { activeAbortController?.abort(); activeAbortController = null; activeChild?.kill('SIGTERM'); emitChatEvent('cancelled', {}); return true; });
 secureHandle('transcribe-audio', async (_event, payload) => {
   requireToolApproval('voice.transcribe_microphone');
