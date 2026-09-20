@@ -9,7 +9,7 @@ Master Chief uses Ollama as its local reasoning engine. Ollama alone is not equi
 | Word, Excel, PowerPoint, Python, R, and SQL artifacts | Available | Deterministic generators with saved downloadable artifacts; R execution needs an R runtime |
 | Local image generation and revision | Available when ComfyUI is healthy | Versioned workflows, job ledger, lineage, preview, save, download, and hashes |
 | Video generation | Conditional | Requires an enabled compatible workflow, model bundle, and healthy worker |
-| Repository inspection | Partial | Ollama can list project files, read bounded project text, and inspect Git status; it cannot yet edit or execute arbitrary commands |
+| Repository work | Partial, bounded | Ollama can list files, read bounded text, inspect Git status, apply one exact atomic text replacement, and run the fixed project test suite. Arbitrary shell commands remain unavailable. |
 | Generated-artifact discovery | Available | Ollama can list generated document and media metadata |
 | Web research | Partial, no-key public connector | Ollama can search DuckDuckGo Instant Answer and English Wikipedia with linked results after network approval. This is narrower than a commercial search index and never falls back to a paid AI provider. |
 | General code editing and command execution | Not yet available to local Ollama | Requires workspace-scoped patch and process tools, review, timeouts, and rollback |
@@ -25,7 +25,7 @@ A capability is reported as available only when an end-to-end test proves that M
 
 ## Next implementation gates
 
-1. Workspace-scoped patch/read/test tools with diffs, rollback, and approval.
+1. Expand the bounded patch tool with a preview/diff gate and one-click hash-based rollback before broader editing is enabled.
 2. Expand the no-provider-charge web path with a local SearXNG instance when a supported container runtime is available; retain citations, fixed destinations, and provenance.
 3. Broaden artifact creation acceptance tests inside the Ollama tool loop.
 4. Scheduler/notification jobs with pause, cancel, history, and restart recovery.

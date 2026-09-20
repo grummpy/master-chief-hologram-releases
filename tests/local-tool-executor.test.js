@@ -43,3 +43,19 @@ test('artifact listing returns bounded metadata', async () => {
   const report = await executor.execute('artifacts.list');
   assert.equal(report.result.artifacts[0].name, 'brief.docx');
 });
+
+test('project patch requires one exact match and reports hashes', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-edit-')); const target = path.join(root, 'app.txt');
+  fs.writeFileSync(target, 'before value');
+  const executor = createLocalToolExecutor({ appVersion: '1.2.3', projectDir: root, execFile: async () => ({ stdout: '' }) });
+  const report = await executor.execute('project.replace_text', { path: 'app.txt', oldText: 'before', newText: 'after' });
+  assert.equal(fs.readFileSync(target, 'utf8'), 'after value');
+  assert.notEqual(report.result.beforeSha256, report.result.afterSha256);
+  await assert.rejects(() => executor.execute('project.replace_text', { path: 'app.txt', oldText: 'missing', newText: 'x' }), /found 0/);
+});
+
+test('project test runner invokes only npm test in the approved root', async () => {
+  let received; const executor = createLocalToolExecutor({ appVersion: '1.2.3', projectDir: '/tmp/project', execFile: async (...args) => { received = args; return { stdout: 'pass' }; } });
+  await executor.execute('project.run_tests');
+  assert.equal(received[0], 'npm'); assert.deepEqual(received[1], ['test']); assert.equal(received[2].cwd, '/tmp/project');
+});

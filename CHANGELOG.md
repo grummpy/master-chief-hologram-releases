@@ -10,6 +10,7 @@
 - Added a no-key public research tool using fixed DuckDuckGo Instant Answer and Wikipedia endpoints; it never falls back to a paid AI provider.
 - Corrected ElevenLabs telemetry so local macOS speech no longer makes the cloud connector appear configured.
 - Added strongest-tool-model selection so local agent work prefers Qwen3 8B over micro models once installed.
+- Added a bounded local code loop: exact one-match repository patches with before/after hashes plus a fixed `npm test` command.
 
 ## 1.10.1
 
