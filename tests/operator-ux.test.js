@@ -69,9 +69,14 @@ test('Systems and connector status rows open preselected credential setup', () =
   assert.match(renderer, /SETUP_BY_PROVIDER/);
   assert.match(renderer, /SETUP_BY_CONNECTOR/);
   assert.match(renderer, /openConnectorSetup\(setupId\)/);
-  for (const provider of ['gemini','gmail','cursor','suno','openai','xai','huggingface','github','elevenlabs']) {
+  for (const provider of ['gemini','gmail','cursor','suno','openai','xai','huggingface','github','comfyui','elevenlabs']) {
     assert.match(renderer, new RegExp(`['"]?${provider}['"]?`));
   }
+  assert.match(html, /id="connectorSecretLabel"/);
+  assert.match(renderer, /secretRequired/);
+  const main = fs.readFileSync(path.join(root, 'main.js'), 'utf8');
+  assert.match(main, /ComfyUI private worker/);
+  assert.match(main, /candidate\.health\(\)/);
 });
 
 test('Scheduled workspace creates and manages durable local reminders', () => {

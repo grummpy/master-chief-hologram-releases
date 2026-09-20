@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.18.0
+
+- Added self-service ComfyUI private-worker endpoint configuration to Systems and Creative connectors.
+- The app validates private-network URLs and performs a live ComfyUI health check before saving or switching the active worker.
+- A verified endpoint takes effect immediately without restarting Master Chief; invalid or unreachable endpoints leave the working route unchanged.
+- Connector setup now hides the credential field for local runtimes that require an endpoint rather than a secret.
+
 ## 1.17.0
 
 - Added a private, localhost-only SearXNG metasearch service backed by an automatically starting Colima/Docker runtime.

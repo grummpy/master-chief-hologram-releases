@@ -110,6 +110,7 @@ const CONNECTOR_SETUP = Object.freeze({
   github: { label: 'GitHub', secretKey: 'GITHUB_TOKEN', placeholder: 'github_pat_…', modelKey: '', defaultModel: '', helpUrl: 'https://github.com/settings/tokens' },
   elevenlabs: { label: 'ElevenLabs', secretKey: 'ELEVENLABS_API_KEY', placeholder: 'ElevenLabs API key', modelKey: '', defaultModel: '', helpUrl: 'https://elevenlabs.io/app/settings/api-keys' },
   huggingface: { label: 'Hugging Face', secretKey: 'HF_API_KEY', placeholder: 'hf_…', modelKey: 'hfModel', defaultModel: 'openai/gpt-oss-120b:fastest', helpUrl: 'https://huggingface.co/settings/tokens' }
+  ,comfyui: { label: 'ComfyUI private worker', secretKey: '', placeholder: '', modelKey: 'comfyuiBaseUrl', defaultModel: '', valueLabel: 'Private worker URL', helpUrl: 'https://docs.comfy.org/development/core-concepts/api' }
 });
 function cursorAgentPath() {
   return [path.join(app.getPath('home'), '.local', 'bin', 'cursor-agent'), '/opt/homebrew/bin/cursor-agent', '/usr/local/bin/cursor-agent'].find(fs.existsSync) || '';
@@ -118,10 +119,10 @@ function connectorSetupStatus() {
   const store = credentials();
   const configured = {};
   for (const [id, item] of Object.entries(CONNECTOR_SETUP)) configured[id] = {
-    id, label: item.label, configured: Boolean(store.get(id, item.secretKey)),
+    id, label: item.label, configured: item.secretKey ? Boolean(store.get(id, item.secretKey)) : Boolean(item.modelKey && connectorSettings[item.modelKey]),
     value: item.modelKey ? String(connectorSettings[item.modelKey] || item.defaultModel || '') : '',
-    valueLabel: id === 'gmail' ? 'OAuth client ID' : item.modelKey ? 'Model' : '', placeholder: item.placeholder, helpUrl: item.helpUrl,
-    note: id === 'gmail' ? 'Gmail requires Google OAuth consent after the client credentials are saved.' : id === 'suno' ? 'Uses the official Suno platform; generation remains off until its API contract is verified.' : ''
+    valueLabel: item.valueLabel || (id === 'gmail' ? 'OAuth client ID' : item.modelKey ? 'Model' : ''), secretRequired: Boolean(item.secretKey), placeholder: item.placeholder, helpUrl: item.helpUrl,
+    note: id === 'gmail' ? 'Gmail requires Google OAuth consent after the client credentials are saved.' : id === 'suno' ? 'Uses the official Suno platform; generation remains off until its API contract is verified.' : id === 'comfyui' ? 'Enter a private HTTP URL such as http://192.168.4.31:8188. Master Chief tests the worker before switching routes.' : ''
   };
   configured.cursor.cliDetected = Boolean(cursorAgentPath());
   return configured;
@@ -142,7 +143,15 @@ async function saveConnectorSetup(payload = {}) {
   const id = String(payload.id || ''); const item = CONNECTOR_SETUP[id];
   if (!item) throw new Error('Unknown connector.');
   const secret = String(payload.secret || '').trim();
-  if (secret && !credentials().set(id, secret)) throw new Error('Encrypted credential storage is unavailable.');
+  if (secret && item.secretKey && !credentials().set(id, secret)) throw new Error('Encrypted credential storage is unavailable.');
+  if (id === 'comfyui') {
+    const value = String(payload.value || '').trim();
+    const candidate = createComfyUiClient({ baseUrl: value, artifactDir: generatedArtifactDir, fetchImpl: privateHttpFetch });
+    const health = await candidate.health();
+    if (health.state !== 'ready') throw new Error(health.label || 'ComfyUI worker did not pass its health check.');
+    connectorSettings.comfyuiBaseUrl = value; saveConnectorSettings(); comfyBaseUrl = value; comfyClient = candidate;
+    return connectorSetupStatus()[id];
+  }
   if (item.modelKey) { connectorSettings[item.modelKey] = String(payload.value || item.defaultModel || '').trim(); saveConnectorSettings(); }
   if (id === 'gemini') {
     const key = credentials().get('gemini', 'GOOGLE_API_KEY');
@@ -151,7 +160,7 @@ async function saveConnectorSetup(payload = {}) {
   }
   return connectorSetupStatus()[id];
 }
-const comfyBaseUrl = String(process.env.COMFYUI_BASE_URL || connectorSettings.comfyuiBaseUrl || '').trim();
+let comfyBaseUrl = String(process.env.COMFYUI_BASE_URL || connectorSettings.comfyuiBaseUrl || '').trim();
 const generatedArtifactDir = path.join(app.getPath('userData'), 'artifacts', 'generated');
 const documentArtifactDir = path.join(app.getPath('userData'), 'artifacts', 'documents');
 const desktopProjectDir = path.join(app.getPath('desktop'), 'master-chief-hologram');
