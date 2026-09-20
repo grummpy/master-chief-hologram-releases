@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.21.0
+
+- Added live VAE and upscaler discovery from the private ComfyUI worker.
+- Added an explicit SDXL VAE selector with dedicated image, revision, and rebuild workflows; checkpoint-native VAE remains the default and rollback path.
+- Added a separate UltraSharp 4× artifact action backed by `UpscaleModelLoader` and `ImageUpscaleWithModel`; the existing deterministic Lanczos 2× action remains available.
+- Added installed-model checks before queueing external-VAE or model-upscale jobs.
+- Made durable history polling tolerate transient HTTP timeouts while AMD model loading or upscale kernels temporarily occupy the worker, bounded by the existing overall job deadline.
+
 ## 1.20.0
 
 - Added fixed-command SSH controls for restarting, stopping, and resuming the private Windows ComfyUI worker.

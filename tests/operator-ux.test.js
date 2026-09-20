@@ -114,6 +114,9 @@ test('media controls expose explicit prompts, upscale, and Reference Studio', ()
   assert.match(html, /id="negativePrompt"/);
   assert.match(html, /id="referenceStudioBtn"/);
   assert.match(renderer, /kind:'upscale'/);
+  assert.match(html, /id="mediaVae"/);
+  assert.match(renderer, /UltraSharp 4×/);
+  assert.match(renderer, /ultrasharp-upscale-v1/);
   assert.ok(fs.existsSync(path.join(root, 'workflows', 'image-upscale-api.json')));
 });
 

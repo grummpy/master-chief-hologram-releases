@@ -31,6 +31,18 @@ test('image workflow receives the recorded operator parameters', () => {
   assert.equal(result['7'].inputs.text, 'verbatim negative');
 });
 
+test('UltraSharp and external VAE workflows bind only named installed models', () => {
+  const root = path.resolve(__dirname, '..');
+  const registry = createWorkflowRegistry(root);
+  const upscale = cloneAndFillWorkflow(require(registry.get('ultrasharp-upscale-v1').file), { prompt: 'upscale', sourceImage: 'source.png', upscaler: '4x-UltraSharp.pth' });
+  assert.equal(upscale['2'].inputs.model_name, '4x-UltraSharp.pth');
+  assert.equal(upscale['1'].inputs.image, 'source.png');
+  const image = cloneAndFillWorkflow(require(registry.get('sdxl-image-external-vae-v1').file), { prompt: 'test', negativePrompt: '', checkpoint: 'juggernaut.safetensors', vae: 'sdxl_vae.safetensors' });
+  assert.equal(image['10'].inputs.vae_name, 'sdxl_vae.safetensors');
+  assert.deepEqual(image['8'].inputs.vae, ['10', 0]);
+  assert.equal(registry.get('ultrasharp-upscale-v1').rollbackTarget, 'lanczos-upscale-v1');
+});
+
 test('main process recognizes video and reports its gated readiness precisely', () => {
   const fs = require('node:fs');
   const main = fs.readFileSync(path.resolve(__dirname, '..', 'main.js'), 'utf8');

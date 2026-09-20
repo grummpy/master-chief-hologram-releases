@@ -548,16 +548,19 @@ async function executeMediaJob(requestId) {
       sourceImage = uploaded.subfolder ? `${uploaded.subfolder}/${uploaded.name}` : uploaded.name;
     }
     let definition;
-    try { definition = payload.workflowId ? workflowRegistry.get(payload.workflowId) : workflowRegistry.forKind(contract); }
+    const externalVaeWorkflow = payload.vae && ['image', 'revision', 'rebuild'].includes(contract) ? `sdxl-${contract}-external-vae-v1` : '';
+    try { definition = payload.workflowId ? workflowRegistry.get(payload.workflowId) : externalVaeWorkflow ? workflowRegistry.get(externalVaeWorkflow) : workflowRegistry.forKind(contract); }
     catch (error) {
       if (contract === 'video') throw new Error('Video generation is not ready on the Windows worker. No approved local video workflow and model bundle is installed yet. Install and verify an AMD-compatible video model, text encoder, VAE, and API workflow before using /video. Image generation remains available.');
       throw error;
     }
     if (definition.contract !== contract) throw new Error(`Workflow ${definition.id} does not support the ${contract} contract.`);
     const template = JSON.parse(fs.readFileSync(definition.file, 'utf8'));
-    const checkpoints = definition.modelFamily === 'pixel' ? [] : await comfyClient.checkpoints();
+    const checkpoints = definition.modelFamily === 'sdxl' ? await comfyClient.checkpoints() : [];
     const selectedCheckpoint = payload.checkpoint || checkpoints.find(name => /juggernaut.*xl.*v9/i.test(name)) || checkpoints.find(name => /juggernaut.*xl/i.test(name)) || checkpoints.find(name => /sd.?xl/i.test(name));
-    if (definition.modelFamily !== 'pixel' && (!selectedCheckpoint || !checkpoints.includes(selectedCheckpoint))) throw new Error('The selected checkpoint is not installed on the live ComfyUI worker.');
+    if (definition.modelFamily === 'sdxl' && (!selectedCheckpoint || !checkpoints.includes(selectedCheckpoint))) throw new Error('The selected checkpoint is not installed on the live ComfyUI worker.');
+    if (payload.vae && !(await comfyClient.modelNames('vae')).includes(payload.vae)) throw new Error('The selected VAE is not installed on the live ComfyUI worker.');
+    if (definition.modelFamily === 'upscale-model' && !(await comfyClient.modelNames('upscale_models')).includes(payload.upscaler)) throw new Error('The selected upscale model is not installed on the live ComfyUI worker.');
     const seed = Number.isSafeInteger(payload.seed) ? payload.seed : require('crypto').randomInt(1, 2147483646);
     const rawPrompt = contract === 'upscale' ? 'Deterministic image upscale' : String(payload.prompt || '');
     const workflow = cloneAndFillWorkflow(template, {
@@ -566,12 +569,14 @@ async function executeMediaJob(requestId) {
       negativePrompt: String(payload?.negativePrompt || ''),
       sourceImage,
       checkpoint: selectedCheckpoint,
+      vae: payload.vae,
+      upscaler: payload.upscaler,
       seed,
       revisionStrength: payload.denoise ?? payload.revisionStrength
     });
     updateMediaJob(requestId, {
       workflow: { id: definition.id, version: definition.version, sha256: definition.sha256, modelFamily: definition.modelFamily },
-      parameters: { ...payload, seed, checkpoint: selectedCheckpoint, workflowId: definition.id },
+      parameters: { ...payload, seed, checkpoint: selectedCheckpoint, vae: payload.vae || null, upscaler: payload.upscaler || null, workflowId: definition.id },
       status: 'generating', stage: 'generate', progress: 30
     });
     const queued = await comfyClient.submit(workflow, requestId);
@@ -1335,7 +1340,7 @@ secureHandle('generate-local-media', (_event, payload) => generateLocalMedia(pay
 secureHandle('list-generated-media', (_event, payload) => listGeneratedArtifacts(payload?.limit));
 secureHandle('media-job-list', (_event, payload) => mediaJobLedger.list(payload?.limit));
 secureHandle('media-job-get', (_event, payload) => mediaJobLedger.get(payload?.requestId));
-secureHandle('media-catalog', async () => ({ checkpoints: comfyClient ? await comfyClient.checkpoints() : [], workflows: workflowRegistry.list(), capabilities: { image: true, revision: true, rebuild: true, upscale: true, video: workflowRegistry.list().some(item => item.contract === 'video' && item.enabled !== false) }, videoReadiness: workflowRegistry.list().some(item => item.contract === 'video' && item.enabled !== false) ? 'ready' : 'missing approved AMD workflow and model bundle' }));
+secureHandle('media-catalog', async () => ({ checkpoints: comfyClient ? await comfyClient.checkpoints() : [], vaes: comfyClient ? await comfyClient.modelNames('vae') : [], upscalers: comfyClient ? await comfyClient.modelNames('upscale_models') : [], workflows: workflowRegistry.list(), capabilities: { image: true, revision: true, rebuild: true, upscale: true, video: workflowRegistry.list().some(item => item.contract === 'video' && item.enabled !== false) }, videoReadiness: workflowRegistry.list().some(item => item.contract === 'video' && item.enabled !== false) ? 'ready' : 'missing approved AMD workflow and model bundle' }));
 secureHandle('media-job-cancel', async (_event, payload) => {
   requireToolApproval('media.generate_local');
   const requestId = String(payload?.requestId || '');

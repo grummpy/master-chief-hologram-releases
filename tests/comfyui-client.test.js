@@ -91,6 +91,18 @@ test('client queues, polls, and hashes a fixture artifact', async () => {
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
+test('history polling survives a transient worker timeout inside the job deadline', async () => {
+  let polls = 0;
+  const client = createComfyUiClient({ baseUrl: 'http://127.0.0.1:8188', artifactDir: os.tmpdir(), timeoutMs: 1000, fetchImpl: async url => {
+    if (!url.includes('/history/')) return new Response('', { status: 404 });
+    polls += 1;
+    if (polls === 1) throw new DOMException('timed out', 'TimeoutError');
+    return new Response(JSON.stringify({ prompt: { outputs: {} } }), { status: 200 });
+  } });
+  assert.deepEqual(await client.wait('prompt', { pollMs: 1 }), { outputs: {} });
+  assert.equal(polls, 2);
+});
+
 test('runtime status reports bounded worker, queue, device, and checkpoint evidence', async () => {
   const fetchImpl = async url => {
     if (url.endsWith('/system_stats')) return new Response(JSON.stringify({ system: { os: 'win32', comfyui_version: '0.36.0', python_version: '3.13', pytorch_version: '2.13+rocm', ram_total: 16, ram_free: 8 }, devices: [{ name: 'AMD GPU', type: 'cuda', vram_total: 17, vram_free: 9 }] }), { status: 200 });
@@ -104,4 +116,11 @@ test('runtime status reports bounded worker, queue, device, and checkpoint evide
   assert.deepEqual(status.queue, { running: 1, pending: 2 });
   assert.equal(status.devices[0].name, 'AMD GPU');
   assert.deepEqual(status.checkpoints, ['sdxl.safetensors']);
+});
+
+test('model catalog permits only bounded known ComfyUI categories', async () => {
+  const client = createComfyUiClient({ baseUrl: 'http://127.0.0.1:8188', artifactDir: os.tmpdir(), fetchImpl: async url => new Response(JSON.stringify(url.endsWith('/models/vae') ? ['sdxl_vae.safetensors'] : ['4x-UltraSharp.pth']), { status: 200 }), timeoutMs: 1000 });
+  assert.deepEqual(await client.modelNames('vae'), ['sdxl_vae.safetensors']);
+  assert.deepEqual(await client.modelNames('upscale_models'), ['4x-UltraSharp.pth']);
+  await assert.rejects(() => client.modelNames('../custom_nodes'), /Unsupported/);
 });

@@ -48,6 +48,7 @@
     <div class="prompt-field-grid"><label>Positive prompt<textarea id="positivePrompt" spellcheck="true" placeholder="Exact text sent as the positive prompt"></textarea></label><label>Negative prompt<textarea id="negativePrompt" spellcheck="true" placeholder="Exact text sent as the negative prompt"></textarea></label></div>
     <div class="media-parameter-grid">
       <label>Checkpoint<select id="mediaCheckpoint"><option value="">Automatic best installed</option></select></label>
+      <label>VAE<select id="mediaVae"><option value="">Checkpoint default</option></select></label>
       <label>Seed<input id="mediaSeed" type="number" min="1" max="2147483646" placeholder="Random"></label>
       <label>Sampler<select id="mediaSampler"><option value="dpmpp_2m">DPM++ 2M</option><option value="euler">Euler</option><option value="euler_ancestral">Euler ancestral</option><option value="dpmpp_sde">DPM++ SDE</option></select></label>
       <label>Scheduler<select id="mediaScheduler"><option value="karras">Karras</option><option value="normal">Normal</option><option value="simple">Simple</option><option value="sgm_uniform">SGM uniform</option></select></label>

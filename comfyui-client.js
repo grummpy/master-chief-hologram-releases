@@ -39,6 +39,8 @@ function cloneAndFillWorkflow(template, values) {
     ['{{DENOISE}}', Number.isFinite(values.revisionStrength) ? Math.min(0.99, Math.max(0.2, values.revisionStrength)) : 0.68],
     ['{{SCALE_BY}}', Number.isFinite(values.scaleBy) ? Math.min(4, Math.max(1, values.scaleBy)) : 2],
     ['{{CHECKPOINT}}', String(values.checkpoint || 'sd_xl_base_1.0.safetensors')],
+    ['{{VAE}}', String(values.vae || 'sdxl_vae.safetensors')],
+    ['{{UPSCALER}}', String(values.upscaler || '4x-UltraSharp.pth')],
     ['{{SOURCE_IMAGE}}', String(values.sourceImage || '')],
     ['{{STEPS}}', Number.isFinite(values.steps) ? Math.min(100, Math.max(1, Math.round(values.steps))) : 28],
     ['{{CFG}}', Number.isFinite(values.cfg) ? Math.min(30, Math.max(0, values.cfg)) : 6.5],
@@ -90,6 +92,13 @@ function createComfyUiClient({ baseUrl, fetchImpl = fetch, artifactDir, timeoutM
       const body = await response.json();
       return Array.isArray(body) ? body.map(String) : [];
     },
+    async modelNames(category) {
+      const allowed = new Set(['checkpoints', 'vae', 'upscale_models']);
+      if (!allowed.has(category)) throw new Error('Unsupported ComfyUI model category.');
+      const response = await request(`/models/${category}`, {}, 10000);
+      const body = await response.json();
+      return (Array.isArray(body) ? body : []).slice(0, 100).map(value => String(value).slice(0, 240));
+    },
     async runtimeStatus() {
       const [statsResponse, queueResponse, checkpointsResponse] = await Promise.all([
         request('/system_stats', {}, 10000), request('/queue', {}, 10000), request('/models/checkpoints', {}, 10000)
@@ -127,10 +136,17 @@ function createComfyUiClient({ baseUrl, fetchImpl = fetch, artifactDir, timeoutM
       const started = Date.now();
       while (Date.now() - started < timeoutMs) {
         if (signal?.aborted) throw signal.reason || new Error('Media job cancelled.');
-        const response = await request(`/history/${encodeURIComponent(promptId)}`, { signal }, 10000);
-        const body = await response.json();
-        const item = body[promptId];
-        if (item) return item;
+        try {
+          const response = await request(`/history/${encodeURIComponent(promptId)}`, { signal }, 10000);
+          const body = await response.json();
+          const item = body[promptId];
+          if (item) return item;
+        } catch (error) {
+          if (signal?.aborted) throw signal.reason || error;
+          // AMD model loads and upscale kernels can briefly occupy ComfyUI's
+          // event loop. A single poll timeout is not evidence that the durable
+          // queued job failed; keep retrying inside the overall job deadline.
+        }
         if (onPoll) await onPoll(Date.now() - started);
         await new Promise(resolve => setTimeout(resolve, pollMs));
       }
