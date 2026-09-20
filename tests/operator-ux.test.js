@@ -65,6 +65,15 @@ test('workspace shell exposes protected Projects, right-side previews, and conne
   assert.match(renderer, /archiveCurrentThread/);
 });
 
+test('Systems and connector status rows open preselected credential setup', () => {
+  assert.match(renderer, /SETUP_BY_PROVIDER/);
+  assert.match(renderer, /SETUP_BY_CONNECTOR/);
+  assert.match(renderer, /openConnectorSetup\(setupId\)/);
+  for (const provider of ['gemini','gmail','cursor','suno','openai','xai','huggingface','github','elevenlabs']) {
+    assert.match(renderer, new RegExp(`['"]?${provider}['"]?`));
+  }
+});
+
 test('personal hologram removes the local-display banner', () => {
   assert.doesNotMatch(renderer, /Personal · local display/);
   assert.match(css, /data-persona-view=personal.*persona-badge/);

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.12.3
+
+- Made configurable Systems health rows and Creative connector rows open the credential setup dialog directly with the selected service preloaded.
+- Credentials remain in the encrypted local credential store, and saving immediately refreshes provider and connector health.
+- Preserved truthful follow-up states for services that require more than an API token, including Gmail OAuth consent and Suno endpoint verification.
+
 ## 1.12.2
 
 - Fixed the Plugins workspace so it traverses the Codex cache hierarchy and lists installed plugin packages instead of only showing the `cache` directory.
