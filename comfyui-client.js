@@ -46,6 +46,9 @@ function cloneAndFillWorkflow(template, values) {
     ['{{CONTROL_STRENGTH}}', Number.isFinite(values.controlStrength) ? Math.min(2, Math.max(0, values.controlStrength)) : 1],
     ['{{CONTROL_START}}', Number.isFinite(values.controlStart) ? Math.min(1, Math.max(0, values.controlStart)) : 0],
     ['{{CONTROL_END}}', Number.isFinite(values.controlEnd) ? Math.min(1, Math.max(0, values.controlEnd)) : 1],
+    ['{{REFERENCE_STRENGTH}}', Number.isFinite(values.referenceStrength) ? Math.min(3, Math.max(-1, values.referenceStrength)) : 0.8],
+    ['{{FACEID_V2_STRENGTH}}', Number.isFinite(values.faceIdV2Strength) ? Math.min(5, Math.max(-1, values.faceIdV2Strength)) : 1],
+    ['{{FACEID_LORA_STRENGTH}}', Number.isFinite(values.faceIdLoraStrength) ? Math.min(1, Math.max(0, values.faceIdLoraStrength)) : 0.6],
     ['{{SOURCE_IMAGE}}', String(values.sourceImage || '')],
     ['{{STEPS}}', Number.isFinite(values.steps) ? Math.min(100, Math.max(1, Math.round(values.steps))) : 28],
     ['{{CFG}}', Number.isFinite(values.cfg) ? Math.min(30, Math.max(0, values.cfg)) : 6.5],
@@ -116,7 +119,7 @@ function createComfyUiClient({ baseUrl, fetchImpl = fetch, artifactDir, timeoutM
       return Array.isArray(body) ? body.map(String) : [];
     },
     async modelNames(category) {
-      const allowed = new Set(['checkpoints', 'vae', 'upscale_models', 'controlnet', 'clip_vision', 'loras']);
+      const allowed = new Set(['checkpoints', 'vae', 'upscale_models', 'controlnet', 'clip_vision', 'loras', 'ipadapter']);
       if (!allowed.has(category)) throw new Error('Unsupported ComfyUI model category.');
       const response = await request(`/models/${category}`, {}, 10000);
       const body = await response.json();
@@ -135,6 +138,7 @@ function createComfyUiClient({ baseUrl, fetchImpl = fetch, artifactDir, timeoutM
         controlNet: has('ControlNetLoader', 'ControlNetApplyAdvanced'),
         clipVision: has('CLIPVisionLoader'),
         ipAdapter: Boolean(nodes?.IPAdapterAdvanced || nodes?.IPAdapterUnifiedLoader),
+        faceId: has('IPAdapterUnifiedLoaderFaceID', 'IPAdapterInsightFaceLoader', 'IPAdapterFaceID'),
         lora: has('LoraLoader'),
         modelUpscale: has('UpscaleModelLoader', 'ImageUpscaleWithModel'),
         partialConditioning: has('ConditioningCombine', 'ConditioningSetArea')

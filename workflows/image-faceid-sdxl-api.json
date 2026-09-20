@@ -1,0 +1,13 @@
+{
+  "3": { "class_type": "KSampler", "inputs": { "seed": "{{SEED}}", "steps": "{{STEPS}}", "cfg": "{{CFG}}", "sampler_name": "{{SAMPLER}}", "scheduler": "{{SCHEDULER}}", "denoise": 1, "model": ["13", 0], "positive": ["6", 0], "negative": ["7", 0], "latent_image": ["5", 0] } },
+  "4": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": "{{CHECKPOINT}}" } },
+  "5": { "class_type": "EmptyLatentImage", "inputs": { "width": "{{WIDTH}}", "height": "{{HEIGHT}}", "batch_size": "{{BATCH}}" } },
+  "6": { "class_type": "CLIPTextEncode", "inputs": { "text": "{{PROMPT}}", "clip": ["4", 1] } },
+  "7": { "class_type": "CLIPTextEncode", "inputs": { "text": "{{NEGATIVE_PROMPT}}", "clip": ["4", 1] } },
+  "8": { "class_type": "VAEDecode", "inputs": { "samples": ["3", 0], "vae": ["4", 2] } },
+  "9": { "class_type": "SaveImage", "inputs": { "filename_prefix": "MasterChiefFaceID", "images": ["8", 0] } },
+  "10": { "class_type": "LoadImage", "inputs": { "image": "{{SOURCE_IMAGE}}" } },
+  "11": { "class_type": "IPAdapterUnifiedLoaderFaceID", "inputs": { "model": ["4", 0], "preset": "FACEID PLUS V2", "lora_strength": "{{FACEID_LORA_STRENGTH}}", "provider": "ROCM" } },
+  "12": { "class_type": "IPAdapterInsightFaceLoader", "inputs": { "provider": "ROCM", "model_name": "antelopev2" } },
+  "13": { "class_type": "IPAdapterFaceID", "inputs": { "model": ["11", 0], "ipadapter": ["11", 1], "image": ["10", 0], "weight": "{{REFERENCE_STRENGTH}}", "weight_faceidv2": "{{FACEID_V2_STRENGTH}}", "weight_type": "linear", "combine_embeds": "concat", "start_at": "{{CONTROL_START}}", "end_at": "{{CONTROL_END}}", "embeds_scaling": "V only", "insightface": ["12", 0] } }
+}

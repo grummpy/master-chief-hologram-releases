@@ -1,6 +1,7 @@
 node_modules/
 artifacts/generated/
 artifacts/prompt-fidelity/
+artifacts/faceid-readiness/
 .env
 .DS_Store
 *.log

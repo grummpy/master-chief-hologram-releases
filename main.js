@@ -547,8 +547,8 @@ function updateMediaJob(requestId, patch) { return emitMediaJob(mediaJobLedger.u
 function mediaContract(payload = {}) {
   const kind = String(payload.kind || 'image');
   if (kind === 'image' && payload.sourceArtifact) return 'revision';
-  if (['image', 'revision', 'rebuild', 'upscale', 'control', 'video'].includes(kind)) return kind;
-  throw new Error('Media contract must be image, revision, rebuild, upscale, control, or video.');
+  if (['image', 'revision', 'rebuild', 'upscale', 'control', 'faceid', 'video'].includes(kind)) return kind;
+  throw new Error('Media contract must be image, revision, rebuild, upscale, control, faceid, or video.');
 }
 
 async function executeMediaJob(requestId) {
@@ -562,7 +562,7 @@ async function executeMediaJob(requestId) {
     updateMediaJob(requestId, { status: 'loading', stage: 'load', progress: 10 });
     let sourceImage = '';
     let safeUpscale = null;
-    if (['revision', 'upscale', 'control'].includes(contract)) {
+    if (['revision', 'upscale', 'control', 'faceid'].includes(contract)) {
       const localSource = resolveArtifactPath(payload.sourceArtifact);
       if (!localSource || !/\.(png|jpe?g|webp)$/i.test(localSource)) throw new Error('The selected source is unavailable or is not a supported image.');
       if (contract === 'upscale' && payload.workflowId === 'ultrasharp-upscale-v1') {
@@ -704,7 +704,7 @@ async function preflightReferenceShot(payload) {
   if (shot.referenceMode === 'selected' && !sourceArtifact) throw new Error('Selected-reference mode requires a reference artifact.');
   if (shot.referenceMode === 'approved' && !sourceArtifact) throw new Error('No approved reference view is available. Promote a view or use clean generation.');
   const source = artifactFingerprint(sourceArtifact);
-  const contract = source ? (shot.controlMode === 'pose' ? 'control' : 'revision') : 'image';
+  const contract = source ? (shot.controlMode === 'pose' ? 'control' : shot.controlMode === 'faceid' ? 'faceid' : 'revision') : 'image';
   const definition = shot.workflow ? workflowRegistry.get(shot.workflow) : workflowRegistry.forKind(contract);
   if (definition.contract !== contract) throw new Error(`Workflow ${definition.id} does not support ${contract}.`);
   const checkpoints = await comfyClient.checkpoints();
@@ -715,7 +715,7 @@ async function preflightReferenceShot(payload) {
     contract, effectivePrompt: effectiveShotPrompt(subject, sheet, shot), negativePrompt: String(shot.negativePrompt || ''),
     referenceMode: shot.referenceMode || 'approved', source,
     workflow: { id: definition.id, version: definition.version, sha256: definition.sha256 }, checkpoint,
-    parameters: { seed, sampler: shot.sampler || 'dpmpp_2m', scheduler: shot.scheduler || 'karras', steps: Number(shot.steps || 28), cfg: Number(shot.cfg ?? 6.5), width: Number(shot.width || 768), height: Number(shot.height || 1024), batch: Number(shot.batch || 1), denoise: Number(shot.denoise ?? .84), referenceStrength: Number(shot.referenceStrength ?? .75), controlMode: shot.controlMode || 'revision', controlnet: shot.controlnet || 'OpenPoseXL2.safetensors', controlStrength: Number(shot.controlStrength ?? 1), controlStart: Number(shot.controlStart ?? 0), controlEnd: Number(shot.controlEnd ?? 1) },
+    parameters: { seed, sampler: shot.sampler || 'dpmpp_2m', scheduler: shot.scheduler || 'karras', steps: Number(shot.steps || 28), cfg: Number(shot.cfg ?? 6.5), width: Number(shot.width || 768), height: Number(shot.height || 1024), batch: Number(shot.batch || 1), denoise: Number(shot.denoise ?? .84), referenceStrength: Number(shot.referenceStrength ?? .75), faceIdV2Strength: Number(shot.faceIdV2Strength ?? 1), faceIdLoraStrength: Number(shot.faceIdLoraStrength ?? .6), controlMode: shot.controlMode || 'revision', controlnet: shot.controlnet || 'OpenPoseXL2.safetensors', controlStrength: Number(shot.controlStrength ?? 1), controlStart: Number(shot.controlStart ?? 0), controlEnd: Number(shot.controlEnd ?? 1) },
     changePlan: {
       changes: [['Pose', shot.pose], ['Environment', shot.environment], ['Camera', shot.camera], ['Lighting', shot.lighting]].filter(([, value]) => String(value || '').trim()).map(([label, value]) => `${label}: ${value}`),
       locks: [subject.continuityLocks, sheet.continuityLocks, shot.continuityLocks].filter(value => String(value || '').trim())
@@ -735,12 +735,13 @@ async function executeReferenceShot(ids, queue) {
     const source = artifactFingerprint(sourceArtifact);
     if (source && shot.referenceSha256 && source.sha256 !== shot.referenceSha256) throw new Error('The selected reference changed after preflight. Review the shot again before running it.');
     const result = await generateLocalMedia({
-      kind: sourceArtifact ? (shot.controlMode === 'pose' ? 'control' : 'revision') : 'image', requestId, sessionId: queue.id,
+      kind: sourceArtifact ? (shot.controlMode === 'pose' ? 'control' : shot.controlMode === 'faceid' ? 'faceid' : 'revision') : 'image', requestId, sessionId: queue.id,
       prompt: effectiveShotPrompt(subject, sheet, shot), negativePrompt: shot.negativePrompt,
       sourceArtifact: sourceArtifact || undefined, parentRevision: sourceArtifact || undefined,
       checkpoint: shot.model || undefined, workflowId: shot.workflow || undefined,
       seed: shot.seed, sampler: shot.sampler, scheduler: shot.scheduler, steps: shot.steps, cfg: shot.cfg, width: shot.width, height: shot.height, batch: shot.batch,
       controlnet: shot.controlnet, controlStrength: shot.controlStrength, controlStart: shot.controlStart, controlEnd: shot.controlEnd,
+      referenceStrength: shot.referenceStrength, faceIdV2Strength: shot.faceIdV2Strength, faceIdLoraStrength: shot.faceIdLoraStrength,
       denoise: shot.denoise, revisionStrength: shot.denoise, references: sourceArtifact ? [sourceArtifact] : []
     });
     let parentVariantId = '';
@@ -1492,12 +1493,12 @@ secureHandle('media-job-list', (_event, payload) => mediaJobLedger.list(payload?
 secureHandle('media-job-get', (_event, payload) => mediaJobLedger.get(payload?.requestId));
 secureHandle('media-catalog', async () => {
   const video = workflowRegistry.list().some(item => item.contract === 'video' && item.enabled !== false);
-  const [checkpoints, vaes, upscalers, controlnets, clipVision, loras, detected] = comfyClient ? await Promise.all([
+  const [checkpoints, vaes, upscalers, controlnets, clipVision, loras, ipAdapters, detected] = comfyClient ? await Promise.all([
     comfyClient.checkpoints(), comfyClient.modelNames('vae'), comfyClient.modelNames('upscale_models'),
-    comfyClient.modelNames('controlnet'), comfyClient.modelNames('clip_vision'), comfyClient.modelNames('loras'), comfyClient.capabilities()
-  ]) : [[], [], [], [], [], [], {}];
+    comfyClient.modelNames('controlnet'), comfyClient.modelNames('clip_vision'), comfyClient.modelNames('loras'), comfyClient.modelNames('ipadapter'), comfyClient.capabilities()
+  ]) : [[], [], [], [], [], [], [], {}];
   const workflows = evaluateWorkflowReadiness(workflowRegistry.list(), detected.availableNodes, { checkpoints, vaes, upscalers, controlnets });
-  return { checkpoints, vaes, upscalers, controlnets, clipVision, loras, workflows, detected,
+  return { checkpoints, vaes, upscalers, controlnets, clipVision, loras, ipAdapters, workflows, detected,
     capabilities: { image: true, revision: true, rebuild: true, upscale: true, video },
     videoReadiness: video ? 'ready' : 'missing approved AMD workflow and model bundle' };
 });
@@ -1664,7 +1665,10 @@ secureHandle('artifact-metadata', (_event, relativePath) => {
   const relative = generatedRelativePath(path.basename(artifactPath));
   const job = mediaJobLedger.list(500).find(item => item.artifacts?.some(artifact => artifact.path === relative));
   const stat = fs.statSync(artifactPath);
-  return { filename: path.basename(artifactPath), path: relative, bytes: stat.size, modifiedAt: stat.mtime.toISOString(), sha256: require('crypto').createHash('sha256').update(fs.readFileSync(artifactPath)).digest('hex'), job: job || null };
+  const bytes = fs.readFileSync(artifactPath);
+  const embedded = path.extname(artifactPath).toLowerCase() === '.png' ? require('./png-workflow-metadata').parsePngWorkflowMetadata(bytes) : null;
+  const settings = job?.parameters || embedded?.settings || null;
+  return { filename: path.basename(artifactPath), path: relative, bytes: stat.size, modifiedAt: stat.mtime.toISOString(), sha256: require('crypto').createHash('sha256').update(bytes).digest('hex'), job: job || null, embedded, recoverableSettings: settings };
 });
 secureHandle('preview-artifact', (_event, relativePath) => {
   const artifactPath = resolveArtifactPath(relativePath);

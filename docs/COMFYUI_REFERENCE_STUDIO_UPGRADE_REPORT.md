@@ -39,7 +39,7 @@ The largest quality problem is not prompt truncation or transport. The applicati
 
 ### Readiness limitation
 
-The worker does not expose an OpenPose preprocessor node in the current object inventory. It can consume an already prepared pose map, but a one-click “extract pose from photo” feature needs a separately verified preprocessor node/package. The prepared-map graph passed a live AMD execution test; semantic pose quality remains pending a valid pose-map fixture. The FaceID files and nodes are present, but the required InsightFace `buffalo_l` or `antelopev2` recognition model is not installed. Those missing components must be treated as model/node readiness changes, with compatibility, license, checksum, rollback, and AMD validation before enablement.
+The worker does not expose an OpenPose preprocessor node in the current object inventory. It can consume an already prepared pose map, but a one-click “extract pose from photo” feature needs a separately verified preprocessor node/package. The prepared-map graph passed a live AMD execution test; semantic pose quality remains pending a valid pose-map fixture. FaceID Plus v2 is now operational: the SDXL adapter, matching LoRA, CLIP Vision model, AntelopeV2 InsightFace files, ROCm nodes, registered workflow, and a returned artifact were verified end to end on the live Windows worker.
 
 ## Current upstream ComfyUI capabilities reviewed
 
@@ -134,9 +134,9 @@ The failure pattern is typical of text-only SDXL. More prose alone will not reli
 
 ### P1 — identity and style control
 
-- [ ] Register and checksum an SDXL FaceID/IP-Adapter API workflow using the installed FaceID model, LoRA, CLIP Vision model, and InsightFace provider.
+- [x] Register and checksum an SDXL FaceID/IP-Adapter API workflow using the installed FaceID model, LoRA, CLIP Vision model, and InsightFace provider.
 - [ ] Validate InsightFace on AMD/ROCm and compare CPU versus ROCm reliability.
-- [ ] Expose identity strength, FaceID v2 strength, start/end percentage, embed combination, and scaling mode behind a Basic/Advanced toggle.
+- [x] Expose identity strength, FaceID v2 strength, LoRA strength, and start/end percentage; advanced embed/scaling choices remain a future expert-mode control.
 - [ ] Separate identity reference from style/composition reference.
 - [ ] Test at least ten seeds against one approved character sheet and score face similarity and clothing continuity.
 - [ ] Preserve a text-only rollback workflow.
@@ -181,7 +181,16 @@ The failure pattern is typical of text-only SDXL. More prose alone will not reli
 ## Recommended execution order
 
 1. Finish P0 preflight and workflow compatibility reporting.
-2. Productize installed FaceID/IP-Adapter with a rollback graph.
+2. Add expert-only FaceID embed combination, weight type, and scaling controls after broader identity-regression testing.
+
+## v1.26 implementation evidence
+
+- FaceID live prompt ID: `d3d06011-0969-483d-b8c0-b38f1c8cbd7f`.
+- FaceID workflow SHA-256: `2c1a843ccb36f6c9e82d51873e93701094b04d54f21fcbd8b99bb2e7cda79d4f`.
+- Returned artifact SHA-256: `f4aaec3785e140ba16ef4ac13d69e9632ebeab01def0a3bf0b842d89878faa85`.
+- Generated PNGs now expose bounded embedded ComfyUI workflow recovery, with durable job lineage preferred when both exist.
+- Artifact cards can reopen the exact positive prompt, negative prompt, checkpoint, VAE, seed, sampler, scheduler, steps, CFG, dimensions, batch, and denoise controls.
+- Added novice recipes for two-person blocking, product hero shots, and environment studies.
 3. Productize prepared-map OpenPose ControlNet.
 4. Seek explicit approval for an OpenPose preprocessor after compatibility/license review.
 5. Add masked inpaint/outpaint and regional controls.

@@ -59,7 +59,7 @@ test('UltraSharp and external VAE workflows bind only named installed models', (
 test('main process recognizes video and reports its gated readiness precisely', () => {
   const fs = require('node:fs');
   const main = fs.readFileSync(path.resolve(__dirname, '..', 'main.js'), 'utf8');
-  assert.match(main, /\['image', 'revision', 'rebuild', 'upscale', 'control', 'video'\]/);
+  assert.match(main, /\['image', 'revision', 'rebuild', 'upscale', 'control', 'faceid', 'video'\]/);
   assert.match(main, /Video generation is not ready on the Windows worker/);
   assert.doesNotMatch(main, /Media contract must be image, revision, rebuild, or upscale\./);
 });
@@ -71,4 +71,14 @@ test('workflow readiness requires every declared node and model', () => {
   assert.equal(result[1].readiness, 'blocked');
   assert.deepEqual(result[1].missingNodes, ['MissingNode']);
   assert.deepEqual(result[1].missingModels, ['upscaler:missing.pth']);
+});
+
+test('FaceID workflow binds identity controls without rewriting prompts', () => {
+  const registry = createWorkflowRegistry(path.resolve(__dirname, '..'));
+  const definition = registry.get('sdxl-faceid-plus-v2');
+  const result = cloneAndFillWorkflow(require(definition.file), { prompt: 'exact identity prompt', negativePrompt: 'exact negative', sourceImage: 'face.png', checkpoint: 'juggernaut.safetensors', referenceStrength: .82, faceIdV2Strength: 1.1, faceIdLoraStrength: .65, controlStart: .05, controlEnd: .9, width: 512, height: 512, batch: 1 });
+  assert.equal(result['13'].inputs.weight, .82);
+  assert.equal(result['13'].inputs.weight_faceidv2, 1.1);
+  assert.equal(result['11'].inputs.lora_strength, .65);
+  assert.equal(result['6'].inputs.text, 'exact identity prompt');
 });
