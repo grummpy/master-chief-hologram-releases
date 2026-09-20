@@ -184,6 +184,25 @@
     for (const view of chosen) { const item = document.createElement('figure'); try { item.append(await previewNode(view.artifact, view.label)); } catch {} const caption = document.createElement('figcaption'); caption.textContent = `${view.label} · ${view.status}`; item.append(caption); box.append(item); }
   }
 
+  function sourceForShot(shot) {
+    if (shot.referenceMode === 'none') return '';
+    if (shot.referenceMode === 'selected') return shot.referenceArtifact || '';
+    return sheet?.approvedViews?.find(view => view.status === 'approved')?.artifact || '';
+  }
+
+  async function compareVariantToSource(shot, variant) {
+    const source = sourceForShot(shot);
+    if (!source) { get('referenceQueueStatus').textContent = 'This shot has no source reference to compare.'; return; }
+    const box = get('referenceComparison'); box.hidden = false; box.className = 'reference-comparison compare-2'; box.replaceChildren();
+    for (const [artifact, label] of [[source, 'Identity source'], [variant.artifact, 'Generated variant']]) {
+      const item = document.createElement('figure');
+      try { item.append(await previewNode(artifact, label)); } catch {}
+      const caption = document.createElement('figcaption'); caption.textContent = label; item.append(caption); box.append(item);
+    }
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    get('referenceQueueStatus').textContent = 'Showing identity source beside the generated variant.';
+  }
+
   async function loadArtifacts() {
     const [artifacts, catalog] = await Promise.all([window.masterChief.listGeneratedMedia(200), window.masterChief.getMediaCatalog()]);
     const select = get('shotReferenceArtifact'), prior = select.value;
@@ -217,7 +236,8 @@
       const reject = document.createElement('button'); reject.textContent = 'Reject'; reject.onclick = async () => { await window.masterChief.saveReferenceVariant({ ...ids(shot.id), variant: { ...variant, status: 'rejected' } }); await loadState(); };
       const annotate = document.createElement('button'); annotate.textContent = 'Note'; annotate.onclick = async () => { const value = prompt('Variant annotation', variant.annotation || ''); if (value !== null) { await window.masterChief.saveReferenceVariant({ ...ids(shot.id), variant: { ...variant, annotation: value } }); await loadState(); } };
       const branch = document.createElement('button'); branch.textContent = 'Branch'; branch.onclick = async () => { loadShotEditor({ ...shot, title: `${shot.title} branch`, referenceArtifact: variant.artifact, referenceMode: 'selected' }); get('shotPositive').focus(); };
-      item.append(caption, promote, reject, annotate, branch); strip.append(item);
+      const compareSource = document.createElement('button'); compareSource.textContent = 'Compare source'; compareSource.onclick = () => compareVariantToSource(shot, variant);
+      item.append(caption, promote, reject, annotate, branch, compareSource); strip.append(item);
     }
     container.append(strip);
   }
@@ -277,6 +297,22 @@
   get('compareTwoViews').onclick = () => showComparison(2); get('compareFourViews').onclick = () => showComparison(4); get('clearComparison').onclick = () => { comparison.clear(); get('referenceComparison').hidden = true; renderContactSheet(); };
   get('shotReferenceMode').onchange = event => { setReferenceMode(event.target.value); invalidatePreflight(); };
   get('shotControlMode').onchange = event => { get('shotWorkflow').value = ''; invalidatePreflight(); const advice={pose:'Pose control expects a prepared OpenPose skeleton map, not a normal photograph.',poselora:'OpenPose Control-LoRA uses the same prepared skeleton map with lower memory use.',faceid:'FaceID preserves identity while allowing a new pose, scene, camera, and lighting.',instantid:'InstantID locks face identity and facial keypoints more strongly. Use a clear, front-facing reference.',canny:'Canny automatically extracts edges from the selected image to preserve composition and silhouette.',tile:'Tile uses the selected image directly to preserve fine details and layout while redrawing.',revision:'Visual revision redraws the selected image directly.'}; get('sceneCoachAdvice').textContent=advice[event.target.value]||advice.revision; };
+  get('identityLockPreset').onclick = () => {
+    const approved = sheet?.approvedViews?.find(view => view.status === 'approved');
+    if (get('shotReferenceArtifact').value) setReferenceMode('selected');
+    else if (approved) setReferenceMode('approved');
+    else { get('referenceQueueStatus').textContent = 'Import and promote a clear face reference, or choose a generated artifact first.'; get('referenceDropZone').focus(); return; }
+    get('shotControlMode').value = 'instantid';
+    if ([...get('shotWorkflow').options].some(option => option.value === 'sdxl-instantid-v1' && !option.disabled)) get('shotWorkflow').value = 'sdxl-instantid-v1';
+    get('shotReferenceStrength').value = '1'; get('shotReferenceStrengthValue').value = '1';
+    get('shotInstantIdControlStrength').value = '.82'; get('shotInstantIdNoise').value = '.25';
+    get('shotControlStart').value = '0'; get('shotControlEnd').value = '.9';
+    get('shotSteps').value = '30'; get('shotCfg').value = '5';
+    get('shotSampler').value = 'dpmpp_2m'; get('shotScheduler').value = 'karras';
+    invalidatePreflight();
+    get('sceneCoachAdvice').textContent = 'Identity Lock loaded from the verified InstantID test. Keep identity traits in Continuity locks, describe the transformation in the positive prompt, then review the exact job.';
+    get('shotPositive').focus();
+  };
   get('clearActiveReference').onclick = () => { get('shotReferenceArtifact').value = ''; setReferenceMode('none'); get('referenceQueueStatus').textContent = 'Active reference cleared. The next queued shot will start clean; saved references remain available.'; };
   get('newCleanReferenceDraft').onclick = () => { comparison.clear(); get('referenceComparison').hidden = true; resetShotEditor({ cleanReference: true }); get('sceneCoachAdvice').textContent = 'Clean draft ready. No approved or selected image will be sent unless you choose a reference mode again.'; get('referenceQueueStatus').textContent = 'New clean draft started. Saved projects, references, variants, and media were not deleted.'; renderContactSheet(); get('shotPositive').focus(); };
   const sceneMoves = {

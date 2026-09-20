@@ -216,3 +216,16 @@ The failure pattern is typical of text-only SDXL. More prose alone will not reli
 ## Change-control note
 
 No content-related system instruction, classifier, routing rule, retry instruction, or model-behavior directive was changed in this batch. Any such proposed text must be shown verbatim and receive explicit owner approval before editing or deployment.
+# v1.29 Identity Lock validation — 2026-09-20
+
+- Ran the same adult face reference through FaceID Plus v2 and InstantID on the live AMD worker.
+- FaceID completed but drifted to a generic subject; it remains available as a looser identity route.
+- InstantID preserved substantially more of the source forehead, beard, eye spacing, and facial proportions while completing the barbarian transformation.
+- Added an **Identity Lock** preset using the verified InstantID route: identity `1.0`, keypoint control `0.82`, noise `0.25`, control window `0–0.9`, 30 steps, CFG `5`, DPM++ 2M/Karras.
+- Added **Compare source** to every Reference Studio variant so identity drift can be judged directly before promotion.
+- The application does not silently add or rewrite positive or negative prompt content.
+
+Live evidence:
+
+- FaceID prompt: `90d9506a-ee99-48a3-89ef-f18846b543c6`; artifact SHA-256 `93fda2b49fae730b5faf65ba8f32fece2ca855457c230c846c09272bfef53d0b`.
+- InstantID prompt: `438ff7c4-81d4-4c11-a2ef-d61c5d5c7965`; artifact SHA-256 `a57c2408c9ebb1d49a6e3a8e6487348f7d5d3614e6e4ffad9a380118f8928c7f`.

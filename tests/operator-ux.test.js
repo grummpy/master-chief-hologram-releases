@@ -146,12 +146,14 @@ test('blank media seed remains random instead of becoming seed zero', () => {
 });
 
 test('Reference Studio exposes hierarchy, review, comparison, queue, and runtime controls', () => {
-  for (const id of ['referenceProjectSelect','referenceSubjectSelect','referenceSheetSelect','referenceContactSheet','referenceComparison','runReferenceQueue','cancelReferenceQueue','resumeReferenceQueue','clearReferenceQueue','closeReferenceRuntime','openComfyDesignStudio','shotReferenceStrength','shotDenoise','shotReferenceMode','clearActiveReference','newCleanReferenceDraft','sceneCoachAdvice','referencePreflight','referencePreflightPrompt','referencePreflightNegative','shotSeed','shotSampler','shotScheduler','shotSteps','shotCfg','shotWidth','shotHeight','shotBatch','exploreFourVariants','shotControlMode','shotControlnet','shotControlStrength','shotControlStart','shotControlEnd']) assert.match(html, new RegExp(`id="${id}"`));
+  for (const id of ['referenceProjectSelect','referenceSubjectSelect','referenceSheetSelect','referenceContactSheet','referenceComparison','runReferenceQueue','cancelReferenceQueue','resumeReferenceQueue','clearReferenceQueue','closeReferenceRuntime','openComfyDesignStudio','shotReferenceStrength','shotDenoise','shotReferenceMode','clearActiveReference','newCleanReferenceDraft','identityLockPreset','sceneCoachAdvice','referencePreflight','referencePreflightPrompt','referencePreflightNegative','shotSeed','shotSampler','shotScheduler','shotSteps','shotCfg','shotWidth','shotHeight','shotBatch','exploreFourVariants','shotControlMode','shotControlnet','shotControlStrength','shotControlStart','shotControlEnd']) assert.match(html, new RegExp(`id="${id}"`));
   assert.match(referenceStudio, /onReferenceQueueEvent/);
   assert.match(referenceStudio, /saveReferenceVariant/);
   assert.match(referenceStudio, /clean generation/);
   assert.match(referenceStudio, /preflightReferenceShot/);
   assert.match(referenceStudio, /Confirm add to queue/);
+  assert.match(referenceStudio, /Identity Lock loaded from the verified InstantID test/);
+  assert.match(referenceStudio, /Compare source/);
 });
 
 test('Ollama Command Center exposes native generation and agent controls', () => {
