@@ -20,7 +20,7 @@
 <section class="conversation-panel" aria-label="Mission conversation"><div class="routebar"><div class="route-status"><span id="statusDot" class="status-dot" aria-hidden="true"></span><span id="routeState">Checking route…</span></div><label for="modelSelect" class="sr-only">AI model</label><select id="modelSelect"><option value="ollama">Ollama · Local · no provider charge</option><option value="gemini">Google Gemini · account/API plan</option><option value="codex">Codex Desktop · selected cloud plan</option><option value="openai">OpenAI API · provider billed</option><option value="grok">Grok · provider billed</option><option value="huggingface">Hugging Face · provider billing may apply</option></select><span id="residencyBadge" class="residency-badge">LOCAL</span></div><section id="chat" aria-label="Conversation" role="log" aria-live="polite" aria-relevant="additions"></section>
 <section class="composer">
   <div id="generationStatus" class="generation-status" hidden role="status" aria-live="polite"><progress id="generationProgress" max="100" value="0"></progress><span id="generationStatusText">Preparing creative job…</span><button id="cancelMediaBtn" type="button" hidden>Cancel</button></div>
-  <details id="ollamaControls" class="ollama-controls" open>
+  <details id="ollamaControls" class="ollama-controls">
     <summary>Ollama Command Center <span id="ollamaCapabilitySummary">checking local models…</span></summary>
     <div class="ollama-control-grid">
       <label>Task mode<select id="ollamaMode"><option value="balanced">Balanced</option><option value="precise">Precise / factual</option><option value="creative">Creative</option><option value="coding">Coding</option><option value="agent">Agentic</option></select></label>
