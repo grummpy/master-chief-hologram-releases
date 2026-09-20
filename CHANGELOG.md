@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.14.0
+
+- Added a durable local reminder scheduler with native macOS notifications, one-time and repeating jobs, restart recovery, execution history, and overdue-run reconciliation.
+- Replaced the passive Scheduled workspace with a working reminder manager supporting create, pause, resume, cancel, status, next-run time, and history counts.
+- Added typed Ollama agent tools for listing, creating, and managing reminders behind separate Tool Access approvals.
+- Reminder text and state remain local and are never sent to a model when created from the Scheduled workspace.
+
 ## 1.13.0
 
 - Added a durable, bounded repository editing sequence for the local Ollama agent: exact replacement preview, readable diff, hash-verified apply, and hash-verified rollback.

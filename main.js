@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, dialog, nativeImage, safeStorage, shell, systemPreferences } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, Notification, dialog, nativeImage, safeStorage, shell, systemPreferences } = require('electron');
 const { execFile, spawn } = require('child_process');
 const { promisify } = require('util');
 const http = require('http');
@@ -46,6 +46,7 @@ const { runOllamaEvaluation } = require('./ollama-evaluator');
 const { publicResearchUrls, normalizePublicResearch } = require('./public-research');
 const { createProjectStore } = require('./project-store');
 const { discoverPlugins } = require('./plugin-catalog');
+const { createSchedulerStore } = require('./scheduler-store');
 const localAiManifest = loadLocalAiManifest(path.join(__dirname, 'local-ai-manifest.json'));
 
 let mainWindow;
@@ -55,6 +56,14 @@ let credentialStore;
 function credentials() { return credentialStore || (credentialStore = createCredentialStore({ safeStorage, filePath: path.join(app.getPath('userData'), 'credentials.json') })); }
 let activeAbortController = null;
 let toolApprovals;
+const scheduler = createSchedulerStore(path.join(app.getPath('userData'), 'scheduled-reminders.json'));
+let schedulerTimer;
+function runSchedulerTick() {
+  for (const job of scheduler.tick()) {
+    if (Notification.isSupported()) { const notice = new Notification({ title: job.title, body: job.message, silent: false }); notice.on('click', showWindow); notice.show(); }
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('scheduler-event', { type: 'delivered', job });
+  }
+}
 function ollamaEvaluationFile() { return path.join(app.getPath('userData'), 'ollama-evaluation.json'); }
 function loadConnectorSettings() {
   try {
@@ -645,6 +654,9 @@ async function executeAgentTool(id, input, context = {}) {
     const result = await connectorStatus(); const ready = result.connectors.filter(item => item.status?.state === 'ready').length;
     return { tool: id, result, summary: `${ready} of ${result.connectors.length} connectors are ready.` };
   }
+  if (id === 'scheduler.list') { requireToolApproval(id); const jobs = scheduler.list(); return { tool: id, result: { jobs }, summary: `Found ${jobs.length} local reminder${jobs.length === 1 ? '' : 's'}.` }; }
+  if (id === 'scheduler.create') { requireToolApproval(id); const job = scheduler.create(input); return { tool: id, result: job, summary: `Scheduled ${job.title} for ${job.nextRunAt}.` }; }
+  if (id === 'scheduler.action') { requireToolApproval(id); const job = scheduler.action(input?.id, input?.action); return { tool: id, result: job, summary: `${input.action} completed for ${job.title}.` }; }
   if (id === 'artifacts.create') {
     requireToolApproval(id); const kind = String(input?.kind || ''); const request = String(input?.request || '');
     const result = kind === 'document' ? await createDocument({ request, provider: 'ollama', model: context.model, masterMode: true }) : await createProductivityArtifact({ kind, request, model: context.model });
@@ -1118,6 +1130,7 @@ if (!gotLock) {
   app.on('second-instance', showWindow);
   app.whenReady().then(() => {
     createWindow();
+    schedulerTimer = setInterval(runSchedulerTick, 15000); setTimeout(runSchedulerTick, 1000);
     // Grant Chromium's microphone request after the window/session exists.
     mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback, details) => {
       const trusted = webContents === mainWindow.webContents && String(details?.requestingUrl || '').startsWith('file://');
@@ -1196,6 +1209,9 @@ secureHandle('workspace-library-open', async (_event, payload) => {
   const result = await shell.openPath(library.path); if (result) throw new Error(`${library.title} could not be opened.`);
   return { opened: true, destination: library.path };
 });
+secureHandle('scheduler-list', () => ({ jobs: scheduler.list() }));
+secureHandle('scheduler-create', (_event, payload) => scheduler.create(payload));
+secureHandle('scheduler-action', (_event, payload) => scheduler.action(payload?.id, payload?.action));
 secureHandle('voice-self-test', async () => voiceSelfTest(await localWhisperConfig(), {
   name: 'command-reference.webm',
   contentType: 'audio/webm;codecs=opus',

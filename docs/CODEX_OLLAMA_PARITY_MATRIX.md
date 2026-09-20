@@ -15,7 +15,7 @@ Master Chief uses Ollama as its local reasoning engine. Ollama alone is not equi
 | General code editing and command execution | Not yet available to local Ollama | Requires workspace-scoped patch and process tools, review, timeouts, and rollback |
 | Browser and native application control | Not yet available | Requires a computer-use connector and explicit per-action authorization |
 | External app connectors | Partial | Ollama, Codex, Hugging Face, OpenAI, xAI, GitHub, ComfyUI, and ElevenLabs are cataloged with live setup state and cost class. Cloud providers run only when explicitly selected. |
-| Scheduled reminders and monitoring | Not yet available | Requires a durable scheduler and notification service |
+| Scheduled reminders and monitoring | Partial | Durable local one-time/repeating reminders, native notifications, pause/resume/cancel, history, restart recovery, and Ollama tools are available. Conditional external-state monitors are not yet implemented. |
 | Multi-agent / task orchestration | Partial | Bounded sequential plans exist; there is no independent worker/task runtime yet |
 | Security and audit evidence | Available for registered tools | Main-process enforcement, explicit approvals, bounded inputs, and audit events |
 
@@ -25,7 +25,7 @@ A capability is reported as available only when an end-to-end test proves that M
 
 ## Next implementation gates
 
-1. Add a durable local scheduler for reminders and monitoring with pause, cancel, history, restart recovery, and notifications.
+1. Add typed conditional monitors with connector-specific read contracts, quiet-while-unchanged behavior, and explicit notification triggers.
 2. Expand the no-provider-charge web path with a local SearXNG instance when a supported container runtime is available; retain citations, fixed destinations, and provenance.
 3. Broaden artifact creation acceptance tests inside the Ollama tool loop.
 4. Add a connector SDK for browser/app services, each with a typed contract, visible cost class, explicit route selection, and least-privilege credentials.

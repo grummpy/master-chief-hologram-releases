@@ -74,6 +74,18 @@ test('Systems and connector status rows open preselected credential setup', () =
   }
 });
 
+test('Scheduled workspace creates and manages durable local reminders', () => {
+  for (const id of ['schedulerSetup','schedulerTitle','schedulerMessage','schedulerDueAt','schedulerRepeat']) assert.match(html, new RegExp(`id="${id}"`));
+  assert.match(renderer, /renderScheduledJobs/);
+  assert.match(renderer, /scheduledJobAction/);
+  assert.match(renderer, /createScheduledJob/);
+  const preload = fs.readFileSync(path.join(root, 'preload.js'), 'utf8');
+  const main = fs.readFileSync(path.join(root, 'main.js'), 'utf8');
+  assert.match(preload, /scheduler-list/);
+  assert.match(main, /secureHandle\('scheduler-create'/);
+  assert.match(main, /new Notification/);
+});
+
 test('personal hologram removes the local-display banner', () => {
   assert.doesNotMatch(renderer, /Personal · local display/);
   assert.match(css, /data-persona-view=personal.*persona-badge/);
