@@ -54,6 +54,10 @@ const { createReferenceStudioStore } = require('./reference-studio-store');
 const { createMediaJobLedger } = require('./media-job-ledger');
 const { createJobOrchestrator } = require('./job-orchestrator');
 const { createProviderGateway } = require('./provider-gateway');
+const { createRuntimeResourceManager } = require('./runtime-resource-manager');
+const { createModelLifecycle } = require('./model-lifecycle');
+const { createDurableWorkflowStore } = require('./durable-workflow');
+const { sourceRecord, citationCard, detectConflicts, boundToolResult, projectBundle } = require('./retrieval-provenance');
 const { createWorkflowRegistry, evaluateWorkflowReadiness } = require('./workflow-registry');
 const { validateImageOutputs } = require('./image-output-validator');
 const { normalizeSpeechContract, createAudioJobStore } = require('./audio-production');
@@ -84,6 +88,9 @@ const monitors = createMonitorStore(path.join(app.getPath('userData'), 'runtime-
 const agentTasks = createAgentTaskLedger(path.join(app.getPath('userData'), 'agent-tasks.json'));
 const jobs = createJobOrchestrator(path.join(app.getPath('userData'), 'jobs.json'));
 const providerGateway = createProviderGateway();
+const resourceManager=createRuntimeResourceManager(path.join(app.getPath('userData'),'runtime-resources.json'));
+const modelLifecycle=createModelLifecycle(path.join(app.getPath('userData'),'model-lifecycle.json'));
+const workflowRuns=createDurableWorkflowStore(path.join(app.getPath('userData'),'workflow-runs.json'));
 function encodePrivateState(value){if(!safeStorage.isEncryptionAvailable())return JSON.stringify(value,null,2);return JSON.stringify({version:1,encrypted:true,data:safeStorage.encryptString(JSON.stringify(value)).toString('base64')})}
 function decodePrivateState(value){const parsed=JSON.parse(String(value));if(!parsed?.encrypted)return parsed;return JSON.parse(safeStorage.decryptString(Buffer.from(parsed.data,'base64')))}
 const contextMemory = createContextMemoryStore(path.join(app.getPath('userData'), 'context-memory.json'),{encode:encodePrivateState,decode:decodePrivateState});
@@ -1694,6 +1701,21 @@ secureHandle('provider-route-explain', (_event, payload) => {
   if (decision.selected) jobs.setRoute(submitted.job.request.requestId, { ...decision.selected, reason: decision.reason, candidates: decision.candidates });
   return { job: jobs.get(submitted.job.request.requestId), decision };
 });
+secureHandle('resource-status',()=>({state:resourceManager.snapshot(),profiles:resourceManager.profiles()}));
+secureHandle('resource-profile',(_event,payload)=>resourceManager.setProfile(String(payload?.profile||'')));
+secureHandle('resource-rollback',()=>resourceManager.rollback());
+secureHandle('model-lifecycle-list',()=>modelLifecycle.list());
+secureHandle('model-lifecycle-card',(_event,payload)=>modelLifecycle.card(payload));
+secureHandle('model-acquisition-enqueue',(_event,payload)=>modelLifecycle.enqueue(payload));
+secureHandle('workflow-template-list',()=>workflowRuns.templates());
+secureHandle('workflow-run-list',()=>({runs:workflowRuns.list()}));
+secureHandle('workflow-run-create',(_event,payload)=>workflowRuns.create(payload));
+secureHandle('workflow-run-action',(_event,payload)=>workflowRuns.action(payload?.id,payload?.action,payload?.value));
+secureHandle('retrieval-source-record',(_event,payload)=>sourceRecord(payload));
+secureHandle('retrieval-citation-card',(_event,payload)=>citationCard(payload?.source||{},payload?.locator||{}));
+secureHandle('retrieval-conflicts',(_event,payload)=>({conflicts:detectConflicts(payload?.memory,payload?.attachments)}));
+secureHandle('tool-result-bound',(_event,payload)=>boundToolResult(payload?.value,payload?.maxChars));
+secureHandle('project-bundle-build',(_event,payload)=>projectBundle(payload));
 secureHandle('context-memory-get', (_event, payload) => contextMemory.get(String(payload?.project || 'default')));
 secureHandle('context-memory-save-project', (_event, payload) => contextMemory.setProject(String(payload?.project || 'default'), payload?.value, payload?.approved === true));
 secureHandle('context-memory-save-preferences', (_event, payload) => contextMemory.setPreferences(payload?.values, payload?.approved === true));
