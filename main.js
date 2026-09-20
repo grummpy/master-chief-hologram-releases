@@ -48,6 +48,7 @@ const { createProjectStore } = require('./project-store');
 const { discoverPlugins } = require('./plugin-catalog');
 const { createSchedulerStore } = require('./scheduler-store');
 const { createMonitorStore } = require('./monitor-store');
+const { createWindowsWorkerControl } = require('./windows-worker-control');
 const localAiManifest = loadLocalAiManifest(path.join(__dirname, 'local-ai-manifest.json'));
 
 let mainWindow;
@@ -149,7 +150,9 @@ async function saveConnectorSetup(payload = {}) {
     const candidate = createComfyUiClient({ baseUrl: value, artifactDir: generatedArtifactDir, fetchImpl: privateHttpFetch });
     const health = await candidate.health();
     if (health.state !== 'ready') throw new Error(health.label || 'ComfyUI worker did not pass its health check.');
-    connectorSettings.comfyuiBaseUrl = value; saveConnectorSettings(); comfyBaseUrl = value; comfyClient = candidate;
+    connectorSettings.comfyuiBaseUrl = value;
+    connectorSettings.comfyuiEndpointHistory = [...new Set([...(Array.isArray(connectorSettings.comfyuiEndpointHistory) ? connectorSettings.comfyuiEndpointHistory : []), value])].slice(-5);
+    saveConnectorSettings(); comfyBaseUrl = value; comfyClient = candidate;
     return connectorSetupStatus()[id];
   }
   if (item.modelKey) { connectorSettings[item.modelKey] = String(payload.value || item.defaultModel || '').trim(); saveConnectorSettings(); }
@@ -269,6 +272,16 @@ function privateHttpFetch(url, options = {}) {
 }
 let comfyClient = null;
 try { if (comfyBaseUrl) comfyClient = createComfyUiClient({ baseUrl: comfyBaseUrl, artifactDir: generatedArtifactDir, fetchImpl: privateHttpFetch }); } catch { comfyClient = null; }
+function windowsWorkerControl() {
+  if (!comfyClient) throw new Error('ComfyUI worker is not configured.');
+  return createWindowsWorkerControl({ baseUrl: comfyBaseUrl, homeDir: app.getPath('home'), execFile: execFileAsync, user: String(connectorSettings.comfyuiSshUser || 'decke') });
+}
+function recordWorkerOperation(action, outcome, detail = '') {
+  const target = path.join(app.getPath('userData'), 'worker-operations.jsonl');
+  const event = JSON.stringify({ at: new Date().toISOString(), action, outcome, endpoint: comfyBaseUrl, detail: String(detail).slice(0, 160) });
+  fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
+  fs.appendFileSync(target, `${event}\n`, { mode: 0o600 });
+}
 function approvalFile() { return path.join(app.getPath('userData'), 'tool-approvals.json'); }
 function loadToolApprovals() { if (toolApprovals) return toolApprovals; try { toolApprovals = normalizeApprovals(JSON.parse(fs.readFileSync(approvalFile(), 'utf8'))); } catch { toolApprovals = normalizeApprovals({}); } return toolApprovals; }
 function saveToolApprovals() { fs.mkdirSync(path.dirname(approvalFile()), { recursive: true }); fs.writeFileSync(approvalFile(), JSON.stringify(loadToolApprovals(), null, 2), { mode: 0o600 }); }
@@ -683,7 +696,31 @@ async function connectorStatus() {
 
 async function comfyRuntimeStatus() {
   if (!comfyClient) throw new Error('ComfyUI worker is not configured.');
-  return { endpoint: comfyBaseUrl, ...(await comfyClient.runtimeStatus()), checkedAt: new Date().toISOString() };
+  let remote = { state: 'unavailable', label: 'SSH evidence unavailable' };
+  try { const evidence = await windowsWorkerControl().status(); remote = { state: 'ready', label: 'SSH control channel ready', host: evidence.host, user: evidence.user, service: evidence.status }; }
+  catch (error) { remote = { state: 'error', label: String(error.message || 'SSH status failed').slice(0, 240) }; }
+  return { endpoint: comfyBaseUrl, endpointHistory: Array.isArray(connectorSettings.comfyuiEndpointHistory) ? connectorSettings.comfyuiEndpointHistory.slice(-5) : [comfyBaseUrl], remote, ...(await comfyClient.runtimeStatus()), checkedAt: new Date().toISOString() };
+}
+
+async function controlComfyRuntime(action) {
+  const allowed = new Set(['restart', 'gaming-stop', 'gaming-resume']);
+  if (!allowed.has(action)) throw new Error('Unsupported Runtime Center action.');
+  const before = action === 'gaming-resume' ? { queue: { running: 0, pending: 0 }, devices: [] } : await comfyClient.runtimeStatus();
+  if (before.queue.running || before.queue.pending) throw new Error('Worker control refused because the ComfyUI queue is not empty. Cancel or finish jobs first.');
+  const control = windowsWorkerControl();
+  const startedAt = new Date().toISOString();
+  try {
+    const result = action === 'restart' ? await control.restart() : action === 'gaming-stop' ? await control.stop() : await control.start();
+    const stopped = !result.status.apiHealthy && result.status.processIds.length === 0;
+    const after = action === 'gaming-stop'
+      ? { state: stopped ? 'stopped' : 'unverified', label: stopped ? 'Worker process stopped; its GPU allocation ended with process exit.' : 'Stop command completed without conclusive process evidence.' }
+      : { state: result.status.apiHealthy ? 'ready' : 'unverified', label: 'Worker command completed.' };
+    recordWorkerOperation(action, after.state, after.label);
+    return { action, startedAt, completedAt: new Date().toISOString(), before: { queue: before.queue, devices: before.devices }, after, remote: { host: result.host, user: result.user } };
+  } catch (error) {
+    recordWorkerOperation(action, 'error', error.message);
+    throw error;
+  }
 }
 
 async function executeAgentTool(id, input, context = {}) {
@@ -1237,6 +1274,7 @@ secureHandle('ingest-attachment', (_event, payload) => ingestAttachment(payload)
 secureHandle('connector-status', connectorStatus);
 secureHandle('comfyui-runtime-status', comfyRuntimeStatus);
 secureHandle('comfyui-runtime-open', async () => { if (!comfyClient) throw new Error('ComfyUI worker is not configured.'); await shell.openExternal(comfyBaseUrl); return true; });
+secureHandle('comfyui-runtime-control', (_event, payload = {}) => controlComfyRuntime(String(payload.action || '')));
 secureHandle('connector-setup-status', () => connectorSetupStatus());
 secureHandle('connector-setup-save', (_event, payload) => saveConnectorSetup(payload));
 secureHandle('connector-setup-help', async (_event, payload) => {

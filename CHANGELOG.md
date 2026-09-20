@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.20.0
+
+- Added fixed-command SSH controls for restarting, stopping, and resuming the private Windows ComfyUI worker.
+- Added explicit operator confirmations, queue-empty interlocks, disabled controls while actions run, and bounded operation audit events.
+- Added a gaming handoff that verifies the worker process exited before reporting its GPU allocation released.
+- Added SSH channel identity, scheduled-task evidence, and a bounded five-entry endpoint history to Runtime Center.
+- Reduced Windows status output to structured operational evidence before it crosses into the renderer.
+
 ## 1.19.0
 
 - Added a read-only Runtime Center for the private Windows ComfyUI worker.
