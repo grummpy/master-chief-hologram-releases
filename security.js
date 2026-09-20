@@ -1,5 +1,5 @@
 const PROVIDERS = ['codex', 'openai', 'grok', 'ollama', 'huggingface', 'gemini'];
-const MAX_MESSAGES = 24;
+const MAX_MESSAGES = 160;
 const MAX_MESSAGE_CHARS = 12000;
 function validSecret(value, pattern = /[^\s]{8,}/) { return typeof value === 'string' && pattern.test(value.trim()); }
 function safeProviderError(message) { return String(message || 'Provider request failed.').replace(/(?:sk|xai|hf|ghp|github_pat)[-_][A-Za-z0-9._-]+/gi, '[redacted credential]').replace(/Bearer\s+[^\s]+/gi, 'Bearer [redacted credential]'); }

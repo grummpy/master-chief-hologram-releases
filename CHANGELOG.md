@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.37.0
+
+- Added an atomic, searchable conversation store with rename, pin, archive, branching, recoverable deletion, and automatic save after successful chat turns.
+- Added Agent Center with durable task timelines and explicit pause, cancel, and resume-into-composer controls.
+- Added a provider-neutral response/capability/error contract across local and explicitly selected cloud routes.
+- Added structured credential-redacted diagnostics with rotation and operator-selected JSON export.
+- Added scoped attachment retrieval with source/chunk citations while retaining temporary-index cleanup.
+- Added local text-size, high-contrast, and reduced-motion controls without changing prompts, provider behavior, or content policy.
+- Raised validated conversation input capacity so the P0 context assembler can use its full token-budget window.
+
 ## 1.36.0
 
 - Added token-budget context assembly using relevance, recency, authority, unresolved-work scoring, deterministic compaction, and a visible Context Inspector.

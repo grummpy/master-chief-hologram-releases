@@ -45,19 +45,20 @@ function createRagIndex(filePath, { vectorizer = vectorize } = {}) {
   for (const chunk of state.chunks) if (!chunk.vector) { chunk.vector = vectorizer(chunk.content); migrated = true; }
   state.schemaVersion = SCHEMA_VERSION;
   if (migrated) save();
-  function indexDocument(name, text) {
+  function indexDocument(name, text, options = {}) {
     const clean = String(text || '').slice(0, 200000); if (!clean.trim()) throw new Error('Document is empty.');
     const safeName = String(name || 'untitled').slice(0, 200); const id = crypto.createHash('sha256').update(`${safeName}\0${clean}`).digest('hex');
     state.documents = state.documents.filter(document => document.id !== id && document.name !== safeName); state.chunks = state.chunks.filter(chunk => chunk.documentId !== id && chunk.name !== safeName);
-    state.documents.push({ id, name: safeName, bytes: Buffer.byteLength(clean), indexedAt: new Date().toISOString() });
-    for (let start = 0, number = 0; start < clean.length; start += CHUNK_SIZE - OVERLAP, number++) { const content = clean.slice(start, start + CHUNK_SIZE); state.chunks.push({ id: `${id}:${number}`, documentId: id, name: safeName, content, vector: vectorizer(content) }); if (start + CHUNK_SIZE >= clean.length) break; }
+    const collection = String(options.collection || 'temporary').slice(0,100), scope = String(options.scope || 'chat').slice(0,100);
+    state.documents.push({ id, name: safeName, bytes: Buffer.byteLength(clean), collection, scope, indexedAt: new Date().toISOString() });
+    for (let start = 0, number = 0; start < clean.length; start += CHUNK_SIZE - OVERLAP, number++) { const content = clean.slice(start, start + CHUNK_SIZE); state.chunks.push({ id: `${id}:${number}`, documentId: id, name: safeName, collection, scope, chunk: number, content, vector: vectorizer(content) }); if (start + CHUNK_SIZE >= clean.length) break; }
     save(); return { id, chunks: state.chunks.filter(chunk => chunk.documentId === id).length };
   }
   function search(query, options = {}) {
     const queryTerms = [...new Set(tokens(query))], queryVector = vectorizer(query), limit = Math.min(Math.max(Number(options.limit) || MAX_RESULTS, 1), MAX_RESULTS);
-    return state.chunks.map(chunk => { const content = chunk.content.toLowerCase(); const lexicalScore = queryTerms.reduce((score, term) => score + (content.split(term).length - 1), 0); const semanticScore = cosine(queryVector, chunk.vector); return { ...chunk, score: lexicalScore ? lexicalScore + semanticScore : semanticScore, lexicalScore, semanticScore }; })
+    return state.chunks.filter(chunk => !options.collection || chunk.collection === options.collection).filter(chunk => !options.scope || chunk.scope === options.scope).map(chunk => { const content = chunk.content.toLowerCase(); const lexicalScore = queryTerms.reduce((score, term) => score + (content.split(term).length - 1), 0); const semanticScore = cosine(queryVector, chunk.vector); return { ...chunk, score: lexicalScore ? lexicalScore + semanticScore : semanticScore, lexicalScore, semanticScore }; })
       .filter(chunk => chunk.score > 0).sort((left, right) => right.score - left.score || right.semanticScore - left.semanticScore).slice(0, limit)
-      .map(({ id, name, content, score, lexicalScore, semanticScore }) => ({ id, name, content, score: Number(score.toFixed(4)), lexicalScore, semanticScore: Number(semanticScore.toFixed(4)) }));
+      .map(({ id, name, collection, scope, chunk, content, score, lexicalScore, semanticScore }) => ({ id, name, collection: collection || 'temporary', scope: scope || 'chat', chunk: Number.isInteger(chunk) ? chunk : Number(String(id).split(':').pop()) || 0, citation: `${name}#chunk-${Number.isInteger(chunk) ? chunk : Number(String(id).split(':').pop()) || 0}`, content, score: Number(score.toFixed(4)), lexicalScore, semanticScore: Number(semanticScore.toFixed(4)) }));
   }
   function removeDocument(name) {
     const safeName = String(name || '').slice(0, 200);
@@ -74,6 +75,6 @@ function createRagIndex(filePath, { vectorizer = vectorize } = {}) {
     return removed;
   }
   function context(query) { let used = 0; return search(query).map(result => `--- ${result.name} ---\n${result.content}`).filter(part => { if (used + part.length > MAX_CONTEXT_CHARS) return false; used += part.length; return true; }).join('\n\n'); }
-  return { indexDocument, removeDocument, clear, search, context, stats: () => ({ schemaVersion: state.schemaVersion, documents: state.documents.length, chunks: state.chunks.length, retrieval: 'local-feature-vector+lexical' }) };
+  return { indexDocument, removeDocument, clear, search, context, stats: () => ({ schemaVersion: state.schemaVersion, documents: state.documents.length, chunks: state.chunks.length, collections: [...new Set(state.documents.map(item => item.collection || 'temporary'))].sort(), retrieval: 'local-feature-vector+lexical' }) };
 }
 module.exports = { createRagIndex, vectorize, cosine, SCHEMA_VERSION };

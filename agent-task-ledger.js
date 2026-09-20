@@ -37,7 +37,15 @@ function createAgentTaskLedger(file) {
     setPlan(id, plan) { const task = state.tasks.find(item => item.id === id); if (!task) throw new Error('Unknown agent task.'); task.plan = plan; task.status = 'planning'; task.updatedAt = now(); save(); return task; },
     get(id) { return state.tasks.find(item => item.id === id) || null; },
     list(limit = 50) { return state.tasks.slice(0, Math.max(1, Math.min(200, Number(limit) || 50))); },
-    resume(id) { const task = state.tasks.find(item => item.id === id); if (!task) throw new Error('Unknown agent task.'); if (!['recoverable', 'failed', 'paused'].includes(task.status)) return task; task.status = 'understanding'; task.updatedAt = now(); task.history.push({ at: task.updatedAt, stage: 'resume', status: 'understanding' }); save(); return task; }
+    action(id, action) {
+      const task = state.tasks.find(item => item.id === id); if (!task) throw new Error('Unknown agent task.');
+      if (action === 'resume') { if (!['recoverable', 'failed', 'paused', 'cancelled'].includes(task.status)) return task; task.status = 'understanding'; task.stage = 'resume'; }
+      else if (action === 'pause') { if (['complete', 'failed', 'cancelled'].includes(task.status)) return task; task.status = 'paused'; task.stage = 'paused'; }
+      else if (action === 'cancel') { if (task.status === 'complete') return task; task.status = 'cancelled'; task.stage = 'cancelled'; }
+      else throw new Error('Unknown agent task action.');
+      task.updatedAt = now(); task.history.push({ at: task.updatedAt, stage: task.stage, status: task.status }); save(); return task;
+    },
+    resume(id) { return this.action(id, 'resume'); }
   };
 }
 

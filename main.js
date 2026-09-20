@@ -30,6 +30,9 @@ const { createAgentTaskLedger } = require('./agent-task-ledger');
 const { evaluateCompletion } = require('./verification-engine');
 const { routeLocalModel } = require('./local-model-router');
 const { createContextMemoryStore } = require('./context-memory-store');
+const { createConversationStore } = require('./conversation-store');
+const { normalizeProviderResult, normalizeProviderFailure, providerCapabilities } = require('./provider-contract');
+const { createDiagnosticsStore } = require('./diagnostics-store');
 const { createRagIndex } = require('./rag-index');
 const { safeArtifactPath } = require('./artifact-links');
 const { MICROPHONE_SETTINGS_URL, isGranted, recoveryMessage } = require('./microphone-access');
@@ -71,6 +74,8 @@ const scheduler = createSchedulerStore(path.join(app.getPath('userData'), 'sched
 const monitors = createMonitorStore(path.join(app.getPath('userData'), 'runtime-monitors.json'));
 const agentTasks = createAgentTaskLedger(path.join(app.getPath('userData'), 'agent-tasks.json'));
 const contextMemory = createContextMemoryStore(path.join(app.getPath('userData'), 'context-memory.json'));
+const conversations = createConversationStore(path.join(app.getPath('userData'), 'conversations.json'));
+const diagnostics = createDiagnosticsStore(path.join(app.getPath('userData'), 'diagnostics.jsonl'));
 let schedulerTimer;
 function runSchedulerTick() {
   for (const job of scheduler.tick()) {
@@ -1334,9 +1339,9 @@ async function runOllamaAgent(payload = {}) {
   const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, ''); const settings = normalizeOllamaOptions({ ...(payload.ollama || {}), mode: 'agent', stream: false });
   const selectedTools = selectAgentTools(objective);
   const messages = [{ role: 'system', content: ollamaSystemPrompt({ masterMode: true, mode: 'agent', depth: 'agent', detail: payload.detail || 'normal' }) }, { role: 'user', content: objective }]; const trace = [];
-  agentTasks.event(task.id, 'plan', { status: 'planning', tools: selectedTools.map(item => item.id) });
+  agentTasks.event(task.id, 'plan', { status: 'planning', tools: selectedTools.map(item => item.id) }); emitChatEvent('agent-stage', { taskId: task.id, stage: 'plan', status: 'planning' });
   for (let turn = 0; turn < 24; turn++) {
-    agentTasks.event(task.id, 'execute', { status: 'executing', turn: turn + 1 });
+    agentTasks.event(task.id, 'execute', { status: 'executing', turn: turn + 1 }); emitChatEvent('agent-stage', { taskId: task.id, stage: 'execute', status: 'executing', turn: turn + 1 });
     const response = await fetch(`${base}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: selected.name, messages, tools: agentToolSchemas(selectedTools), think: settings.think, stream: false, options: settings.options, keep_alive: settings.keep_alive }) });
     const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error || `Ollama agent error ${response.status}`);
     const message = body.message || {}; messages.push(message);
@@ -1344,13 +1349,13 @@ async function runOllamaAgent(payload = {}) {
     if (!calls.length) {
       const reply = message.content || 'The local agent completed without a text response.';
       const verification = evaluateCompletion({ objective, acceptance: payload.acceptance || [], output: reply, steps: trace.map(item => ({ status: 'complete', ...item })) });
-      agentTasks.event(task.id, 'verify', { status: verification.pass ? 'complete' : 'failed', verification, error: verification.pass ? undefined : 'Completion gate failed.' });
+      agentTasks.event(task.id, 'verify', { status: verification.pass ? 'complete' : 'failed', verification, error: verification.pass ? undefined : 'Completion gate failed.' }); emitChatEvent('agent-stage', { taskId: task.id, stage: 'verify', status: verification.pass ? 'complete' : 'failed', score: verification.score });
       return { reply, model: selected.name, route: routed, taskId: task.id, trace, verification, metrics: ollamaMetrics(body) };
     }
     for (const call of calls) {
       const alias = call.function?.name; const id = resolveAgentTool(alias); if (!id) throw new Error(`Ollama requested an unavailable tool: ${alias || 'unknown'}.`);
       const result = await executeAgentTool(id, call.function?.arguments || {}, { model: selected.name, idempotencyKey: `${task.id}:${turn + 1}:${id}` }); trace.push({ turn: turn + 1, tool: id, summary: result.summary });
-      agentTasks.event(task.id, 'observe', { status: 'executing', tool: id, summary: result.summary });
+      agentTasks.event(task.id, 'observe', { status: 'executing', tool: id, summary: result.summary }); emitChatEvent('agent-stage', { taskId: task.id, stage: 'observe', status: 'executing', tool: id, summary: result.summary });
       messages.push({ role: 'tool', tool_name: alias, content: JSON.stringify(result.result) });
     }
   }
@@ -1402,10 +1407,14 @@ async function routeChat(payload) {
     else if (payload.provider === 'huggingface') result = await callHuggingFace(payload);
     if (!result) throw new Error('Unknown provider selected.');
     if (payload.provider === 'ollama') localAiAudit.record({ model: payload.model || process.env.OLLAMA_MODEL || 'default', outcome: 'success', latencyMs: Date.now() - startedAt });
-    return { ...result, contextReport: context.report };
+    const normalized = normalizeProviderResult(payload.provider, { ...result, contextReport: context.report }, startedAt);
+    diagnostics.record({ area: 'provider', event: payload.provider, outcome: 'success', durationMs: normalized.durationMs, detail: normalized.label || payload.provider });
+    return normalized;
   } catch (error) {
     if (payload.provider === 'ollama') localAiAudit.record({ model: payload.model || process.env.OLLAMA_MODEL || 'default', outcome: 'error', latencyMs: Date.now() - startedAt, errorCode: error.name || 'request_failed' });
-    throw new Error(safeProviderError(error.message));
+    const failure = normalizeProviderFailure(payload.provider, error);
+    diagnostics.record({ area: 'provider', event: payload.provider, outcome: failure.kind, durationMs: Date.now() - startedAt, detail: failure.message });
+    throw new Error(failure.message);
   }
 }
 
@@ -1500,10 +1509,25 @@ secureHandle('ollama-agent', (_event, payload) => runOllamaAgent(payload));
 secureHandle('agent-task-list', (_event, payload) => ({ tasks: agentTasks.list(payload?.limit) }));
 secureHandle('agent-task-get', (_event, payload) => agentTasks.get(String(payload?.id || '')));
 secureHandle('agent-task-resume', (_event, payload) => agentTasks.resume(String(payload?.id || '')));
+secureHandle('agent-task-action', (_event, payload) => agentTasks.action(String(payload?.id || ''), String(payload?.action || '')));
 secureHandle('context-memory-get', (_event, payload) => contextMemory.get(String(payload?.project || 'default')));
 secureHandle('context-memory-save-project', (_event, payload) => contextMemory.setProject(String(payload?.project || 'default'), payload?.value, payload?.approved === true));
 secureHandle('context-memory-save-preferences', (_event, payload) => contextMemory.setPreferences(payload?.values, payload?.approved === true));
 secureHandle('context-memory-clear', (_event, payload) => contextMemory.clear(String(payload?.project || 'default'), payload?.includePreferences === true));
+secureHandle('conversation-upsert', (_event, payload) => conversations.upsert(payload));
+secureHandle('conversation-list', (_event, payload) => ({ conversations: conversations.list(payload || {}) }));
+secureHandle('conversation-get', (_event, payload) => conversations.get(String(payload?.id || '')));
+secureHandle('conversation-action', (_event, payload) => conversations.action(String(payload?.id || ''), String(payload?.action || ''), payload?.value));
+secureHandle('conversation-branch', (_event, payload) => conversations.branch(String(payload?.id || ''), payload?.messageIndex));
+secureHandle('conversation-delete', (_event, payload) => conversations.remove(String(payload?.id || '')));
+secureHandle('conversation-restore', (_event, payload) => conversations.restore(String(payload?.id || '')));
+secureHandle('provider-capabilities', (_event, payload) => providerCapabilities(String(payload?.provider || '')));
+secureHandle('diagnostics-list', (_event, payload) => ({ events: diagnostics.list(payload?.limit) }));
+secureHandle('diagnostics-export', async () => {
+  const selected = await dialog.showSaveDialog(mainWindow, { title: 'Export redacted diagnostics', defaultPath: path.join(app.getPath('downloads'), `master-chief-diagnostics-${new Date().toISOString().slice(0,10)}.json`), filters: [{ name: 'JSON', extensions: ['json'] }] });
+  if (selected.canceled || !selected.filePath) return { saved: false };
+  diagnostics.exportBundle(selected.filePath, { appVersion: APP_VERSION, platform: process.platform, arch: process.arch }); return { saved: true, path: selected.filePath };
+});
 secureHandle('ollama-evaluate', (_event, payload) => runOllamaEvaluation({ model: String(payload?.model || ''), outputFile: ollamaEvaluationFile(), onProgress: progress => emitChatEvent('evaluation-progress', progress) }));
 secureHandle('ollama-evaluation-status', () => { try { return JSON.parse(fs.readFileSync(ollamaEvaluationFile(), 'utf8')); } catch { return null; } });
 secureHandle('create-document', (_event, payload) => createDocument(payload));
@@ -1704,13 +1728,14 @@ secureHandle('transcribe-audio', async (_event, payload) => {
     throw error;
   }
 });
-secureHandle('index-document', (_event, payload) => { requireToolApproval('files.attach_local_text'); return ragIndex.indexDocument(payload?.name, payload?.text); });
+secureHandle('index-document', (_event, payload) => { requireToolApproval('files.attach_local_text'); return ragIndex.indexDocument(payload?.name, payload?.text, payload); });
 secureHandle('remove-indexed-document', (_event, payload) => { requireToolApproval('files.attach_local_text'); return ragIndex.removeDocument(payload?.name); });
 secureHandle('search-index', (_event, payload) => { requireToolApproval('files.attach_local_text'); return ragIndex.search(payload?.query, payload); });
 secureHandle('index-stats', () => ragIndex.stats());
 secureHandle('clear-private-history', async (_event, payload) => {
   const includeMedia = Boolean(payload?.includeMedia);
   const removedIndex = ragIndex.clear();
+  const removedConversations = conversations.clear();
   let media = { files: 0, jobs: 0, referenceProjects: 0 };
   if (includeMedia) {
     for (const active of activeMediaJobs.values()) { active.controller.abort(new Error('Cleared by operator.')); if (active.promptId && comfyClient) await comfyClient.cancel(active.promptId).catch(() => {}); }
@@ -1728,7 +1753,7 @@ secureHandle('clear-private-history', async (_event, payload) => {
   const privacy = recordPrivacyClear(includeMedia);
   await mainWindow.webContents.session.clearCache();
   await mainWindow.webContents.session.clearStorageData({ storages: ['localstorage', 'indexdb', 'serviceworkers', 'cachestorage'] });
-  return { cleared: true, removedIndex, media, privacy, generatedMediaPreserved: !includeMedia };
+  return { cleared: true, removedIndex, removedConversations, media, privacy, generatedMediaPreserved: !includeMedia };
 });
 secureHandle('open-artifact', async (_event, relativePath) => {
   const artifactPath = resolveArtifactPath(relativePath);
