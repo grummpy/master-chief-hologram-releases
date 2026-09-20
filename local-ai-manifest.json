@@ -17,6 +17,16 @@
   ],
   "models": [
     {
+      "id": "qwen3:8b",
+      "runtime": "ollama",
+      "tier": "agent-local",
+      "eligibleTasks": ["tool calling", "multi-step local work", "structured artifacts", "coding", "analysis"],
+      "enabled": true,
+      "distribution": "not bundled",
+      "licenseReview": "required before redistribution",
+      "provenance": "Official Ollama library model; installed locally by the owner"
+    },
+    {
       "id": "qwen2.5:0.5b",
       "runtime": "ollama",
       "tier": "micro-local",

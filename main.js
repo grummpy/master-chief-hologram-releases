@@ -24,7 +24,7 @@ const { validateChatPayload, validateMessages, safeProviderError, validSecret } 
 const { createCredentialStore } = require('./credential-store');
 const { getToolRegistry, normalizeApprovals, setToolApproval, isToolApproved } = require('./tool-registry');
 const { createLocalToolExecutor } = require('./local-tool-executor');
-const { normalizeOllamaOptions, ollamaSystemPrompt, modelCard, agentToolSchemas, resolveAgentTool } = require('./ollama-runtime');
+const { normalizeOllamaOptions, ollamaSystemPrompt, modelCard, selectToolModel, agentToolSchemas, resolveAgentTool } = require('./ollama-runtime');
 const { createRagIndex } = require('./rag-index');
 const { safeArtifactPath } = require('./artifact-links');
 const { MICROPHONE_SETTINGS_URL, isGranted, recoveryMessage } = require('./microphone-access');
@@ -43,6 +43,7 @@ const { requestedPages, createDocxArtifact } = require('./document-generator');
 const { ingestAttachment } = require('./file-ingestion');
 const { createSpreadsheet, createPresentation, createCodeArtifact } = require('./productivity-artifacts');
 const { runOllamaEvaluation } = require('./ollama-evaluator');
+const { publicResearchUrls, normalizePublicResearch } = require('./public-research');
 const localAiManifest = loadLocalAiManifest(path.join(__dirname, 'local-ai-manifest.json'));
 
 let mainWindow;
@@ -300,6 +301,7 @@ async function providerStatus() {
     ,huggingface: { state: 'missing', label: 'Hugging Face endpoint not configured' }
     ,voice: { state: 'cloud', label: 'Voice · cloud transcription' }
     ,audio: { state: 'missing', label: 'Audio · checking local production' }
+    ,elevenlabs: { state: 'missing', label: 'ElevenLabs · not configured' }
     ,localAi: { state: 'missing', label: 'Local AI manifest has no installed primary model' }
     ,comfyui: { state: comfyBaseUrl ? 'error' : 'missing', label: comfyBaseUrl ? 'ComfyUI · invalid configuration' : 'ComfyUI · worker not configured', detail: comfyBaseUrl ? 'COMFYUI_BASE_URL must be a private LAN URL.' : 'Add COMFYUI_BASE_URL after the Windows GPU inventory is complete.' }
   };
@@ -377,7 +379,7 @@ async function providerStatus() {
   else if (!voice.modelExists) status.voice = { state: 'missing', label: 'Voice · whisper model not found', detail: `Model path: ${voice.model}` };
   else if (!voice.ffmpeg) status.voice = { state: 'missing', label: 'Voice · install ffmpeg', detail: 'ffmpeg is required for browser audio conversion.' };
   else status.voice = { state: 'error', label: 'Voice · local ASR unavailable', detail: 'Use cloud transcription or complete local setup.' }; })());
-  checks.push((async () => { const audio = await audioHealth(); const eleven = audio.speech.elevenlabs.configured ? 'ElevenLabs configured' : 'ElevenLabs optional'; status.audio = { state: audio.speech.local.ready ? 'ready' : 'missing', label: audio.speech.local.ready ? 'Audio · local TTS ready' : 'Audio · local TTS unavailable', detail: `Narration/dialogue: ${audio.speech.local.provider}; ${eleven}; reversible jobs: narration, dialogue, effects, mux; archive: ${audio.archive}` }; })());
+  checks.push((async () => { const audio = await audioHealth(); const eleven = audio.speech.elevenlabs.configured ? 'ElevenLabs configured' : 'ElevenLabs optional'; status.audio = { state: audio.speech.local.ready ? 'ready' : 'missing', label: audio.speech.local.ready ? 'Audio · local TTS ready' : 'Audio · local TTS unavailable', detail: `Narration/dialogue: ${audio.speech.local.provider}; ${eleven}; reversible jobs: narration, dialogue, effects, mux; archive: ${audio.archive}` }; status.elevenlabs = audio.speech.elevenlabs.configured ? { state: 'ready', label: 'ElevenLabs · configured' } : { state: 'missing', label: 'ElevenLabs · optional, not configured' }; })());
   if (comfyClient) checks.push((async () => { status.comfyui = await comfyClient.health(); })());
 
   await Promise.allSettled(checks);
@@ -556,7 +558,7 @@ async function connectorStatus() {
   const states = {
     'ollama.local': providers.ollama, 'codex.desktop': providers.codex, 'huggingface.inference': providers.huggingface,
     'openai.responses': providers.openai, 'xai.grok': providers.grok, 'github.account': providers.github,
-    'comfyui.local': comfy, 'elevenlabs.tts': providers.audio
+    'comfyui.local': comfy, 'elevenlabs.tts': providers.elevenlabs
   };
   return { connectors: withConnectorState(states), comfyui: comfy };
 }
@@ -575,6 +577,13 @@ async function executeAgentTool(id, input, context = {}) {
     requireToolApproval(id); const kind = String(input?.kind || ''); const request = String(input?.request || '');
     const result = kind === 'document' ? await createDocument({ request, provider: 'ollama', model: context.model, masterMode: true }) : await createProductivityArtifact({ kind, request, model: context.model });
     return { tool: id, result, summary: `Created ${kind} artifact ${result.filename}.` };
+  }
+  if (id === 'research.public_web') {
+    requireToolApproval(id); const urls = publicResearchUrls(input?.query);
+    const [duck, wiki] = await Promise.all([checkJson(urls.duckduckgo), checkJson(urls.wikipedia)]);
+    if ((duck.error || !duck.response?.ok) && (wiki.error || !wiki.response?.ok)) throw new Error('The free public research endpoints are unavailable.');
+    const result = normalizePublicResearch(input?.query, duck.body, wiki.body);
+    return { tool: id, result, summary: `Found ${result.sources.length} public source links without a paid AI provider.` };
   }
   if (id === 'media.generate_local') return generateLocalMedia(input);
   throw new Error('Agent tool is not allowlisted.');
@@ -933,7 +942,7 @@ async function runOllamaAgent(payload = {}) {
   requireToolApproval('agents.run_bounded_plan');
   const objective = String(payload.objective || '').trim(); if (!objective || objective.length > 12000) throw new Error('Agent objective is empty or too long.');
   const runtime = await ollamaRuntime(); const requested = String(payload.model || '');
-  const selected = runtime.models.find(item => item.name === requested && item.capabilities.includes('tools')) || runtime.models.find(item => item.capabilities.includes('tools'));
+  const selected = selectToolModel(runtime.models, requested);
   if (!selected) throw new Error('No installed Ollama model advertises tool-calling capability.');
   const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, ''); const settings = normalizeOllamaOptions({ ...(payload.ollama || {}), mode: 'agent', stream: false });
   const messages = [{ role: 'system', content: ollamaSystemPrompt({ masterMode: true, mode: 'agent' }) }, { role: 'user', content: objective }]; const trace = [];
@@ -1185,7 +1194,7 @@ secureHandle('clear-creative-session', async () => {
 secureHandle('run-agent-plan', (_event, payload) => {
   requireToolApproval('agents.run_bounded_plan');
   return runAgentPlan(payload, {
-    knownTools: [...localTools.ids, 'knowledge.search_local', 'connectors.status', 'artifacts.create', 'media.generate_local'],
+    knownTools: [...localTools.ids, 'knowledge.search_local', 'connectors.status', 'artifacts.create', 'research.public_web', 'media.generate_local'],
     approved: id => isToolApproved(loadToolApprovals(), id),
     execute: executeAgentTool
   });

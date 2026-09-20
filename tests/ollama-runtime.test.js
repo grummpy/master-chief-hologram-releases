@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { normalizeOllamaOptions, ollamaSystemPrompt, modelCard, agentToolSchemas, resolveAgentTool } = require('../ollama-runtime');
+const { normalizeOllamaOptions, ollamaSystemPrompt, modelCard, selectToolModel, agentToolSchemas, resolveAgentTool } = require('../ollama-runtime');
 
 test('Ollama controls clamp operator values and preserve task mode', () => {
   const value = normalizeOllamaOptions({ mode: 'creative', temperature: 7, topP: -1, context: 999999, maxTokens: 4, seed: 42, think: 'high', format: 'json', keepAlive: '30m' });
@@ -37,7 +37,17 @@ test('agent exposes only explicitly mapped local tools', () => {
   assert.equal(resolveAgentTool('shell'), null);
   assert.deepEqual(agentToolSchemas().map(item => item.function.name), [
     'diagnostics_local_runtime', 'diagnostics_git_status', 'project_list_files', 'project_read_text_file', 'artifacts_list',
-    'knowledge_search_local', 'connectors_status', 'artifacts_create'
+    'knowledge_search_local', 'connectors_status', 'artifacts_create', 'research_public_web'
   ]);
   assert.equal(resolveAgentTool('research_web_codex'), null);
+});
+
+test('agent prefers the strongest installed tool model unless the operator selects one', () => {
+  const models = [
+    { name: 'tiny', size: 1, capabilities: ['tools'], details: { parameter_size: '0.5B' } },
+    { name: 'agent', size: 2, capabilities: ['tools'], details: { parameter_size: '8.0B' } },
+    { name: 'chat-only', size: 3, capabilities: ['completion'], details: { parameter_size: '14B' } }
+  ];
+  assert.equal(selectToolModel(models).name, 'agent');
+  assert.equal(selectToolModel(models, 'tiny').name, 'tiny');
 });

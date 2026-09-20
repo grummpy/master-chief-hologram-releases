@@ -57,6 +57,7 @@
       "file-ingestion.js",
       "productivity-artifacts.js",
       "ollama-evaluator.js",
+      "public-research.js",
       "microphone-access.js",
       "autocomplete.js",
       "local-routing.js",

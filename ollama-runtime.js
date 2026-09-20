@@ -48,6 +48,18 @@ function modelCard(model = {}, running = []) {
   return { name, size: Number(model.size || 0), digest: String(model.digest || ''), modifiedAt: model.modified_at || null, details: model.details || {}, capabilities: Array.isArray(model.capabilities) ? model.capabilities.map(String) : [], loaded: Boolean(loaded), sizeVram: Number(loaded?.size_vram || 0), contextLength: Number(loaded?.context_length || model.details?.context_length || 0), expiresAt: loaded?.expires_at || null };
 }
 
+function modelParameterBillions(model = {}) {
+  const match = String(model.details?.parameter_size || model.name || '').match(/([\d.]+)\s*[bB]/);
+  return match ? Number(match[1]) : 0;
+}
+
+function selectToolModel(models = [], requested = '') {
+  const toolModels = models.filter(item => Array.isArray(item.capabilities) && item.capabilities.includes('tools'));
+  const exact = toolModels.find(item => item.name === requested);
+  if (exact) return exact;
+  return [...toolModels].sort((left, right) => modelParameterBillions(right) - modelParameterBillions(left) || Number(right.size || 0) - Number(left.size || 0))[0] || null;
+}
+
 const AGENT_TOOLS = Object.freeze([
   Object.freeze({ alias: 'diagnostics_local_runtime', id: 'diagnostics.local_runtime', description: 'Inspect the local Master Chief application runtime and versions.' }),
   Object.freeze({ alias: 'diagnostics_git_status', id: 'diagnostics.git_status', description: 'Read the Git status of the Master Chief application repository.' }),
@@ -57,8 +69,9 @@ const AGENT_TOOLS = Object.freeze([
   ,Object.freeze({ alias: 'knowledge_search_local', id: 'knowledge.search_local', description: 'Search text extracted from files the operator attached to Master Chief.', properties: { query: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 5 } }, required: ['query'] })
   ,Object.freeze({ alias: 'connectors_status', id: 'connectors.status', description: 'Inspect the live setup and health state of registered connectors.' })
   ,Object.freeze({ alias: 'artifacts_create', id: 'artifacts.create', description: 'Create a finished downloadable artifact.', properties: { kind: { type: 'string', enum: ['document', 'spreadsheet', 'presentation', 'python', 'r', 'sql'] }, request: { type: 'string' } }, required: ['kind', 'request'] })
+  ,Object.freeze({ alias: 'research_public_web', id: 'research.public_web', description: 'Search fixed no-key public web sources without invoking a paid AI provider. Query text is sent to DuckDuckGo and Wikipedia.', properties: { query: { type: 'string', maxLength: 500 } }, required: ['query'] })
 ]);
 function agentToolSchemas() { return AGENT_TOOLS.map(tool => ({ type: 'function', function: { name: tool.alias, description: tool.description, parameters: { type: 'object', properties: tool.properties || {}, required: tool.required || [] } } })); }
 function resolveAgentTool(alias) { return AGENT_TOOLS.find(tool => tool.alias === alias)?.id || null; }
 
-module.exports = { MODES, normalizeOllamaOptions, ollamaSystemPrompt, modelCard, agentToolSchemas, resolveAgentTool };
+module.exports = { MODES, normalizeOllamaOptions, ollamaSystemPrompt, modelCard, modelParameterBillions, selectToolModel, agentToolSchemas, resolveAgentTool };

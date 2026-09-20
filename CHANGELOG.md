@@ -6,6 +6,10 @@
 - Added a live connector catalog for Ollama, Codex, Hugging Face, OpenAI, xAI, GitHub, ComfyUI, and ElevenLabs.
 - Added visible connector cost classes and kept the automatic Ollama agent loop local-only and provider-charge-free.
 - Increased bounded local tool-loop depth from four to eight turns for multi-step work.
+- Added Qwen3 8B as the preferred local tool-calling tier once its local installation is verified.
+- Added a no-key public research tool using fixed DuckDuckGo Instant Answer and Wikipedia endpoints; it never falls back to a paid AI provider.
+- Corrected ElevenLabs telemetry so local macOS speech no longer makes the cloud connector appear configured.
+- Added strongest-tool-model selection so local agent work prefers Qwen3 8B over micro models once installed.
 
 ## 1.10.1
 
