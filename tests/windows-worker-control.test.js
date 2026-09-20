@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const { createWindowsWorkerControl, privateHost, parseStatus } = require('../windows-worker-control');
 
 test('Windows worker control derives only a private endpoint host', () => {
@@ -26,4 +28,22 @@ test('Windows worker status is reduced to bounded operational evidence', () => {
 
 test('Windows worker control rejects unsafe usernames', () => {
   assert.throws(() => createWindowsWorkerControl({ baseUrl: 'http://192.168.4.31:8188', homeDir: '/tmp', user: 'name;whoami', execFile: async () => ({ stdout: '' }) }), /user is invalid/);
+});
+
+test('pose auxiliary installer preserves AMD runtime and has a disable rollback', () => {
+  const script = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'enable-controlnet-aux-cpu.ps1'), 'utf8');
+  assert.match(script, /ValidateSet\('Enable', 'Disable', 'Status'\)/);
+  assert.match(script, /onnxruntime-gpu package is intentionally excluded/);
+  assert.match(script, /CPUExecutionProvider/);
+  assert.match(script, /-Action Disable/);
+  assert.doesNotMatch(script, /pip install.*onnxruntime-gpu/i);
+  assert.match(script, /pip install --no-deps 'mediapipe==1\.0\.1'/);
+  assert.match(script, /'opencv-contrib-python==5\.0\.0\.93'/);
+});
+
+test('worker stop recognizes relative main.py and verifies the listening port is released', () => {
+  const script = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'manage-comfyui-worker.ps1'), 'utf8');
+  assert.match(script, /Get-PortWorkerProcesses/);
+  assert.match(script, /main\\\.py/);
+  assert.match(script, /still listening on port \$Port after Stop/);
 });

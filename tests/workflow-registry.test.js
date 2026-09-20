@@ -9,13 +9,23 @@ const { cloneAndFillWorkflow } = require('../comfyui-client');
 test('registry versions all supported independent media contracts', () => {
   const root = path.resolve(__dirname, '..');
   const registry = createWorkflowRegistry(root);
-  for (const contract of ['image', 'revision', 'rebuild', 'upscale', 'control']) {
+  for (const contract of ['image', 'revision', 'rebuild', 'upscale', 'control', 'posemap']) {
     const workflow = registry.forKind(contract);
     assert.equal(workflow.contract, contract);
     assert.match(workflow.version, /^\d+\.\d+\.\d+$/);
     assert.match(workflow.sha256, /^[a-f0-9]{64}$/);
     assert.ok(Array.isArray(workflow.requiredNodes));
   }
+});
+
+test('pose-map workflow binds the reference photo to the live DWPose extractor', () => {
+  const registry = createWorkflowRegistry(path.resolve(__dirname, '..'));
+  const definition = registry.forKind('posemap');
+  const result = cloneAndFillWorkflow(require(definition.file), { prompt: 'Prepared DWPose map', sourceImage: 'reference-photo.jpg' });
+  assert.equal(result['1'].inputs.image, 'reference-photo.jpg');
+  assert.equal(result['2'].class_type, 'DWPreprocessor');
+  assert.equal(result['2'].inputs.detect_body, 'enable');
+  assert.equal(definition.rollbackTarget, null);
 });
 
 test('OpenPose workflow binds a prepared map and explicit control window', () => {
@@ -61,7 +71,7 @@ test('UltraSharp and external VAE workflows bind only named installed models', (
 test('main process recognizes video and reports its gated readiness precisely', () => {
   const fs = require('node:fs');
   const main = fs.readFileSync(path.resolve(__dirname, '..', 'main.js'), 'utf8');
-  assert.match(main, /\['image', 'revision', 'rebuild', 'upscale', 'control', 'faceid', 'canny', 'instantid', 'hybridid', 'tile', 'poselora', 'video'\]/);
+  assert.match(main, /\['image', 'revision', 'rebuild', 'upscale', 'control', 'faceid', 'canny', 'instantid', 'hybridid', 'tile', 'poselora', 'posemap', 'video'\]/);
   assert.match(main, /Video generation is not ready on the Windows worker/);
   assert.doesNotMatch(main, /Media contract must be image, revision, rebuild, or upscale\./);
   assert.match(main, /UNREADY_CHECKPOINTS = new Set\(\['ponyDiffusionV6XL_v6StartWithThisOne\.safetensors'\]\)/);

@@ -25,11 +25,26 @@ function Assert-WorkerFiles {
 }
 
 function Get-WorkerProcesses {
+  $portPattern = '--port\s+{0}(\s|$)' -f $Port
   Get-CimInstance Win32_Process -Filter "Name = 'python.exe' OR Name = 'pythonw.exe'" -ErrorAction SilentlyContinue |
     Where-Object {
-      $_.ExecutablePath -eq $python -and
-      $_.CommandLine -match [regex]::Escape($main)
+      $command = [string]$_.CommandLine
+      $executableMatches = -not $_.ExecutablePath -or $_.ExecutablePath -eq $python
+      $mainMatches = $command -match '(^|[\\/\s])(main\.py)(\s|$)' -or $command -match [regex]::Escape($main)
+      $repoMatches = $command -match [regex]::Escape($repo) -or $command -match $portPattern
+      $executableMatches -and $mainMatches -and $repoMatches
     }
+}
+
+function Get-PortWorkerProcesses {
+  $portPattern = '--port\s+{0}(\s|$)' -f $Port
+  foreach ($connection in @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue)) {
+    $process = Get-CimInstance Win32_Process -Filter "ProcessId = $($connection.OwningProcess)" -ErrorAction SilentlyContinue
+    if ($process -and $process.Name -match '^pythonw?\.exe$') {
+      $command = [string]$process.CommandLine
+      if ($command -match 'main\.py' -and ($command -match [regex]::Escape($repo) -or $command -match $portPattern)) { $process }
+    }
+  }
 }
 
 function Test-WorkerHealth {
@@ -74,9 +89,13 @@ function Stop-Worker {
     Stop-ScheduledTask -TaskName $taskName
     Start-Sleep -Seconds 2
   }
-  foreach ($process in @(Get-WorkerProcesses)) {
+  $targets = @(@(Get-WorkerProcesses) + @(Get-PortWorkerProcesses) | Sort-Object ProcessId -Unique)
+  foreach ($process in $targets) {
     Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue
   }
+  $deadline = (Get-Date).AddSeconds(15)
+  while ((Test-WorkerHealth) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
+  if (Test-WorkerHealth) { throw "ComfyUI is still listening on port $Port after Stop." }
 }
 
 switch ($Action) {

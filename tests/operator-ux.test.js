@@ -147,6 +147,8 @@ test('blank media seed remains random instead of becoming seed zero', () => {
 
 test('Reference Studio exposes hierarchy, review, comparison, queue, and runtime controls', () => {
   for (const id of ['referenceProjectSelect','referenceSubjectSelect','referenceSheetSelect','referenceContactSheet','referenceComparison','runReferenceQueue','cancelReferenceQueue','resumeReferenceQueue','clearReferenceQueue','closeReferenceRuntime','openComfyDesignStudio','shotReferenceStrength','shotDenoise','shotReferenceMode','clearActiveReference','newCleanReferenceDraft','identityLockPreset','sceneCoachAdvice','referencePreflight','referencePreflightPrompt','referencePreflightNegative','shotSeed','shotSampler','shotScheduler','shotSteps','shotCfg','shotWidth','shotHeight','shotBatch','exploreFourVariants','shotControlMode','shotControlnet','shotControlStrength','shotControlStart','shotControlEnd']) assert.match(html, new RegExp(`id="${id}"`));
+  assert.match(referenceStudio, /button\.id='extractPoseMap'/);
+  assert.match(referenceStudio, /kind: 'posemap'/);
   assert.match(referenceStudio, /onReferenceQueueEvent/);
   assert.match(referenceStudio, /saveReferenceVariant/);
   assert.match(referenceStudio, /clean generation/);
@@ -157,6 +159,16 @@ test('Reference Studio exposes hierarchy, review, comparison, queue, and runtime
   assert.match(referenceStudio, /automatic pose extraction not installed/);
   const client = fs.readFileSync(path.join(root, 'comfyui-client.js'), 'utf8');
   assert.match(client, /poseExtractorNodes/);
+  assert.match(client, /qwenImage21/);
+  assert.match(referenceStudio, /Qwen-Image 2\.1 engine support detected/);
+});
+
+test('live pose extractor gate produces an auditable prepared map', () => {
+  const script = fs.readFileSync(path.join(root, 'scripts', 'live-pose-extractor-readiness.js'), 'utf8');
+  assert.match(script, /DWPreprocessor/);
+  assert.match(script, /MasterChief-PoseMap/);
+  assert.match(script, /detect_hand: 'enable'/);
+  assert.match(script, /CPUExecutionProvider/);
 });
 
 test('Ollama Command Center exposes native generation and agent controls', () => {

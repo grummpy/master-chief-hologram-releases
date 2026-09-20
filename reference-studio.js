@@ -4,7 +4,7 @@
   const get = id => document.getElementById(id);
   const dialog = get('referenceStudio');
   if (!dialog || !window.masterChief?.referenceStudioState) return;
-  let state = { schemaVersion: 2, projects: [] }, project = null, subject = null, sheet = null, activeQueueId = null;
+  let state = { schemaVersion: 2, projects: [] }, project = null, subject = null, sheet = null, activeQueueId = null, liveCatalog = null;
   let reviewedShot = null;
   const comparison = new Set();
   const purposeSelect = get('shotControlMode');
@@ -14,6 +14,8 @@
   if (purposeSelect && ![...purposeSelect.options].some(option => option.value === 'canny')) purposeSelect.add(new Option('Canny · copy edges and composition', 'canny'));
   if (purposeSelect && ![...purposeSelect.options].some(option => option.value === 'tile')) purposeSelect.add(new Option('Tile · preserve fine detail and layout', 'tile'));
   if (purposeSelect && ![...purposeSelect.options].some(option => option.value === 'poselora')) purposeSelect.add(new Option('OpenPose LoRA · lower-memory pose map', 'poselora'));
+  const shotActions = get('clearActiveReference')?.parentElement;
+  if (shotActions && !get('extractPoseMap')) { const button=document.createElement('button'); button.id='extractPoseMap'; button.type='button'; button.textContent='Extract pose map'; shotActions.prepend(button); }
   const advancedGrid = get('shotControlEnd')?.parentElement?.parentElement;
   for (const [id, label, min, max, step, value] of [['shotFaceIdV2Strength','FaceID v2 strength',-1,5,.05,1],['shotFaceIdLoraStrength','FaceID LoRA strength',0,1,.05,.6]]) if (!get(id) && advancedGrid) { const wrap=document.createElement('label'); wrap.textContent=label; const input=document.createElement('input'); Object.assign(input,{id,type:'number',min:String(min),max:String(max),step:String(step),value:String(value)}); wrap.append(input); advancedGrid.append(wrap); }
   for (const [id, label, min, max, step, value] of [['shotCannyLow','Canny low threshold',.01,.99,.01,.35],['shotCannyHigh','Canny high threshold',.01,.99,.01,.75],['shotInstantIdControlStrength','InstantID keypoint strength',0,10,.05,.8],['shotInstantIdNoise','InstantID identity noise',0,1,.1,0]]) if (!get(id) && advancedGrid) { const wrap=document.createElement('label'); wrap.textContent=label; const input=document.createElement('input'); Object.assign(input,{id,type:'number',min:String(min),max:String(max),step:String(step),value:String(value)}); wrap.append(input); advancedGrid.append(wrap); }
@@ -206,6 +208,7 @@
 
   async function loadArtifacts() {
     const [artifacts, catalog] = await Promise.all([window.masterChief.listGeneratedMedia(200), window.masterChief.getMediaCatalog()]);
+    liveCatalog = catalog;
     const select = get('shotReferenceArtifact'), prior = select.value;
     select.replaceChildren(new Option('Choose an artifact', ''), ...artifacts.filter(item => /\.(png|jpe?g|webp)$/i.test(item.filename)).map(item => new Option(item.filename, item.path))); select.value = prior;
     const model = get('shotModel'), selectedModel = model.value; model.replaceChildren(new Option('Automatic installed checkpoint', ''), ...catalog.checkpoints.map(name => new Option(name, name))); model.value = [...model.options].some(option => option.value === selectedModel) ? selectedModel : '';
@@ -225,6 +228,7 @@
     if (catalog.probationaryCheckpoints?.length) ready.push(`${catalog.probationaryCheckpoints.length} downloading/unverified checkpoint hidden`);
     if (catalog.detected?.inpaint) ready.push('targeted inpaint nodes');
     if (catalog.detected?.lora) ready.push(`LoRA routing${catalog.loras?.length ? ` (${catalog.loras.length} installed)` : ''}`);
+    if (catalog.detected?.qwenImage21) ready.push('Qwen-Image 2.1 engine support detected · model/workflow not promoted until readiness testing');
     get('referenceAdapterGate').textContent = ready.length ? `Detected on live worker: ${ready.join(' · ')}. Registered API workflows remain the execution gate.` : 'Advanced reference nodes or compatible model files were not detected; basic image and revision workflows remain available.';
   }
 
@@ -300,6 +304,21 @@
   get('compareTwoViews').onclick = () => showComparison(2); get('compareFourViews').onclick = () => showComparison(4); get('clearComparison').onclick = () => { comparison.clear(); get('referenceComparison').hidden = true; renderContactSheet(); };
   get('shotReferenceMode').onchange = event => { setReferenceMode(event.target.value); invalidatePreflight(); };
   get('shotControlMode').onchange = event => { get('shotWorkflow').value = ''; invalidatePreflight(); const advice={pose:'Pose control expects a prepared OpenPose skeleton map, not a normal photograph. Live readiness above says whether automatic extraction is installed.',poselora:'OpenPose Control-LoRA uses the same prepared skeleton map with lower memory use. Live readiness above says whether automatic extraction is installed.',faceid:'FaceID preserves identity while allowing a new pose, scene, camera, and lighting.',instantid:'InstantID locks face identity and facial keypoints strongly while allowing more transformation.',hybridid:'Hybrid Identity combines FaceID Plus v2 and InstantID for the strongest verified resemblance. Preserve visible identity anchors such as glasses in the prompt.',canny:'Canny automatically extracts edges from the selected image to preserve composition and silhouette.',tile:'Tile uses the selected image directly to preserve fine details and layout while redrawing.',revision:'Visual revision redraws the selected image directly.'}; get('sceneCoachAdvice').textContent=advice[event.target.value]||advice.revision; };
+  if (get('extractPoseMap')) get('extractPoseMap').onclick = async () => {
+    const source = sourceForShot(shotPayload());
+    if (!source) { get('referenceQueueStatus').textContent = 'Choose a selected artifact or promote an approved reference photograph first.'; return; }
+    if (!liveCatalog?.capabilities?.posemap) { get('referenceQueueStatus').textContent = 'The live worker does not currently expose automatic pose extraction.'; return; }
+    get('extractPoseMap').disabled = true; get('referenceQueueStatus').textContent = 'Extracting body, hand, and face pose landmarks…';
+    try {
+      const result = await window.masterChief.generateLocalMedia({ kind: 'posemap', sourceArtifact: source, prompt: 'Prepared DWPose map' });
+      await loadArtifacts();
+      const artifact = result.artifacts?.[0]?.path;
+      if (!artifact) throw new Error('Pose extraction returned no artifact.');
+      get('shotReferenceArtifact').value = artifact; setReferenceMode('selected'); get('shotControlMode').value = 'pose'; get('shotWorkflow').value = 'sdxl-openpose-control-v1'; invalidatePreflight();
+      get('referenceQueueStatus').textContent = 'Pose map extracted and selected. Describe the target subject and scene, then review the OpenPose job.';
+    } catch (error) { get('referenceQueueStatus').textContent = error.message; }
+    finally { get('extractPoseMap').disabled = false; }
+  };
   get('identityLockPreset').onclick = () => {
     const approved = sheet?.approvedViews?.find(view => view.status === 'approved');
     if (get('shotReferenceArtifact').value) setReferenceMode('selected');

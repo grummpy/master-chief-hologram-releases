@@ -147,6 +147,7 @@ function createComfyUiClient({ baseUrl, fetchImpl = fetch, artifactDir, timeoutM
         cannyControl: has('Canny', 'ControlNetLoader', 'ControlNetApplyAdvanced'),
         poseExtractor: Boolean(nodes?.DWPreprocessor || nodes?.OpenposePreprocessor || nodes?.OpenPosePreprocessor),
         poseExtractorNodes: ['DWPreprocessor', 'OpenposePreprocessor', 'OpenPosePreprocessor'].filter(name => Boolean(nodes?.[name])),
+        qwenImage21: Object.keys(nodes || {}).some(name => /qwen.*image/i.test(name)),
         lora: has('LoraLoader'),
         modelUpscale: has('UpscaleModelLoader', 'ImageUpscaleWithModel'),
         partialConditioning: has('ConditioningCombine', 'ConditioningSetArea')

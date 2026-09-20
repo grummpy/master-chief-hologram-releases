@@ -18,18 +18,19 @@ Upstream head was `96be9a139d68c1d45ee9380e2aad2746ecf6bc48`, four commits ahead
 3. Embedded documentation 0.5.12.
 4. Workflow templates 0.11.65.
 
-Decision: defer the core update. It changes model internals and requirements but does not repair the current SDXL dynamic-pose gap. Preserve the verified ROCm/Juggernaut runtime until this update can be staged and rolled back independently.
+Decision updated after staged validation: promoted `96be9a139d68c1d45ee9380e2aad2746ecf6bc48` with workflow templates 0.11.65 and embedded docs 0.5.12. The worker retained PyTorch 2.13.0 + ROCm 10.0, passed dependency validation, exposed Qwen-Image 2.1 core nodes, and passed the existing SDXL acceptance routes.
 
 ## Dynamic-pose finding
 
-The worker has OpenPose ControlNet model files and executable ControlNet workflows, but it does not expose a DWPose/OpenPose preprocessor node. A normal photograph is not a pose map. Reference Studio now reports this distinction from live `/object_info` evidence.
+The worker has OpenPose ControlNet model files, executable ControlNet workflows, and a live DWPose/OpenPose preprocessor. Reference Studio reports this distinction from live `/object_info` evidence and provides an **Extract pose map** action that turns a selected reference photograph into a prepared body/hand/face map before OpenPose generation.
 
-The disabled `comfyui_controlnet_aux` checkout is current at `59b1fc411ede8623b2997855b8018f0b3b6cf49f`. A dry-run dependency resolution would add `onnxruntime-gpu` plus 30 additional packages. Installing that unmodified into the working AMD/ROCm environment is deferred because the Windows GPU package targets a different provider path and could introduce a silent CPU fallback or dependency conflict.
+The `comfyui_controlnet_aux` checkout is current at `59b1fc411ede8623b2997855b8018f0b3b6cf49f`. It is enabled with pinned dependencies and the existing ONNX CPU provider; the CUDA-oriented `onnxruntime-gpu` package was deliberately excluded. A live semantic extraction produced a downloadable pose-map artifact with a recorded SHA-256 hash.
 
-## Next safe gate
+## Verification completed
 
-1. Snapshot the working ComfyUI venv and custom-node manifest.
-2. Stage the pose preprocessor in a disposable clone/venv.
-3. Confirm an AMD-supported ONNX execution provider or explicitly accept measured CPU pose extraction.
-4. Run `pip check`, import tests, `/object_info`, one semantic pose-map extraction, and one end-to-end OpenPose generation.
-5. Promote only if the existing image, hybrid identity, revision, and upscale acceptance tests still pass.
+1. Twenty consecutive image/revision jobs passed with no lost output; revision lineage changed visibly by hash.
+2. FaceID Plus v2 returned a verified artifact.
+3. Canny and InstantID returned verified artifacts.
+4. Tile and OpenPose Control-LoRA returned verified artifacts.
+5. DWPose extracted a prepared map through CPU ONNX and returned a verified artifact.
+6. The worker manager now recognizes relative `main.py` command lines and verifies port 8188 is released during Stop, preventing duplicate-worker/database-lock starts.

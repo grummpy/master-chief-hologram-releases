@@ -549,7 +549,7 @@ function updateMediaJob(requestId, patch) { return emitMediaJob(mediaJobLedger.u
 function mediaContract(payload = {}) {
   const kind = String(payload.kind || 'image');
   if (kind === 'image' && payload.sourceArtifact) return 'revision';
-  if (['image', 'revision', 'rebuild', 'upscale', 'control', 'faceid', 'canny', 'instantid', 'hybridid', 'tile', 'poselora', 'video'].includes(kind)) return kind;
+  if (['image', 'revision', 'rebuild', 'upscale', 'control', 'faceid', 'canny', 'instantid', 'hybridid', 'tile', 'poselora', 'posemap', 'video'].includes(kind)) return kind;
   throw new Error('Media contract is not supported by the registered local workflow set.');
 }
 
@@ -564,7 +564,7 @@ async function executeMediaJob(requestId) {
     updateMediaJob(requestId, { status: 'loading', stage: 'load', progress: 10 });
     let sourceImage = '';
     let safeUpscale = null;
-    if (['revision', 'upscale', 'control', 'faceid', 'canny', 'instantid', 'hybridid', 'tile', 'poselora'].includes(contract)) {
+    if (['revision', 'upscale', 'control', 'faceid', 'canny', 'instantid', 'hybridid', 'tile', 'poselora', 'posemap'].includes(contract)) {
       const localSource = resolveArtifactPath(payload.sourceArtifact);
       if (!localSource || !/\.(png|jpe?g|webp)$/i.test(localSource)) throw new Error('The selected source is unavailable or is not a supported image.');
       if (contract === 'upscale' && ['ultrasharp-upscale-v1', 'remacri-upscale-v1'].includes(payload.workflowId)) {
@@ -1508,7 +1508,7 @@ secureHandle('media-catalog', async () => {
   const checkpoints = readyCheckpoints(allCheckpoints);
   const workflows = evaluateWorkflowReadiness(workflowRegistry.list(), detected.availableNodes, { checkpoints, vaes, upscalers, controlnets });
   return { checkpoints, probationaryCheckpoints: allCheckpoints.filter(name => UNREADY_CHECKPOINTS.has(String(name))), vaes, upscalers, controlnets, clipVision, loras, ipAdapters, workflows, detected,
-    capabilities: { image: true, revision: true, rebuild: true, upscale: true, video },
+    capabilities: { image: true, revision: true, rebuild: true, upscale: true, posemap: Boolean(detected.poseExtractor), video },
     videoReadiness: video ? 'ready' : 'missing approved AMD workflow and model bundle' };
 });
 secureHandle('media-job-cancel', async (_event, payload) => {

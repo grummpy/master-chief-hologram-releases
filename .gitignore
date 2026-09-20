@@ -1,5 +1,6 @@
 node_modules/
 artifacts/generated/
+artifacts/pose-extractor-readiness/
 artifacts/prompt-fidelity/
 artifacts/faceid-readiness/
 artifacts/structure-readiness/
