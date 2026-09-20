@@ -60,6 +60,7 @@ const { createDurableWorkflowStore } = require('./durable-workflow');
 const { sourceRecord, citationCard, detectConflicts, boundToolResult, projectBundle } = require('./retrieval-provenance');
 const { createWorkspaceExperience } = require('./workspace-experience');
 const { createLocalTelemetry } = require('./local-telemetry');
+const { createLocalAiNodeRegistry } = require('./local-ai-node-registry');
 const { createWorkflowRegistry, evaluateWorkflowReadiness } = require('./workflow-registry');
 const { validateImageOutputs } = require('./image-output-validator');
 const { normalizeSpeechContract, createAudioJobStore } = require('./audio-production');
@@ -95,6 +96,7 @@ const modelLifecycle=createModelLifecycle(path.join(app.getPath('userData'),'mod
 const workflowRuns=createDurableWorkflowStore(path.join(app.getPath('userData'),'workflow-runs.json'));
 const workspaceExperience=createWorkspaceExperience(path.join(app.getPath('userData'),'workspace-experience.json'));
 const localTelemetry=createLocalTelemetry(path.join(app.getPath('userData'),'local-telemetry.json'));
+const localAiNodes=createLocalAiNodeRegistry(path.join(app.getPath('userData'),'local-ai-nodes.json'));
 function encodePrivateState(value){if(!safeStorage.isEncryptionAvailable())return JSON.stringify(value,null,2);return JSON.stringify({version:1,encrypted:true,data:safeStorage.encryptString(JSON.stringify(value)).toString('base64')})}
 function decodePrivateState(value){const parsed=JSON.parse(String(value));if(!parsed?.encrypted)return parsed;return JSON.parse(safeStorage.decryptString(Buffer.from(parsed.data,'base64')))}
 const contextMemory = createContextMemoryStore(path.join(app.getPath('userData'), 'context-memory.json'),{encode:encodePrivateState,decode:decodePrivateState});
@@ -1701,7 +1703,11 @@ async function runTrackedJob(kind, payload, executor, options = {}) {
   const requestInput={requestId:payload?.requestId,idempotencyKey:payload?.idempotencyKey,kind,objective:String(options.objective || payload?.objective || payload?.request || payload?.prompt || payload?.url || ''),provider,model:payload?.model,projectId:payload?.projectId||payload?.project,capabilities:options.capabilities||[],privacy:options.privacy||(provider==='ollama'||provider==='comfyui'?'local':'cloud'),attachments:payload?.attachments,parameters:options.parameters||{}};
   const submitted=jobs.submit(requestInput),id=submitted.job.request.requestId;
   if(!submitted.created&&submitted.job.status==='complete')return submitted.job.result;
+  const resourceKind=options.resourceKind||((kind==='video'||kind==='upscale')?kind:(kind==='image'?'sdxl':(kind==='agent'?'llm-large':'chat')));
+  const startedAt=Date.now();let leased=false;
   try {
+    const admission=resourceManager.admit({id,kind:resourceKind,runtime:provider,model:payload?.model});
+    if(!admission.admitted){const error=new Error(`Resource profile ${admission.profile} cannot start this job: ${admission.reasons.join('; ')}.`);error.code='RESOURCE_BUDGET';error.retryAfterMs=admission.retryAfterMs;throw error}leased=true;
     const decision=providerGateway.route(submitted.job.request,{[provider]:{available:true,model:payload?.model||null,latencyMs:1000,memoryPressure:0}});
     if(decision.selected)jobs.setRoute(id,{...decision.selected,reason:decision.reason,candidates:decision.candidates});
     jobs.event(id,options.stage||'executing',{message:options.message||`${kind} execution started`,progress:20});
@@ -1710,8 +1716,11 @@ async function runTrackedJob(kind, payload, executor, options = {}) {
     jobs.event(id,'validating',{message:'Output validated',progress:90});
     jobs.setResult(id,result);
     const complete=jobs.event(id,'complete',{message:'Job complete',progress:100,receipt:{provider,artifact:result?.path||result?.artifact||null}});
+    resourceManager.success(provider);resourceManager.promote({runtime:provider,model:payload?.model||null,workflow:kind});
+    localTelemetry.trace({traceId:id,name:kind,projectId:payload?.projectId||payload?.project||'default',model:payload?.model||null,runtime:provider,route:decision.selected||null,timings:{durationMs:Date.now()-startedAt},outputHashes:[result?.sha256].filter(Boolean),verification:'output-normalized'});
     return {...result,requestId:id,job:complete};
-  } catch(error){jobs.fail(id,error,{provider});throw error;}
+  } catch(error){if(!['RESOURCE_BUDGET','VALIDATION'].includes(error.code))resourceManager.failure(provider);localTelemetry.trace({traceId:id,name:kind,projectId:payload?.projectId||payload?.project||'default',model:payload?.model||null,runtime:provider,timings:{durationMs:Date.now()-startedAt},verification:`failed:${error.code||'ERROR'}`});jobs.fail(id,error,{provider});throw error;}
+  finally{if(leased)resourceManager.release(id,{durationMs:Date.now()-startedAt,status:jobs.get(id)?.status||'unknown'})}
 }
 
 secureHandle('provider-status', providerStatus);
@@ -1721,7 +1730,7 @@ secureHandle('ollama-runtime', ollamaRuntime);
 secureHandle('ollama-warm-best', warmBestOllamaModel);
 secureHandle('privacy-state', privacyState);
 secureHandle('ollama-unload', (_event, payload) => unloadOllamaModel(payload?.model));
-secureHandle('ollama-agent', (_event, payload) => runOllamaAgent(payload));
+secureHandle('ollama-agent', (_event, payload) => runTrackedJob('agent',payload,()=>runOllamaAgent(payload),{provider:'ollama',capabilities:['reason','tools'],message:'Local agent execution started'}));
 secureHandle('agent-task-list', (_event, payload) => ({ tasks: agentTasks.list(payload?.limit) }));
 secureHandle('agent-task-get', (_event, payload) => agentTasks.get(String(payload?.id || '')));
 secureHandle('agent-task-resume', (_event, payload) => agentTasks.resume(String(payload?.id || '')));
@@ -1739,6 +1748,11 @@ secureHandle('provider-route-explain', (_event, payload) => {
 secureHandle('resource-status',()=>({state:resourceManager.snapshot(),profiles:resourceManager.profiles()}));
 secureHandle('resource-profile',(_event,payload)=>resourceManager.setProfile(String(payload?.profile||'')));
 secureHandle('resource-rollback',()=>resourceManager.rollback());
+async function probeLocalAiNode(node){if(!node||!node.enabled)return{state:'disabled',checkedAt:new Date().toISOString()};const suffix=node.type==='ollama'?'/api/tags':node.type==='comfyui'?'/system_stats':'/v1/models';const started=Date.now();try{const response=await fetch(`${node.endpoint}${suffix}`,{signal:AbortSignal.timeout(5000)});if(!response.ok)throw new Error(`HTTP ${response.status}`);const data=await response.json();const models=Array.isArray(data?.models)?data.models.length:Array.isArray(data?.data)?data.data.length:null;return{state:'ready',latencyMs:Date.now()-started,models,checkedAt:new Date().toISOString()}}catch(error){return{state:'error',latencyMs:Date.now()-started,error:String(error.message||error).slice(0,180),checkedAt:new Date().toISOString()}}}
+secureHandle('local-ai-node-list',()=>({nodes:localAiNodes.list()}));
+secureHandle('local-ai-node-save',(_event,payload)=>localAiNodes.save(payload));
+secureHandle('local-ai-node-remove',(_event,payload)=>localAiNodes.remove(payload?.id));
+secureHandle('local-ai-node-probe',async(_event,payload)=>{const node=localAiNodes.get(payload?.id);if(!node)throw new Error('Local AI node was not found.');return{node,health:await probeLocalAiNode(node)}});
 secureHandle('model-lifecycle-list',()=>modelLifecycle.list());
 secureHandle('model-lifecycle-card',(_event,payload)=>modelLifecycle.card(payload));
 secureHandle('model-acquisition-enqueue',(_event,payload)=>modelLifecycle.enqueue(payload));
@@ -1985,17 +1999,7 @@ secureHandle('run-agent-plan', (_event, payload) => {
 secureHandle('chat', async (_event, payload) => {
   requireToolApproval('chat.send_to_configured_provider');
   const objective=[...(payload?.messages||[])].reverse().find(item=>item.role==='user')?.content||'';
-  const submitted=jobs.submit({requestId:payload?.requestId,idempotencyKey:payload?.idempotencyKey,kind:'chat',objective,provider:payload?.provider,model:payload?.model,projectId:payload?.project,capabilities:['chat'],privacy:payload?.provider==='ollama'?'local':'cloud',attachments:payload?.attachments});
-  const id=submitted.job.request.requestId;
-  try {
-    const decision=providerGateway.route(submitted.job.request,{[payload.provider]:{available:true,model:payload.model,latencyMs:1000,memoryPressure:0}});
-    if(decision.selected)jobs.setRoute(id,{...decision.selected,reason:decision.reason,candidates:decision.candidates});
-    jobs.event(id,'executing',{message:'Provider request started',progress:25});
-    const result=await routeChatWithRepair(payload);
-    jobs.event(id,'validating',{message:'Response received and normalized',progress:90});
-    const complete=jobs.event(id,'complete',{message:'Response ready',progress:100,receipt:{provider:result.provider,model:payload.model||null,durationMs:result.durationMs}});
-    return {...result,requestId:id,job:complete};
-  } catch(error) { jobs.fail(id,error,{provider:payload?.provider}); throw error; }
+  return runTrackedJob('chat',{...payload,objective},()=>routeChatWithRepair(payload),{provider:payload?.provider,capabilities:['chat'],message:'Provider request started'});
 });
 secureHandle('cancel-chat', () => { activeAbortController?.abort(); activeAbortController = null; activeChild?.kill('SIGTERM'); emitChatEvent('cancelled', {}); return true; });
 secureHandle('transcribe-audio', async (_event, payload) => {

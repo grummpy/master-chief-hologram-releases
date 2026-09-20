@@ -1,0 +1,6 @@
+'use strict';
+const test=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const path=require('node:path');
+const root=path.join(__dirname,'..'),html=fs.readFileSync(path.join(root,'index.html'),'utf8'),css=fs.readFileSync(path.join(root,'styles.css'),'utf8'),renderer=fs.readFileSync(path.join(root,'renderer.js'),'utf8'),main=fs.readFileSync(path.join(root,'main.js'),'utf8');
+test('adaptive workspace uses progressive disclosure and focus mode',()=>{for(const id of ['focusModeBtn','moreActions','workspaceCloseBtn'])assert.match(html,new RegExp(`id="${id}"`));assert.match(css,/conversation-first/);assert.match(css,/max-width:min\(86%,72ch\)/);assert.match(renderer,/setWorkspaceDetails/);assert.match(renderer,/setFocusMode/)});
+test('agent and chat execution acquire capacity and emit local telemetry',()=>{assert.match(main,/resourceManager\.admit/);assert.match(main,/resourceManager\.release/);assert.match(main,/localTelemetry\.trace/);assert.match(main,/runTrackedJob\('agent'/);assert.match(main,/runTrackedJob\('chat'/)});
+test('private LAN node registry is exposed through bounded IPC',()=>{for(const channel of ['local-ai-node-list','local-ai-node-save','local-ai-node-remove','local-ai-node-probe'])assert.match(main,new RegExp(channel));assert.match(renderer,/Private-LAN AI nodes/) });

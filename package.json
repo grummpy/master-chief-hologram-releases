@@ -1,6 +1,6 @@
 {
   "name": "master-chief-hologram",
-  "version": "1.46.0",
+  "version": "1.47.0",
   "description": "Desktop holographic Master Chief AI companion – multi-model prompt runner",
   "main": "main.js",
   "scripts": {
@@ -101,6 +101,7 @@
       "job-contract.js",
       "job-orchestrator.js",
       "runtime-resource-manager.js",
+      "local-ai-node-registry.js",
       "model-lifecycle.js",
       "durable-workflow.js",
       "retrieval-provenance.js",
