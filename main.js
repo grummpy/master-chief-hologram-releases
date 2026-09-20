@@ -33,7 +33,7 @@ const { discoverModels, buildVoiceSetup } = require('./voice-installation');
 const { loadLocalAiManifest, primaryInstalledModel } = require('./local-ai-manifest');
 const { createLocalAiAudit } = require('./local-ai-audit');
 const { withConnectorState, getConnectorRegistry } = require('./connector-registry');
-const { cloneAndFillWorkflow, createComfyUiClient } = require('./comfyui-client');
+const { cloneAndFillWorkflow, safeUltraSharpPlan, createComfyUiClient } = require('./comfyui-client');
 const { runAgentPlan } = require('./agent-runner');
 const { createReferenceStudioStore } = require('./reference-studio-store');
 const { createMediaJobLedger } = require('./media-job-ledger');
@@ -541,9 +541,26 @@ async function executeMediaJob(requestId) {
   try {
     updateMediaJob(requestId, { status: 'loading', stage: 'load', progress: 10 });
     let sourceImage = '';
+    let safeUpscale = null;
     if (['revision', 'upscale'].includes(contract)) {
       const localSource = resolveArtifactPath(payload.sourceArtifact);
       if (!localSource || !/\.(png|jpe?g|webp)$/i.test(localSource)) throw new Error('The selected source is unavailable or is not a supported image.');
+      if (contract === 'upscale' && payload.workflowId === 'ultrasharp-upscale-v1') {
+        const size = nativeImage.createFromPath(localSource).getSize();
+        safeUpscale = safeUltraSharpPlan(size.width, size.height);
+        let runtime = await comfyClient.runtimeStatus();
+        if (runtime.queue.running || runtime.queue.pending) throw new Error('Safe UltraSharp waits for an idle GPU. Cancel or finish the current ComfyUI job first.');
+        const device = runtime.devices[0];
+        const lowReserve = runtime.system.ramFree < 1536 * 1024 * 1024 || !device || device.vramFree < 4 * 1024 * 1024 * 1024;
+        if (lowReserve) {
+          await comfyClient.freeMemory();
+          runtime = await comfyClient.runtimeStatus();
+          const refreshed = runtime.devices[0];
+          if (runtime.system.ramFree < 1536 * 1024 * 1024 || !refreshed || refreshed.vramFree < 4 * 1024 * 1024 * 1024) {
+            throw new Error('Safe UltraSharp stopped before queueing because the worker lacks a 1.5 GB RAM and 4 GB VRAM reserve. Close GPU-heavy programs and retry.');
+          }
+        }
+      }
       const uploaded = await comfyClient.uploadImage(localSource, `mc-${Date.now()}-${path.basename(localSource)}`);
       sourceImage = uploaded.subfolder ? `${uploaded.subfolder}/${uploaded.name}` : uploaded.name;
     }
@@ -571,12 +588,13 @@ async function executeMediaJob(requestId) {
       checkpoint: selectedCheckpoint,
       vae: payload.vae,
       upscaler: payload.upscaler,
+      preScale: safeUpscale?.preScale,
       seed,
       revisionStrength: payload.denoise ?? payload.revisionStrength
     });
     updateMediaJob(requestId, {
       workflow: { id: definition.id, version: definition.version, sha256: definition.sha256, modelFamily: definition.modelFamily },
-      parameters: { ...payload, seed, checkpoint: selectedCheckpoint, vae: payload.vae || null, upscaler: payload.upscaler || null, workflowId: definition.id },
+      parameters: { ...payload, seed, checkpoint: selectedCheckpoint, vae: payload.vae || null, upscaler: payload.upscaler || null, workflowId: definition.id, safeUpscale },
       status: 'generating', stage: 'generate', progress: 30
     });
     const queued = await comfyClient.submit(workflow, requestId);
@@ -603,7 +621,10 @@ async function executeMediaJob(requestId) {
     const wrapped = new Error(cancelled ? 'Media job cancelled.' : error.message);
     wrapped.job = failed;
     throw wrapped;
-  } finally { activeMediaJobs.delete(requestId); }
+  } finally {
+    activeMediaJobs.delete(requestId);
+    if (payload.workflowId === 'ultrasharp-upscale-v1') await comfyClient.freeMemory().catch(() => null);
+  }
 }
 
 async function generateLocalMedia(payload) {

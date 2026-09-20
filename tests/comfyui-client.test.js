@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
-const { normalizeBaseUrl, cloneAndFillWorkflow, createComfyUiClient } = require('../comfyui-client');
+const { normalizeBaseUrl, cloneAndFillWorkflow, safeUltraSharpPlan, createComfyUiClient } = require('../comfyui-client');
 
 test('ComfyUI accepts only private HTTP worker URLs', () => {
   assert.equal(normalizeBaseUrl('http://192.168.4.50:8188/'), 'http://192.168.4.50:8188');
@@ -43,6 +43,13 @@ test('upscale contract clamps scale to the supported app range', () => {
   const template = { '1': { inputs: { scale_by: '{{SCALE_BY}}' } } };
   assert.equal(cloneAndFillWorkflow(template, { prompt: 'upscale', scaleBy: 2 })['1'].inputs.scale_by, 2);
   assert.equal(cloneAndFillWorkflow(template, { prompt: 'upscale', scaleBy: 12 })['1'].inputs.scale_by, 4);
+});
+
+test('UltraSharp safety plan targets 2x and bounds the longest output edge', () => {
+  assert.deepEqual(safeUltraSharpPlan(768, 1024), { preScale: 0.5, sourceWidth: 768, sourceHeight: 1024, outputWidth: 1536, outputHeight: 2048, maxOutputEdge: 2048 });
+  const large = safeUltraSharpPlan(2048, 1536);
+  assert.equal(large.preScale, 0.25);
+  assert.deepEqual([large.outputWidth, large.outputHeight], [2048, 1536]);
 });
 
 test('client uploads revision context and requests GPU cache release', async () => {

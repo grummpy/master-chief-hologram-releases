@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.22.0
+
+- Replaced the unbounded UltraSharp 4× action with a memory-bounded **UltraSharp Safe 2×** profile.
+- Pre-scales before the 4× model and dynamically caps the longest output edge at 2048 pixels, reducing peak output pixels by at least 75% for normal inputs.
+- Requires an idle ComfyUI queue and reserves at least 1.5 GB system RAM plus 4 GB VRAM before submission; one cache-release retry is attempted before failing safely.
+- Releases loaded models and GPU cache after every UltraSharp completion, cancellation, or failure.
+- Records the source dimensions, pre-scale, predicted output dimensions, and safety ceiling in the durable job ledger.
+
 ## 1.21.0
 
 - Added live VAE and upscaler discovery from the private ComfyUI worker.

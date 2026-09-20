@@ -37,6 +37,8 @@ test('UltraSharp and external VAE workflows bind only named installed models', (
   const upscale = cloneAndFillWorkflow(require(registry.get('ultrasharp-upscale-v1').file), { prompt: 'upscale', sourceImage: 'source.png', upscaler: '4x-UltraSharp.pth' });
   assert.equal(upscale['2'].inputs.model_name, '4x-UltraSharp.pth');
   assert.equal(upscale['1'].inputs.image, 'source.png');
+  assert.equal(upscale['5'].inputs.scale_by, 0.5);
+  assert.deepEqual(upscale['3'].inputs.image, ['5', 0]);
   const image = cloneAndFillWorkflow(require(registry.get('sdxl-image-external-vae-v1').file), { prompt: 'test', negativePrompt: '', checkpoint: 'juggernaut.safetensors', vae: 'sdxl_vae.safetensors' });
   assert.equal(image['10'].inputs.vae_name, 'sdxl_vae.safetensors');
   assert.deepEqual(image['8'].inputs.vae, ['10', 0]);

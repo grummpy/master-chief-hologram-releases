@@ -38,6 +38,7 @@ function cloneAndFillWorkflow(template, values) {
     ['{{SEED}}', Number.isSafeInteger(values.seed) ? values.seed : crypto.randomInt(1, 2147483646)],
     ['{{DENOISE}}', Number.isFinite(values.revisionStrength) ? Math.min(0.99, Math.max(0.2, values.revisionStrength)) : 0.68],
     ['{{SCALE_BY}}', Number.isFinite(values.scaleBy) ? Math.min(4, Math.max(1, values.scaleBy)) : 2],
+    ['{{PRESCALE}}', Number.isFinite(values.preScale) ? Math.min(0.5, Math.max(0.05, values.preScale)) : 0.5],
     ['{{CHECKPOINT}}', String(values.checkpoint || 'sd_xl_base_1.0.safetensors')],
     ['{{VAE}}', String(values.vae || 'sdxl_vae.safetensors')],
     ['{{UPSCALER}}', String(values.upscaler || '4x-UltraSharp.pth')],
@@ -59,6 +60,22 @@ function cloneAndFillWorkflow(template, values) {
   const workflow = replace(template);
   if (!workflow || typeof workflow !== 'object' || Array.isArray(workflow)) throw new Error('Workflow template must be a ComfyUI API-format object.');
   return workflow;
+}
+
+function safeUltraSharpPlan(width, height, maxOutputEdge = 2048) {
+  const sourceWidth = Math.max(1, Math.round(Number(width) || 0));
+  const sourceHeight = Math.max(1, Math.round(Number(height) || 0));
+  if (!sourceWidth || !sourceHeight) throw new Error('The source image dimensions could not be read.');
+  const longest = Math.max(sourceWidth, sourceHeight);
+  const preScale = Math.max(0.05, Math.min(0.5, maxOutputEdge / (longest * 4)));
+  return {
+    preScale: Math.round(preScale * 10000) / 10000,
+    sourceWidth,
+    sourceHeight,
+    outputWidth: Math.round(sourceWidth * preScale * 4),
+    outputHeight: Math.round(sourceHeight * preScale * 4),
+    maxOutputEdge
+  };
 }
 
 function safeOutputName(value) {
@@ -196,4 +213,4 @@ function createComfyUiClient({ baseUrl, fetchImpl = fetch, artifactDir, timeoutM
   };
 }
 
-module.exports = { normalizeBaseUrl, assertPrompt, assertNegativePrompt, cloneAndFillWorkflow, createComfyUiClient };
+module.exports = { normalizeBaseUrl, assertPrompt, assertNegativePrompt, cloneAndFillWorkflow, safeUltraSharpPlan, createComfyUiClient };
