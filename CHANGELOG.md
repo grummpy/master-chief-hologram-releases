@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.10.0
+
+- Added deterministic local Word, Excel, PowerPoint, Python, R, and SQL artifact routes with Open, Reveal, Save As, hashes, and explicit slash commands.
+- Added local multi-file and drag/drop ingestion for Office, PDF, OpenDocument, EPUB, RTF, structured text, source code, and arbitrary metadata-only binary attachments up to 25 MB each.
+- Added Ollama JSON-schema artifact specifications, executable-code validation requirements, and one bounded Python/R repair pass when explicit input rejection is missing.
+- Added a versioned 100-point Ollama evaluation with an in-app Run 90% Check control, persistent evidence, and PASS/HOLD status.
+- Verified live Excel and PowerPoint generation plus round-trip parsing, Python compilation/execution, R source generation, and a 100/100 `dolphin3:8b` synthetic gate.
+- Added dependency overrides for patched `image-size` and `uuid` releases; the production dependency audit reports zero known vulnerabilities.
+
 ## 1.9.0
 
 - Added an Ollama Command Center with balanced, precise, creative, coding, and agentic prompt profiles.

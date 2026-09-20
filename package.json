@@ -1,6 +1,6 @@
 {
   "name": "master-chief-hologram",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "description": "Desktop holographic Master Chief AI companion – multi-model prompt runner",
   "main": "main.js",
   "scripts": {
@@ -21,6 +21,9 @@
   "dependencies": {
     "docx": "^9.5.1",
     "dotenv": "^16.4.5",
+    "exceljs": "^4.4.0",
+    "officeparser": "^8.0.0",
+    "pptxgenjs": "^4.0.1",
     "three": "^0.180.0"
   },
   "author": "grummpy",
@@ -29,6 +32,10 @@
     "electron": "44.3.0",
     "electron-builder": "^26.0.12",
     "esbuild": "^0.25.12"
+  },
+  "overrides": {
+    "image-size": "2.0.4",
+    "uuid": "11.1.1"
   },
   "build": {
     "appId": "com.grummpy.master-chief-hologram",
@@ -47,6 +54,9 @@
       "huggingface-setup.js",
       "audio-production.js",
       "document-generator.js",
+      "file-ingestion.js",
+      "productivity-artifacts.js",
+      "ollama-evaluator.js",
       "microphone-access.js",
       "autocomplete.js",
       "local-routing.js",

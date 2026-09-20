@@ -62,7 +62,7 @@ test('Reference Studio exposes hierarchy, review, comparison, queue, and runtime
 });
 
 test('Ollama Command Center exposes native generation and agent controls', () => {
-  for (const id of ['ollamaControls','ollamaMode','ollamaThink','ollamaFormat','ollamaTemperature','ollamaTopP','ollamaContext','ollamaMaxTokens','ollamaSeed','ollamaKeepAlive','ollamaRefreshBtn','ollamaUnloadBtn']) assert.match(html, new RegExp(`id="${id}"`));
+  for (const id of ['ollamaControls','ollamaMode','ollamaThink','ollamaFormat','ollamaTemperature','ollamaTopP','ollamaContext','ollamaMaxTokens','ollamaSeed','ollamaKeepAlive','ollamaRefreshBtn','ollamaEvaluateBtn','ollamaEvaluationStatus','ollamaUnloadBtn']) assert.match(html, new RegExp(`id="${id}"`));
   assert.match(renderer, /runOllamaAgent/);
   assert.match(renderer, /stream:p==='ollama'/);
   assert.match(renderer, /renderOllamaMetrics/);
@@ -77,4 +77,18 @@ test('explicit report requests create downloadable Word artifacts', () => {
   assert.match(preload, /create-document/);
   assert.match(main, /secureHandle\('create-document'/);
   assert.ok(fs.existsSync(path.join(root, 'document-generator.js')));
+});
+
+test('productivity artifact routes and universal attachment ingestion are wired', () => {
+  assert.match(renderer, /function productivityKind/);
+  assert.match(renderer, /createProductivityArtifact/);
+  assert.match(renderer, /ingestAttachment/);
+  assert.match(renderer, /addAttachmentFiles/);
+  assert.match(html, /id="fileInput" class="sr-only" type="file" multiple/);
+  const preload = fs.readFileSync(path.join(root, 'preload.js'), 'utf8');
+  const main = fs.readFileSync(path.join(root, 'main.js'), 'utf8');
+  assert.match(preload, /create-productivity-artifact/);
+  assert.match(preload, /ingest-attachment/);
+  assert.match(main, /secureHandle\('create-productivity-artifact'/);
+  assert.match(main, /secureHandle\('ingest-attachment'/);
 });
