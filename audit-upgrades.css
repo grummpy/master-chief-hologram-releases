@@ -1,3 +1,6 @@
 #app[data-compact="true"] .msg{padding:8px 11px;margin:5px 0}
 #app[data-compact="true"] .composer{padding:8px 12px}
 #app[data-compact="true"] .systems-panel details{margin-bottom:6px}
+.response-quality{align-self:flex-start;display:grid;grid-template-columns:1fr auto;gap:5px 12px;max-width:92%;padding:8px 10px;border:1px solid var(--line);border-radius:10px;font-size:11px;background:var(--panel)}
+.response-quality strong{color:var(--cyan)}.response-quality span{grid-column:1;line-height:1.4;color:var(--muted)}.response-quality button{grid-column:2;grid-row:1 / span 2;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--text);padding:4px 8px}.response-quality.quality-review{border-color:#f2b94b}.response-quality.quality-review strong{color:#f2b94b}
+#visionModelSelect{max-width:220px;min-height:34px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)}

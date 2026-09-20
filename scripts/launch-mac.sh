@@ -58,6 +58,7 @@ if [[ "$UPDATE_RESULT" -eq 10 || ! -d "$APP_BUNDLE" ]] && [[ -x "$APP_DIR/node_m
   "$NPM_BIN" run dist:mac >>"$LOG_DIR/launcher.log" 2>&1
   [[ -d "$BUILD_BUNDLE" ]] || { print 'Build completed without an app bundle.' >>"$LOG_DIR/launcher.log"; exit 1; }
   "$NPM_BIN" run inspect:mac >>"$LOG_DIR/launcher.log" 2>&1
+  "$NPM_BIN" run release:verify >>"$LOG_DIR/launcher.log" 2>&1
   ditto "$BUILD_BUNDLE" "$STAGE_DIR/Master Chief Hologram.app"
   rm -rf "$PREVIOUS_BUNDLE"
   if [[ -d "$APP_BUNDLE" ]]; then mv "$APP_BUNDLE" "$PREVIOUS_BUNDLE"; fi

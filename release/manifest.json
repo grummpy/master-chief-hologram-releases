@@ -1,24 +1,26 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "product": "master-chief-hologram",
-  "version": "1.39.0",
-  "revision": "58b1fab16cd2cd7aa2f9c584878239ef45e1d714",
-  "generatedAt": "2026-09-20T15:14:56.736Z",
+  "version": "1.40.0",
+  "revision": "2b0f153a121802f594f4f98a24ac8c3252f8a040",
+  "generatedAt": "2026-09-20T15:30:15.104Z",
+  "signing": {
+    "verified": false,
+    "notarized": false,
+    "evidence": "External signing evidence is required."
+  },
   "files": [
     {
-      "path": "package.json",
-      "bytes": 5468,
-      "sha256": "5d687035d2f3b03abc49779210016eb1c618e4469fca169e25d7b5213ac97c4e"
+      "path": "dist/mac-arm64/Master Chief Hologram.app/Contents/Resources/app.asar",
+      "bytes": 192557549,
+      "sha256": "5787ecc19003ae2cb37482957da38141ac86033a8a722af34e9eea55a27265a9",
+      "kind": "app-asar"
     },
     {
-      "path": "package-lock.json",
-      "bytes": 191479,
-      "sha256": "60fdbc41a404e4db52a066b9d47098397a11824a80a3695e79e2d009d304c7f7"
-    },
-    {
-      "path": "build-info.json",
-      "bytes": 297,
-      "sha256": "dce559303dce9ff0792da85af8d2d14b6106d7678756a821be2b028daa980a29"
+      "path": "dist/mac-arm64/Master Chief Hologram.app",
+      "bytes": null,
+      "sha256": "526435eed353ea9d8abccfa020975e93b337df886c882d5f63736a7c0fe3225a",
+      "kind": "app-bundle-tree"
     }
   ]
 }

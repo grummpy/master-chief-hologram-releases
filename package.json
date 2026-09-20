@@ -1,6 +1,6 @@
 {
   "name": "master-chief-hologram",
-  "version": "1.39.0",
+  "version": "1.40.0",
   "description": "Desktop holographic Master Chief AI companion – multi-model prompt runner",
   "main": "main.js",
   "scripts": {
@@ -9,10 +9,11 @@
     "build:three": "esbuild three-scene.js --bundle --format=iife --outfile=three-scene.bundle.js",
     "build:manifest": "node scripts/generate-build-info.js",
     "release:manifest": "node scripts/generate-release-manifest.js",
+    "release:verify": "node scripts/generate-release-manifest.js --verify",
     "inspect:mac": "node scripts/inspect-mac-package.js",
     "release:readiness": "zsh scripts/check-macos-release-readiness.sh",
     "release:local": "npm test && npm run test:assets && npm run test:visual && npm audit --omit=dev && npm run dist:mac",
-    "dist:mac": "npm run build:three && npm run build:manifest && electron-builder --mac dir && npm run inspect:mac",
+    "dist:mac": "npm run build:three && npm run build:manifest && electron-builder --mac dir && npm run release:manifest && npm run release:verify && npm run inspect:mac",
     "launch:mac": "zsh scripts/launch-mac.sh",
     "test": "node --test tests/*.test.js",
     "test:assets": "node scripts/validate-assets.js",
@@ -113,6 +114,7 @@
       "main.js",
       "preload.js",
       "renderer.js",
+      "mcp-manager.js",
       "reference-studio.js",
       "three-scene.js",
       "three-scene.bundle.js",

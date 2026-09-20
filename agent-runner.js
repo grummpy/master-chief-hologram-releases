@@ -34,12 +34,20 @@ function classifyFailure(error) {
   return 'tool-runtime';
 }
 
-async function runAgentPlan(plan, { knownTools, approved, execute, verify, onEvent = () => {}, maxRuntimeMs = MAX_RUNTIME_MS, maxRetries = MAX_RETRIES }) {
+async function runAgentPlan(plan, { knownTools, approved, execute, verify, onEvent = () => {}, onCheckpoint = () => {}, resume = {}, maxRuntimeMs = MAX_RUNTIME_MS, maxRetries = MAX_RETRIES }) {
   const steps = validatePlan(plan, knownTools);
   const startedAt = Date.now();
-  const results = [];
+  const cursor = Number.isInteger(resume.cursor) ? resume.cursor : 0;
+  if (cursor < 0 || cursor > steps.length) throw new Error('Resume cursor is outside the agent plan.');
+  const results = Array.isArray(resume.receipts) ? resume.receipts.slice(0, cursor).map(item => ({ ...item, status: 'complete' })) : [];
+  if (results.length !== cursor) throw new Error('Resume receipts do not match the completed-step cursor.');
+  for (let index = 0; index < cursor; index += 1) {
+    const expected = steps[index]; const receipt = results[index]; const key = `${plan.idempotencyKey || 'agent'}:${expected.id}`;
+    if (receipt.id !== expected.id || receipt.tool !== expected.tool || receipt.idempotencyKey !== key) throw new Error('Resume receipt identity does not match the agent plan.');
+  }
   let mutationCount = 0;
-  for (const step of steps) {
+  for (let index = cursor; index < steps.length; index += 1) {
+    const step = steps[index];
     if (Date.now() - startedAt > maxRuntimeMs) throw new Error('Agent run exceeded its time limit.');
     if (!step.dependsOn.every(id => results.find(result => result.id === id)?.status === 'complete')) throw new Error(`Dependencies for ${step.id} are incomplete.`);
     if (!approved(step.tool)) throw new Error(`Approval is required for ${step.tool}.`);
@@ -52,7 +60,7 @@ async function runAgentPlan(plan, { knownTools, approved, execute, verify, onEve
         const verified = verify ? await verify(step, result) : { pass: true };
         if (verified === false || verified?.pass === false) throw new Error(`Verification failed for ${step.id}.`);
         const completed = { id: step.id, tool: step.tool, status: 'complete', attempt, result, verification: verified };
-        results.push(completed); onEvent({ type: 'step-complete', ...completed }); lastError = null; break;
+        results.push(completed); await onCheckpoint({ cursor: index + 1, receipt: completed, idempotencyKey: `${plan.idempotencyKey || 'agent'}:${step.id}` }); onEvent({ type: 'step-complete', ...completed }); lastError = null; break;
       } catch (error) {
         lastError = error; const kind = classifyFailure(error);
         onEvent({ type: 'step-error', step: step.id, tool: step.tool, attempt, kind, message: String(error.message || error) });

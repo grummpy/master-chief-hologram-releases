@@ -21,12 +21,16 @@ test('P1 conversations persist, search, branch, archive, and recover deletion',(
   assert.equal(store.remove(branch.id).recoverable,true); assert.equal(store.restore(branch.id).id,branch.id);
 });
 
-test('P1 agent tasks expose pause cancel and resume transitions',()=>{
-  const ledger=createAgentTaskLedger(temp('tasks.json')); const task=ledger.create({objective:'Build report'});
+test('P1 agent tasks resume the exact incomplete step with durable receipts',()=>{
+  const file=temp('tasks.json'); const ledger=createAgentTaskLedger(file); const task=ledger.create({objective:'Build report',idempotencyKey:'report-1'});
+  ledger.setPlan(task.id,[{id:'collect',tool:'safe'},{id:'write',tool:'safe'}]);
+  ledger.checkpoint(task.id,{cursor:1,receipt:{id:'collect',status:'complete',idempotencyKey:'report-1:collect'}});
   assert.equal(ledger.action(task.id,'pause').status,'paused');
-  assert.equal(ledger.action(task.id,'resume').status,'understanding');
+  assert.equal(ledger.action(task.id,'resume').status,'executing');
+  assert.equal(ledger.get(task.id).stage,'step:write');
+  const restarted=createAgentTaskLedger(file); assert.equal(restarted.get(task.id).cursor,1); assert.equal(restarted.get(task.id).receipts.length,1);
   assert.equal(ledger.action(task.id,'cancel').status,'cancelled');
-  assert.equal(ledger.action(task.id,'resume').stage,'resume');
+  assert.equal(ledger.action(task.id,'resume').stage,'step:write');
 });
 
 test('P1 provider contract normalizes capabilities usage and typed errors',()=>{

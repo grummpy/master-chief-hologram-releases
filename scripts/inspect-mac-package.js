@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const root = path.resolve(__dirname, '..');
 const packageJson = require(path.join(root, 'package.json'));
+const { verifyReleaseManifest } = require('./generate-release-manifest');
 const appBundle = process.argv[2] || path.join(root, 'dist', 'mac-arm64', `${packageJson.build.productName}.app`);
 const contents = path.join(appBundle, 'Contents');
 const plist = path.join(contents, 'Info.plist');
@@ -18,6 +19,9 @@ function fail(message) { throw new Error(`package inspection failed: ${message}`
 if (!fs.existsSync(appBundle)) fail(`missing app bundle: ${appBundle}`);
 if (!fs.existsSync(plist)) fail('Contents/Info.plist is missing');
 if (!fs.existsSync(asar)) fail('Contents/Resources/app.asar is missing');
+const releaseManifestPath = path.join(root, 'release', 'manifest.json');
+if (!fs.existsSync(releaseManifestPath)) fail('release/manifest.json is missing; generate it after packaging');
+try { verifyReleaseManifest(JSON.parse(fs.readFileSync(releaseManifestPath, 'utf8')), appBundle); } catch (error) { fail(error.message); }
 const plistVersion = command('plutil', ['-extract', 'CFBundleShortVersionString', 'raw', plist]).trim();
 if (plistVersion !== packageJson.version) fail(`Info.plist version ${plistVersion} does not match package version ${packageJson.version}`);
 const microphoneUsage = command('plutil', ['-extract', 'NSMicrophoneUsageDescription', 'raw', plist]).trim();

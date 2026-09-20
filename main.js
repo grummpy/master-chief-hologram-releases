@@ -39,7 +39,7 @@ const { SDK_VERSION, discoverRecipes } = require('./extension-sdk');
 const { assessResponse } = require('./response-quality');
 const { createMcpRegistry } = require('./mcp-registry');
 const { createCrashRecovery } = require('./crash-recovery');
-const { safePublicUrl, extractPageEvidence, rankEvidence } = require('./web-evidence');
+const { fetchPublicPage, extractPageEvidence, rankEvidence } = require('./web-evidence');
 const { safeArtifactPath } = require('./artifact-links');
 const { MICROPHONE_SETTINGS_URL, isGranted, recoveryMessage } = require('./microphone-access');
 const { voiceSelfTest } = require('./voice-diagnostics');
@@ -1412,16 +1412,56 @@ async function runLocalEnsemble(payload = {}) {
   return normalizeProviderResult('ollama',{reply,label:`Local ensemble · ${responses.map(item=>item.model).join(' + ')}`,responses,mergePolicy:policy},startedAt);
 }
 
-async function analyzeLocalImage() {
-  requireToolApproval('files.attach_local_text'); const selected=await dialog.showOpenDialog(mainWindow,{title:'Analyze an image locally',properties:['openFile'],filters:[{name:'Images',extensions:['png','jpg','jpeg','webp']}]});
+async function visionModels() { const runtime=await ollamaRuntime();return runtime.models.filter(item=>item.capabilities?.includes('vision')).map(item=>({name:item.name,details:item.details||{},loaded:Boolean(item.loaded)})); }
+async function analyzeLocalImage(payload = {}) {
+  requireToolApproval('vision.analyze_local_image'); const selected=await dialog.showOpenDialog(mainWindow,{title:'Analyze an image locally',properties:['openFile'],filters:[{name:'Images',extensions:['png','jpg','jpeg','webp']}]});
   if(selected.canceled||!selected.filePaths[0])return{cancelled:true};const file=selected.filePaths[0],stat=fs.statSync(file);if(stat.size>20*1024*1024)throw new Error('Local image analysis is limited to 20 MB.');
-  const runtime=await ollamaRuntime();const model=runtime.models.find(item=>item.capabilities?.includes('vision'));if(!model)throw new Error('No installed Ollama model advertises vision capability. Install a reviewed local vision model, then retry.');
-  const response=await fetch(`${(process.env.OLLAMA_BASE_URL||'http://127.0.0.1:11434').replace(/\/$/,'')}/api/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:model.name,messages:[{role:'user',content:'Describe this image accurately. Separate directly visible facts from uncertain interpretation.',images:[fs.readFileSync(file).toString('base64')]}],stream:false,keep_alive:'10m'})});const body=await response.json().catch(()=>({}));if(!response.ok)throw new Error(body.error||`Vision model error ${response.status}`);return{cancelled:false,model:model.name,filename:path.basename(file),reply:String(body.message?.content||''),bytes:stat.size};
+  const models=await visionModels();const requested=String(payload.model||'').trim();const model=models.find(item=>item.name===requested);if(!model)throw new Error(requested?'The selected local vision model is unavailable. Refresh models and choose an installed vision model.':'Select an installed local vision model before analysis.');
+  const instruction=String(payload.instruction||'Describe this image accurately. Separate directly visible facts from uncertain interpretation.').trim().slice(0,2000);if(!instruction)throw new Error('Enter an image analysis instruction.');
+  const response=await fetch(`${(process.env.OLLAMA_BASE_URL||'http://127.0.0.1:11434').replace(/\/$/,'')}/api/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:model.name,messages:[{role:'user',content:instruction,images:[fs.readFileSync(file).toString('base64')]}],stream:false,keep_alive:'10m'})});const body=await response.json().catch(()=>({}));if(!response.ok)throw new Error(body.error||`Vision model error ${response.status}`);return{cancelled:false,model:model.name,instruction,filename:path.basename(file),reply:String(body.message?.content||''),bytes:stat.size};
 }
 
-async function callMcp(id, method, params = {}) { const server=mcpRegistry.list().find(item=>item.id===String(id));if(!server||!server.enabled)throw new Error('MCP server is unavailable.');if(method==='tools/call'){const name=String(params?.name||'');if(!server.permissions?.[name])throw new Error(`Approve MCP tool ${name} before using it.`)}const response=await fetch(server.endpoint,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:require('crypto').randomUUID(),method,params})});const body=await response.json().catch(()=>({}));if(!response.ok||body.error)throw new Error(body.error?.message||`MCP request failed (${response.status}).`);return body.result}
+const mcpSessions = new Map();
+async function parseMcpResponse(response) {
+  const raw = await response.text();
+  const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+  let body;
+  if (contentType.includes('text/event-stream')) {
+    const events = raw.split(/\r?\n\r?\n/).flatMap(block => block.split(/\r?\n/).filter(line => line.startsWith('data:')).map(line => line.slice(5).trim())).filter(Boolean);
+    for (const event of events) {
+      try { const candidate = JSON.parse(event); if (candidate?.result || candidate?.error) body = candidate; } catch {}
+    }
+  } else {
+    try { body = JSON.parse(raw); } catch { body = null; }
+  }
+  if (!response.ok || !body || body.error) throw new Error(body?.error?.message || `MCP request failed (${response.status}); the server did not return a valid JSON-RPC result.`);
+  return body;
+}
+async function sendMcp(server, method, params = {}, notification = false) {
+  const session = mcpSessions.get(server.id);
+  const headers = { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' };
+  if (session) headers['Mcp-Session-Id'] = session;
+  const request = { jsonrpc: '2.0', method, params };
+  if (!notification) request.id = require('crypto').randomUUID();
+  const response = await fetch(server.endpoint, { method: 'POST', headers, body: JSON.stringify(request), signal: AbortSignal.timeout(20000) });
+  const sessionId = response.headers.get('mcp-session-id');
+  if (sessionId) mcpSessions.set(server.id, sessionId);
+  if (notification && response.status >= 200 && response.status < 300) return {};
+  return parseMcpResponse(response);
+}
+async function callMcp(id, method, params = {}) {
+  const server = mcpRegistry.list().find(item => item.id === String(id));
+  if (!server || !server.enabled) throw new Error('MCP server is unavailable.');
+  if (method === 'tools/call') { const name = String(params?.name || ''); if (!server.permissions?.[name]) throw new Error(`Approve MCP tool ${name} before using it.`); }
+  if (!mcpSessions.has(server.id)) {
+    await sendMcp(server, 'initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'master-chief-hologram', version: app.getVersion() } });
+    await sendMcp(server, 'notifications/initialized', {}, true);
+  }
+  const body = await sendMcp(server, method, params);
+  return body.result;
+}
 
-async function fetchPageEvidence(url) { requireToolApproval('research.public_web'); const target=safePublicUrl(url);const response=await fetch(target,{redirect:'follow',signal:AbortSignal.timeout(15000),headers:{'User-Agent':'MasterChiefHologram/1.0 evidence-reader'}});if(!response.ok)throw new Error(`Evidence page returned ${response.status}.`);const length=Number(response.headers.get('content-length')||0);if(length>2_000_000)throw new Error('Evidence page exceeds the 2 MB limit.');const evidence=extractPageEvidence(response.url,await response.text());return{...evidence,qualityScore:rankEvidence(evidence)}}
+async function fetchPageEvidence(url) { requireToolApproval('research.public_web');const response=await fetchPublicPage(url,{signal:AbortSignal.timeout(15000)});if(!response.ok)throw new Error(`Evidence page returned ${response.status}.`);const length=Number(response.headers.get('content-length')||0);if(length>2_000_000)throw new Error('Evidence page exceeds the 2 MB limit.');const text=await response.text();if(Buffer.byteLength(text)>2_000_000)throw new Error('Evidence page exceeds the 2 MB limit.');const evidence=extractPageEvidence(response.url,text);return{...evidence,qualityScore:rankEvidence(evidence)}}
 
 function memoryCandidates(messages = []) {
   const cues=/\b(?:remember|i prefer|my preference|we decided|the project|always use|do not use|correction|important fact)\b/i; const candidates=[];
@@ -1574,7 +1614,8 @@ secureHandle('conversation-export', async (_event, payload) => {
 });
 secureHandle('conversation-import', async () => { const selected=await dialog.showOpenDialog(mainWindow,{title:'Import conversations',properties:['openFile'],filters:[{name:'Master Chief conversation JSON',extensions:['json']}]});if(selected.canceled||!selected.filePaths[0])return{imported:0};const file=selected.filePaths[0];const stat=fs.statSync(file);if(stat.size>5*1024*1024)throw new Error('Conversation import is limited to 5 MB.');return conversations.importData(fs.readFileSync(file,'utf8')); });
 secureHandle('ensemble-chat', (_event, payload) => runLocalEnsemble(payload));
-secureHandle('analyze-local-image', () => analyzeLocalImage());
+secureHandle('vision-models', () => visionModels());
+secureHandle('analyze-local-image', (_event, payload) => analyzeLocalImage(payload));
 secureHandle('crash-recovery-status', () => crashRecovery.status());
 secureHandle('public-page-evidence', (_event, payload) => fetchPageEvidence(payload?.url));
 secureHandle('mcp-list', () => ({ servers: mcpRegistry.list() }));

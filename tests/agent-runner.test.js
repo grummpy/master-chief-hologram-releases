@@ -18,3 +18,13 @@ test('agent plan enforces underlying approval and runs in order', async () => {
   assert.equal(report.steps[1].result, 4);
   await assert.rejects(() => runAgentPlan({ steps: [{ tool: 'safe' }] }, { knownTools: ['safe'], approved: () => false, execute: async () => null }), /Approval/);
 });
+
+test('agent plan resumes after durable receipts without repeating completed tools', async () => {
+  const seen = []; const checkpoints = [];
+  const report = await runAgentPlan({ idempotencyKey: 'mission', steps: [{ id: 'a', tool: 'safe' }, { id: 'b', tool: 'safe' }] }, {
+    knownTools: ['safe'], approved: () => true, resume: { cursor: 1, receipts: [{ id: 'a', tool: 'safe', idempotencyKey: 'mission:a', result: 'kept', verification: { pass: true } }] },
+    execute: async (_tool, _input, context) => { seen.push(context.idempotencyKey); return 'new'; }, onCheckpoint: checkpoint => checkpoints.push(checkpoint)
+  });
+  assert.deepEqual(seen, ['mission:b']); assert.equal(report.steps[0].result, 'kept'); assert.equal(report.steps[1].result, 'new'); assert.equal(checkpoints[0].cursor, 2);
+  await assert.rejects(() => runAgentPlan({ steps: [{ id: 'a', tool: 'safe' }] }, { knownTools: ['safe'], approved: () => true, execute: async () => null, resume: { cursor: 1, receipts: [] } }), /receipts/);
+});
