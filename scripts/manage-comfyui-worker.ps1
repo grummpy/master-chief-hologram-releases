@@ -84,8 +84,9 @@ switch ($Action) {
     Assert-WorkerFiles
     New-Item -ItemType Directory -Force -Path $serviceRoot, $logRoot | Out-Null
     # ComfyUI writes to console streams during startup, so pythonw is not safe.
-    # Task Scheduler already runs this action without an interactive console;
-    # invoke cmd explicitly so Windows does not depend on .cmd file association.
+    # WScript hides the regular cmd/python process while cmd preserves both logs.
+    # Invoke cmd.exe explicitly: launching a .cmd path directly through WScript
+    # can return success without starting the worker on current Windows builds.
     $cmdContent = @"
 @echo off
 cd /d "$repo"
@@ -93,10 +94,18 @@ cd /d "$repo"
 exit /b %ERRORLEVEL%
 "@
     Set-Content -LiteralPath $cmdRunner -Value $cmdContent -Encoding ASCII
+    $escapedCmdRunner = $cmdRunner.Replace('"', '""')
+    $vbsContent = @"
+Set shell = CreateObject("WScript.Shell")
+command = "cmd.exe /d /c " & Chr(34) & Chr(34) & "$escapedCmdRunner" & Chr(34) & Chr(34)
+exitCode = shell.Run(command, 0, True)
+WScript.Quit exitCode
+"@
+    Set-Content -LiteralPath $vbsRunner -Value $vbsContent -Encoding ASCII
     # GPU runtimes need the signed-in desktop user's graphics session. A hidden
     # logon task starts without an open PowerShell window while retaining AMD
     # driver access; SYSTEM tasks can exit cleanly without ever exposing a GPU.
-    $taskAction = New-ScheduledTaskAction -Execute 'cmd.exe' -Argument "/d /c `"`"$cmdRunner`"`""
+    $taskAction = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument "`"$vbsRunner`""
     $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent().Name
     $trigger = New-ScheduledTaskTrigger -AtLogOn -User $currentUser
     $trigger.Delay = 'PT30S'
