@@ -1,10 +1,11 @@
 # Implementation Status
 
-Version 1.37.0 · 2026-09-20
+Version 1.38.0 · 2026-09-20
 
 ## Completed in the current increments
 
 - P1 dependable command center: searchable durable conversations, branching, pin/archive/recoverable deletion, Agent Center timelines and lifecycle controls, normalized provider contracts, redacted diagnostics export, scoped retrieval citations, and operator-selected accessibility controls.
+- P2 expansion: local ensemble comparison, Git/ref-aware repository knowledge, domain/freshness research filters, portable conversations, review-only memory extraction, a validated extension recipe SDK, public contribution/security templates, and a weighted capability-gap audit.
 
 - Safe fast-forward Git update/build/launch helper with single-bundle Desktop policy.
 - Provider validation, bounded messages, credential redaction, and smoke tests.

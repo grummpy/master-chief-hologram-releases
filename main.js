@@ -34,6 +34,8 @@ const { createConversationStore } = require('./conversation-store');
 const { normalizeProviderResult, normalizeProviderFailure, providerCapabilities } = require('./provider-contract');
 const { createDiagnosticsStore } = require('./diagnostics-store');
 const { createRagIndex } = require('./rag-index');
+const { createRepositoryIndexer } = require('./repository-index');
+const { SDK_VERSION, discoverRecipes } = require('./extension-sdk');
 const { safeArtifactPath } = require('./artifact-links');
 const { MICROPHONE_SETTINGS_URL, isGranted, recoveryMessage } = require('./microphone-access');
 const { voiceSelfTest } = require('./voice-diagnostics');
@@ -327,6 +329,7 @@ function requireToolApproval(id) {
   }
 }
 const ragIndex = createRagIndex(path.join(app.getPath('userData'), 'local-index.json'));
+const indexRepository = createRepositoryIndexer({ root: sourceProjectDir, execFile: execFileAsync, indexDocument: (name,text,options) => ragIndex.indexDocument(name,text,options) });
 const localTools = createLocalToolExecutor({ appVersion: APP_VERSION, projectDir: sourceProjectDir, artifactDirs: [generatedArtifactDir, documentArtifactDir], editHistoryDir: path.join(app.getPath('userData'), 'edit-history'), execFile: execFileAsync });
 const localAiAudit = createLocalAiAudit(path.join(app.getPath('userData'), 'local-ai-audit.jsonl'));
 function toolAuditFile() { return path.join(app.getPath('userData'), 'tool-audit.jsonl'); }
@@ -954,10 +957,10 @@ async function executeAgentTool(id, input, context = {}) {
     return { tool: id, result, summary: `Created ${kind} artifact ${result.filename}.` };
   }
   if (id === 'research.public_web') {
-    requireToolApproval(id); const urls = publicResearchUrls(input?.query);
+    requireToolApproval(id); const researchOptions = { domains: input?.domains, freshness: input?.freshness }; const urls = publicResearchUrls(input?.query, researchOptions);
     const searxng = await checkJson(urls.searxng);
     if (!searxng.error && searxng.response?.ok) {
-      const result = normalizeSearxng(input?.query, searxng.body);
+      const result = normalizeSearxng(input?.query, searxng.body, researchOptions);
       return { tool: id, result, summary: `Found ${result.sources.length} source links through the local SearXNG service without a paid AI provider.` };
     }
     const [duck, wiki] = await Promise.all([checkJson(urls.duckduckgo), checkJson(urls.wikipedia)]);
@@ -1388,6 +1391,25 @@ async function callGemini({ messages, masterMode, model: requestedModel }) {
   });
 }
 
+async function runLocalEnsemble(payload = {}) {
+  const messages = validateMessages(payload.messages); const runtime = await ollamaRuntime();
+  const requested = Array.isArray(payload.models) ? payload.models.map(String) : [];
+  const candidates = runtime.models.filter(item => !requested.length || requested.includes(item.name)).sort((a,b) => Number(b.details?.parameter_size?.match(/[\d.]+/)?.[0]||0)-Number(a.details?.parameter_size?.match(/[\d.]+/)?.[0]||0)).slice(0, Math.max(2, Math.min(3, Number(payload.count)||2)));
+  if (candidates.length < 2) throw new Error('Ensemble mode requires at least two installed Ollama models.');
+  const base=(process.env.OLLAMA_BASE_URL||'http://127.0.0.1:11434').replace(/\/$/,''); const startedAt=Date.now();
+  const system=ollamaSystemPrompt({masterMode:Boolean(payload.masterMode),mode:'precise',depth:'deep',detail:'normal'});
+  const responses=[];for(const model of candidates){const response=await fetch(`${base}/api/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:model.name,messages:[{role:'system',content:system},...messages],stream:false,keep_alive:'5m'})});const body=await response.json().catch(()=>({}));if(!response.ok)throw new Error(body.error||`Ollama ensemble error ${response.status}`);responses.push({model:model.name,reply:String(body.message?.content||''),metrics:ollamaMetrics(body)})}
+  const policy=['compare','concise','detailed'].includes(String(payload.mergePolicy))?String(payload.mergePolicy):'compare';
+  const ranked=[...responses].sort((a,b)=>a.reply.length-b.reply.length); const reply=policy==='concise'?ranked[0].reply:policy==='detailed'?ranked.at(-1).reply:responses.map((item,index)=>`## ${index+1}. ${item.model}\n\n${item.reply}`).join('\n\n---\n\n');
+  return normalizeProviderResult('ollama',{reply,label:`Local ensemble · ${responses.map(item=>item.model).join(' + ')}`,responses,mergePolicy:policy},startedAt);
+}
+
+function memoryCandidates(messages = []) {
+  const cues=/\b(?:remember|i prefer|my preference|we decided|the project|always use|do not use|correction|important fact)\b/i; const candidates=[];
+  for(const message of validateMessages(messages)) for(const sentence of String(message.content).split(/(?<=[.!?])\s+|\n+/)) if(cues.test(sentence)&&sentence.trim().length>=8)candidates.push(sentence.trim().slice(0,500));
+  return [...new Set(candidates)].slice(0,20).map((value,index)=>({id:`candidate-${index+1}`,value,approved:false}));
+}
+
 async function routeChat(payload) {
   payload = validateChatPayload(payload);
   const durableMemory = contextMemory.get(payload.project || 'default');
@@ -1514,6 +1536,7 @@ secureHandle('context-memory-get', (_event, payload) => contextMemory.get(String
 secureHandle('context-memory-save-project', (_event, payload) => contextMemory.setProject(String(payload?.project || 'default'), payload?.value, payload?.approved === true));
 secureHandle('context-memory-save-preferences', (_event, payload) => contextMemory.setPreferences(payload?.values, payload?.approved === true));
 secureHandle('context-memory-clear', (_event, payload) => contextMemory.clear(String(payload?.project || 'default'), payload?.includePreferences === true));
+secureHandle('context-memory-candidates', (_event, payload) => ({ candidates: memoryCandidates(payload?.messages) }));
 secureHandle('conversation-upsert', (_event, payload) => conversations.upsert(payload));
 secureHandle('conversation-list', (_event, payload) => ({ conversations: conversations.list(payload || {}) }));
 secureHandle('conversation-get', (_event, payload) => conversations.get(String(payload?.id || '')));
@@ -1521,6 +1544,15 @@ secureHandle('conversation-action', (_event, payload) => conversations.action(St
 secureHandle('conversation-branch', (_event, payload) => conversations.branch(String(payload?.id || ''), payload?.messageIndex));
 secureHandle('conversation-delete', (_event, payload) => conversations.remove(String(payload?.id || '')));
 secureHandle('conversation-restore', (_event, payload) => conversations.restore(String(payload?.id || '')));
+secureHandle('conversation-export', async (_event, payload) => {
+  const format = payload?.format === 'markdown' ? 'markdown' : 'json'; const extension = format === 'markdown' ? 'md' : 'json';
+  const selected = await dialog.showSaveDialog(mainWindow,{title:'Export conversations',defaultPath:path.join(app.getPath('downloads'),`master-chief-conversations-${new Date().toISOString().slice(0,10)}.${extension}`),filters:[{name:format==='markdown'?'Markdown':'JSON',extensions:[extension]}]});
+  if(selected.canceled||!selected.filePath)return{saved:false};fs.writeFileSync(selected.filePath,conversations.exportData(payload?.id,format),{mode:0o600});return{saved:true,path:selected.filePath};
+});
+secureHandle('conversation-import', async () => { const selected=await dialog.showOpenDialog(mainWindow,{title:'Import conversations',properties:['openFile'],filters:[{name:'Master Chief conversation JSON',extensions:['json']}]});if(selected.canceled||!selected.filePaths[0])return{imported:0};const file=selected.filePaths[0];const stat=fs.statSync(file);if(stat.size>5*1024*1024)throw new Error('Conversation import is limited to 5 MB.');return conversations.importData(fs.readFileSync(file,'utf8')); });
+secureHandle('ensemble-chat', (_event, payload) => runLocalEnsemble(payload));
+secureHandle('repository-index', () => { requireToolApproval('knowledge.search_local'); return indexRepository({limit:500}); });
+secureHandle('extension-recipes', () => ({sdkVersion:SDK_VERSION,recipes:discoverRecipes(path.join(__dirname,'recipes'))}));
 secureHandle('provider-capabilities', (_event, payload) => providerCapabilities(String(payload?.provider || '')));
 secureHandle('diagnostics-list', (_event, payload) => ({ events: diagnostics.list(payload?.limit) }));
 secureHandle('diagnostics-export', async () => {

@@ -1,0 +1,19 @@
+name: Feature request
+description: Propose a scoped, testable capability
+title: "[Feature] "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: outcome
+    attributes: { label: Operator outcome }
+    validations: { required: true }
+  - type: textarea
+    id: acceptance
+    attributes: { label: Acceptance evidence }
+    validations: { required: true }
+  - type: dropdown
+    id: residency
+    attributes:
+      label: Intended data route
+      options: [Local only, Private LAN, Explicitly selected cloud]
+    validations: { required: true }

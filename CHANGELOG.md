@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.38.0
+
+- Added local two-model Ollama ensemble comparison with compare, concise, and detailed merge policies.
+- Added Git repository knowledge indexing with branch, commit, relative path, content hash, collection, and citation provenance.
+- Added domain and freshness controls to local SearXNG research requests and results.
+- Added bounded conversation import and JSON/Markdown export.
+- Added local memory-candidate extraction that remains unsaved until the operator reviews and explicitly approves it.
+- Added a versioned declarative extension/recipe SDK with capability validation and review status.
+- Added public security, contribution, bug-report, and feature-request templates without exposing private diagnostics.
+- Added a weighted ten-area capability-gap assessment and prioritized post-P2 build list.
+
 ## 1.37.0
 
 - Added an atomic, searchable conversation store with rename, pin, archive, branching, recoverable deletion, and automatic save after successful chat turns.

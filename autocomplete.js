@@ -6,6 +6,7 @@
   const commands = Object.freeze([
     '/image ', '/video ', '/revise ', '/prompt ', '/document ', '/spreadsheet ',
     '/presentation ', '/python ', '/r ', '/sql ', '/agent diagnostics',
+    '/ensemble compare ', '/ensemble concise ', '/ensemble detailed ',
     '@master-chief ', '@papm ', '@jarvis ', '@imagination ',
     '@prompt-engineering ', '@chief-ux ', '@captain-intelligence ',
     '@comfyui-command-stack ', '@comfyui-workflow-engineer ',

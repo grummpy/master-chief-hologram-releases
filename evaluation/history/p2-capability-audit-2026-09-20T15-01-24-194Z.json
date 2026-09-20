@@ -1,0 +1,171 @@
+{
+  "schemaVersion": 1,
+  "benchmark": "Codex-style dependable local-first command center",
+  "assessedAt": "2026-09-20T15:01:24.194Z",
+  "score": 78.8,
+  "parity": false,
+  "areas": [
+    {
+      "id": "reasoning",
+      "label": "Reasoning and answer quality",
+      "weight": 14,
+      "target": 100,
+      "score": 78,
+      "gap": "Add judge-based task evaluation, contradiction checks, and deliberate model routing.",
+      "delta": 22
+    },
+    {
+      "id": "context",
+      "label": "Context and durable memory",
+      "weight": 11,
+      "target": 100,
+      "score": 84,
+      "gap": "Add encrypted structured memory, provenance-aware summaries, and retrieval evaluation.",
+      "delta": 16
+    },
+    {
+      "id": "orchestration",
+      "label": "Agent planning and recovery",
+      "weight": 13,
+      "target": 100,
+      "score": 82,
+      "gap": "Add resumable execution from the exact interrupted step and richer cross-tool compensation.",
+      "delta": 18
+    },
+    {
+      "id": "tools",
+      "label": "Tools and connectors",
+      "weight": 12,
+      "target": 100,
+      "score": 76,
+      "gap": "Add a permissioned MCP client and broader typed connector actions.",
+      "delta": 24
+    },
+    {
+      "id": "artifacts",
+      "label": "Files and artifact production",
+      "weight": 10,
+      "target": 100,
+      "score": 86,
+      "gap": "Add richer live document editing, preview diffs, and round-trip fidelity tests.",
+      "delta": 14
+    },
+    {
+      "id": "research",
+      "label": "Research and evidence",
+      "weight": 10,
+      "target": 100,
+      "score": 77,
+      "gap": "Add full-page extraction, source-quality ranking, temporal conflict detection, and citation verification.",
+      "delta": 23
+    },
+    {
+      "id": "multimodal",
+      "label": "Image, audio, and video understanding",
+      "weight": 10,
+      "target": 100,
+      "score": 68,
+      "gap": "Add local vision/audio understanding and finish a verified AMD video workflow.",
+      "delta": 32
+    },
+    {
+      "id": "recovery",
+      "label": "Reliability and self-repair",
+      "weight": 8,
+      "target": 100,
+      "score": 84,
+      "gap": "Add crash-loop detection, exact step replay, and automated last-known-good rollback rehearsal.",
+      "delta": 16
+    },
+    {
+      "id": "ux",
+      "label": "Ease of use and accessibility",
+      "weight": 7,
+      "target": 100,
+      "score": 83,
+      "gap": "Add guided onboarding, compact layout, inline tool approvals, and full keyboard journey tests.",
+      "delta": 17
+    },
+    {
+      "id": "release",
+      "label": "Release and operations",
+      "weight": 5,
+      "target": 100,
+      "score": 64,
+      "gap": "Obtain Developer ID, notarize, add CI package smoke, and verify signed update manifests.",
+      "delta": 36
+    }
+  ],
+  "buildList": [
+    {
+      "priority": 1,
+      "area": "Image, audio, and video understanding",
+      "current": 68,
+      "target": 100,
+      "work": "Add local vision/audio understanding and finish a verified AMD video workflow."
+    },
+    {
+      "priority": 2,
+      "area": "Reasoning and answer quality",
+      "current": 78,
+      "target": 100,
+      "work": "Add judge-based task evaluation, contradiction checks, and deliberate model routing."
+    },
+    {
+      "priority": 3,
+      "area": "Tools and connectors",
+      "current": 76,
+      "target": 100,
+      "work": "Add a permissioned MCP client and broader typed connector actions."
+    },
+    {
+      "priority": 4,
+      "area": "Agent planning and recovery",
+      "current": 82,
+      "target": 100,
+      "work": "Add resumable execution from the exact interrupted step and richer cross-tool compensation."
+    },
+    {
+      "priority": 5,
+      "area": "Research and evidence",
+      "current": 77,
+      "target": 100,
+      "work": "Add full-page extraction, source-quality ranking, temporal conflict detection, and citation verification."
+    },
+    {
+      "priority": 6,
+      "area": "Release and operations",
+      "current": 64,
+      "target": 100,
+      "work": "Obtain Developer ID, notarize, add CI package smoke, and verify signed update manifests."
+    },
+    {
+      "priority": 7,
+      "area": "Context and durable memory",
+      "current": 84,
+      "target": 100,
+      "work": "Add encrypted structured memory, provenance-aware summaries, and retrieval evaluation."
+    },
+    {
+      "priority": 8,
+      "area": "Files and artifact production",
+      "current": 86,
+      "target": 100,
+      "work": "Add richer live document editing, preview diffs, and round-trip fidelity tests."
+    },
+    {
+      "priority": 9,
+      "area": "Reliability and self-repair",
+      "current": 84,
+      "target": 100,
+      "work": "Add crash-loop detection, exact step replay, and automated last-known-good rollback rehearsal."
+    },
+    {
+      "priority": 10,
+      "area": "Ease of use and accessibility",
+      "current": 83,
+      "target": 100,
+      "work": "Add guided onboarding, compact layout, inline tool approvals, and full keyboard journey tests."
+    }
+  ]
+}
